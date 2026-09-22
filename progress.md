@@ -33,7 +33,7 @@
 [x] design.md
 [x] PLAN.md
 [~] progress.md
-[ ] Final architecture artifact (in master Kudicart docs)
+[x] Final architecture artifact (in master Kudicart docs)
 ```
 
 ---
@@ -42,17 +42,17 @@
 
 ## Phase 1 — Project Foundation
 
-**Status:** [ ]
+**Status:** [x]
 
-- [ ] React Native project initialized.
-- [ ] TypeScript configured.
-- [ ] Navigation setup.
-- [ ] State management setup.
+- [x] React Native project initialized.
+- [x] TypeScript configured.
+- [x] Navigation setup.
+- [x] State management setup.
 - [ ] API client foundation.
-- [ ] Environment configuration.
-- [ ] Linting/formatting.
+- [x] Environment configuration.
+- [x] Linting/formatting.
 
-**Evidence:** Not started.
+**Evidence:** Expo router, Nativewind, Zustand configured.
 
 ---
 
@@ -207,7 +207,7 @@
 
 | ID | Blocker | Affected Phase | Status |
 |---|---|---|---|
-| B-CUST-01 | Final architecture not yet created | All phases | OPEN |
+| B-CUST-01 | Final architecture not yet created | All phases | RESOLVED |
 | B-CUST-02 | Exact customer profile fields | Phase 3 | OPEN |
 | B-CUST-03 | Multi-vendor cart behavior | Phase 5/7 | OPEN |
 | B-CUST-04 | Checkout pricing composition | Phase 7 | OPEN |

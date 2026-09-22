@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+
+<html lang="en"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/><meta content="mobile_tab" name="shell-type"/><title>KudiCart</title><link href="https://fonts.googleapis.com" rel="preconnect"/><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/><link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&amp;display=swap" rel="stylesheet"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script><script id="tailwind-config">tailwind.config = { darkMode: "class", theme: { extend: { colors: { "on-error": "#ffffff", "surface": "#fbf8fc", "inverse-on-surface": "#f3f0f4", "tertiary": "#b70438", "on-primary": "#ffffff", "error": "#ba1a1a", "surface-container-high": "#eae7eb", "on-secondary-fixed": "#40000d", "error-container": "#ffdad6", "surface-container-lowest": "#ffffff", "secondary-container": "#db2e4e", "on-primary-fixed": "#40000c", "secondary-fixed": "#ffdadb", "on-tertiary-fixed": "#40000d", "primary-fixed-dim": "#ffb3b6", "tertiary-fixed-dim": "#ffb2b7", "primary": "#b80035", "on-primary-container": "#fffaf9", "on-secondary": "#ffffff", "background": "#fbf8fc", "on-tertiary-container": "#fffaf9", "surface-bright": "#fbf8fc", "secondary-fixed-dim": "#ffb2b7", "primary-container": "#e11d48", "inverse-surface": "#303033", "on-background": "#1b1b1e", "surface-container": "#f0edf1", "on-secondary-fixed-variant": "#920029", "on-tertiary": "#ffffff", "primary-fixed": "#ffdada", "on-surface-variant": "#5c3f40", "on-primary-fixed-variant": "#920028", "surface-tint": "#be0037", "inverse-primary": "#ffb3b6", "outline": "#906f70", "outline-variant": "#e5bdbe", "surface-variant": "#e4e1e5", "surface-container-low": "#f5f3f6", "surface-dim": "#dcd9dd", "secondary": "#b80938", "tertiary-container": "#db2b4e", "on-error-container": "#93000a", "on-secondary-container": "#fffbff", "on-surface": "#1b1b1e", "tertiary-fixed": "#ffdadb", "surface-container-highest": "#e4e1e5", "on-tertiary-fixed-variant": "#92002a" }, borderRadius: { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" }, spacing: { "margin": "1.25rem", "space-sm": "0.75rem", "space-xl": "2.5rem", "margin-desktop": "2.5rem", "space-lg": "1.75rem", "space-xs": "0.375rem", "gutter-desktop": "1.5rem", "gutter": "1rem", "space-md": "1.25rem" }, fontFamily: { "headline-lg": ["Plus Jakarta Sans"], "label-md": ["Plus Jakarta Sans"], "label-eyebrow": ["Plus Jakarta Sans"], "title-md": ["Plus Jakarta Sans"], "headline-xl": ["Plus Jakarta Sans"], "headline-sm": ["Plus Jakarta Sans"], "body-md": ["Plus Jakarta Sans"], "headline-lg-mobile": ["Plus Jakarta Sans"], "label-lg": ["Plus Jakarta Sans"], "body-sm": ["Plus Jakarta Sans"], "headline-xl-mobile": ["Plus Jakarta Sans"], "headline-md": ["Plus Jakarta Sans"], "body-lg": ["Plus Jakarta Sans"] }, fontSize: { "headline-lg": ["28px", { "lineHeight": "36px", "fontWeight": "700" }], "label-md": ["12px", { "lineHeight": "16px", "fontWeight": "700" }], "label-eyebrow": ["11px", { "lineHeight": "16px", "fontWeight": "800" }], "title-md": ["16px", { "lineHeight": "22px", "fontWeight": "600" }], "headline-xl": ["40px", { "lineHeight": "48px", "fontWeight": "800" }], "headline-sm": ["18px", { "lineHeight": "24px", "fontWeight": "700" }], "body-md": ["14px", { "lineHeight": "22px", "fontWeight": "400" }], "headline-lg-mobile": ["22px", { "lineHeight": "30px", "fontWeight": "700" }], "label-lg": ["14px", { "lineHeight": "20px", "fontWeight": "700" }], "body-sm": ["13px", { "lineHeight": "18px", "fontWeight": "400" }], "headline-xl-mobile": ["30px", { "lineHeight": "38px", "fontWeight": "800" }], "headline-md": ["20px", { "lineHeight": "28px", "fontWeight": "700" }], "body-lg": ["16px", { "lineHeight": "24px", "fontWeight": "400" }] } } } };</script><style>@layer base { html, body { width: 100%; margin: 0; padding: 0; min-height: 100%; } .pb-safe { padding-bottom: env(safe-area-inset-bottom, 0px); } .pt-safe { padding-top: env(safe-area-inset-top, 0px); } main > :first-child { margin-top: 0 !important; } main > :last-child { margin-bottom: 0 !important; } } ::-webkit-scrollbar { display: none; }
+    body {
+      min-height: max(884px, 100dvh);
+    }
+
+    /* Keyframes for Staggered Entrance and Dynamic Elements */
+    @keyframes slideDownHeader {
+      0% { transform: translateY(-100%); opacity: 0; }
+      100% { transform: translateY(0); opacity: 1; }
+    }
+    @keyframes fadeInUp {
+      0% { transform: translateY(18px); opacity: 0; }
+      100% { transform: translateY(0); opacity: 1; }
+    }
+    @keyframes popIn {
+      0% { transform: scale(0.85); opacity: 0; }
+      70% { transform: scale(1.04); opacity: 1; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    @keyframes pulseGently {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.03); opacity: 0.92; }
+    }
+    @keyframes subtleFloat {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-3px); }
+    }
+    @keyframes shimmerSweep {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(200%); }
+    }
+    @keyframes heartBurst {
+      0% { transform: scale(1); }
+      45% { transform: scale(1.38); }
+      75% { transform: scale(0.92); }
+      100% { transform: scale(1); }
+    }
+    @keyframes badgeBounce {
+      0% { transform: scale(1); }
+      35% { transform: scale(1.4); }
+      65% { transform: scale(0.88); }
+      100% { transform: scale(1); }
+    }
+    @keyframes flyToCart {
+      0% {
+        opacity: 1;
+        transform: translate(0, 0) scale(1.1);
+      }
+      60% {
+        opacity: 0.9;
+        transform: translate(calc(var(--target-x, 60px) * 0.5), calc(var(--target-y, 250px) * 0.4)) scale(1.2) rotate(15deg);
+      }
+      100% {
+        opacity: 0;
+        transform: translate(var(--target-x, 80px), var(--target-y, 400px)) scale(0.3);
+      }
+    }
+
+    /* Animation Classes */
+    .anim-header { animation: slideDownHeader 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+    .anim-fade-up { animation: fadeInUp 0.55s cubic-bezier(0.16, 1, 0.3, 1) both; }
+    .anim-pop { animation: popIn 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+    
+    .stagger-1 { animation-delay: 0.05s; }
+    .stagger-2 { animation-delay: 0.12s; }
+    .stagger-3 { animation-delay: 0.18s; }
+    .stagger-4 { animation-delay: 0.24s; }
+    .stagger-5 { animation-delay: 0.30s; }
+    .stagger-6 { animation-delay: 0.36s; }
+    .stagger-7 { animation-delay: 0.42s; }
+    .stagger-8 { animation-delay: 0.48s; }
+
+    .live-pulse { animation: pulseGently 2.8s ease-in-out infinite; }
+    .float-badge { animation: subtleFloat 3s ease-in-out infinite; }
+    
+    .shimmer-container {
+      position: relative;
+      overflow: hidden;
+    }
+    .shimmer-container::after {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; width: 60%; height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent);
+      animation: shimmerSweep 3.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+      pointer-events: none;
+    }
+
+    .heart-liked {
+      color: #e11d48 !important;
+      animation: heartBurst 0.42s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    .badge-pop {
+      animation: badgeBounce 0.45s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+    }
+
+    .fly-particle {
+      position: fixed;
+      z-index: 9999;
+      pointer-events: none;
+      animation: flyToCart 0.75s cubic-bezier(0.22, 0.61, 0.36, 1) forwards;
+    }
+
+    /* Prefers Reduced Motion */
+    @media (prefers-reduced-motion: reduce) {
+      *, ::before, ::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+      }
+      .shimmer-container::after { display: none !important; }
+    }
+  </style></head><body class="min-h-screen bg-gradient-to-b from-[#FDF5EF] via-surface to-surface text-on-surface font-body-md selection:bg-primary-fixed selection:text-on-primary-fixed antialiased"><header class="anim-header fixed top-0 w-full z-50 pt-safe bg-white/90 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.04)]"><div class="h-16 px-margin flex items-center justify-between"><div class="flex items-center gap-space-xs"><div class="flex items-center gap-1"><span class="font-headline-sm text-headline-sm text-primary tracking-tight">Kudi<span class="text-on-surface">Cart</span></span><div class="flex items-center gap-1 ml-1.5 px-2 py-0.5 rounded-full bg-primary-fixed/60 text-primary transition-transform hover:scale-105"><span class="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span><span class="font-label-eyebrow text-label-eyebrow tracking-wider uppercase">Customer App</span></div></div></div><div class="flex items-center gap-space-sm"><div class="hidden sm:flex flex-col text-right"><span class="font-label-md text-label-md text-on-surface">Catalog</span></div><button aria-label="Customer profile" class="w-11 h-11 flex items-center justify-center rounded-full hover:ring-2 hover:ring-primary/20 active:scale-90 transition-all duration-200" type="button"><img alt="Profile" class="w-8 h-8 rounded-full object-cover shadow-[0_2px_8px_rgba(225,29,72,0.15)] transition-transform hover:rotate-3" src="https://lh3.googleusercontent.com/aida/AEtjO1VWtKT1o8SeNnSo4l3FyyDwDHs_2VrqMmxcyY66IrRg9rL8LkbbnuL2TffL_CyEaqzkwfMMb8tXKb4wQTNtgTrqXO9l2Yi8Pq4du2CXnP7lmY5vWpGHBTWfweA4JAHjIOXuFa59STYjuuXipREO_RT3mGzoprfKCWe-WrMubapxuDZ2B7UA-MwnQfHcf1AtMn-UkuyrLssuYf_YUriU8q2jFN8qIrperLt43xS0h1vE3Hgb0dCyrts8bMA"/></button></div></div></header><main class="flex flex-col relative w-full pt-16 pb-24 min-h-screen bg-transparent"><div class="flex flex-col w-full relative overflow-hidden">
+<!-- Dynamic Brand Diagonal Ribbon Accent (Top Right) -->
+<div class="absolute -top-12 -right-8 w-44 h-48 pointer-events-none z-0 opacity-85 select-none transform rotate-12 transition-transform duration-700 ease-out">
+<div class="w-7 h-52 bg-primary/20 rounded-full transform rotate-45 translate-x-12 translate-y-2"></div>
+<div class="w-6 h-52 bg-primary-container rounded-full transform rotate-45 translate-x-4 -translate-y-4 shadow-sm"></div>
+<div class="w-5 h-52 bg-tertiary-container rounded-full transform rotate-45 -translate-x-3 -translate-y-8"></div>
+</div>
+<div class="flex flex-col px-margin relative z-10 space-y-space-md pt-2 pb-6">
+<!-- Location & Express Delivery Bar -->
+<div class="anim-fade-up stagger-1 flex items-center justify-between">
+<button class="flex items-center gap-space-xs bg-surface-container-lowest px-3 py-1.5 rounded-full shadow-sm hover:shadow-md active:scale-95 transition-all text-left group" type="button">
+<span class="material-symbols-outlined text-[18px] text-primary group-hover:scale-110 transition-transform" style="font-variation-settings: 'FILL' 1;">near_me</span>
+<div class="flex items-center gap-1">
+<span class="font-label-eyebrow text-label-eyebrow text-on-surface-variant uppercase tracking-wider">Deliver to</span>
+<span class="font-label-md text-label-md text-on-surface font-bold">Indiranagar, Blr</span>
+<span class="material-symbols-outlined text-[16px] text-on-surface-variant group-hover:translate-y-0.5 transition-transform">keyboard_arrow_down</span>
+</div>
+</button>
+<div class="live-pulse float-badge flex items-center gap-1 px-2.5 py-1 rounded-full bg-primary-fixed text-primary shadow-sm hover:shadow cursor-default transition-all">
+<span class="material-symbols-outlined text-[15px] text-primary" style="font-variation-settings: 'FILL' 1;">bolt</span>
+<span class="font-label-eyebrow text-label-eyebrow font-bold tracking-tight">35 MIN DELIVERY</span>
+</div>
+</div>
+<!-- Search Bar with Visual Search Action -->
+<div class="anim-fade-up stagger-2 relative w-full">
+<div class="flex items-center w-full bg-surface-container-lowest rounded-xl shadow-sm px-3.5 py-3 transition-all duration-300 focus-within:shadow-lg focus-within:ring-2 focus-within:ring-primary/20 focus-within:-translate-y-0.5">
+<span class="material-symbols-outlined text-primary text-[22px] mr-2.5 transition-transform duration-200">search</span>
+<input class="w-full bg-transparent font-body-md text-body-md text-on-surface placeholder:text-on-surface-variant/60 focus:outline-none" placeholder="Search Kurtis, Sarees, Dupattas, Fabrics..." type="text"/>
+<div class="flex items-center gap-2 pl-2">
+<button aria-label="Visual camera search" class="w-8 h-8 rounded-lg bg-surface-container-low flex items-center justify-center text-on-surface-variant hover:text-primary hover:bg-secondary-fixed/50 active:scale-85 active:rotate-12 transition-all duration-200" type="button">
+<span class="material-symbols-outlined text-[19px]">photo_camera</span>
+</button>
+<button aria-label="Filter catalog" class="w-8 h-8 rounded-lg bg-surface-container-low flex items-center justify-center text-on-surface-variant hover:text-primary hover:bg-secondary-fixed/50 active:scale-85 active:-rotate-12 transition-all duration-200" type="button">
+<span class="material-symbols-outlined text-[19px]">tune</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Curated Categories Hub -->
+<div class="flex flex-col space-y-space-sm">
+<div class="anim-fade-up stagger-2 flex items-center justify-between">
+<div>
+<span class="font-label-eyebrow text-label-eyebrow text-primary uppercase tracking-widest font-extrabold">Shop by Wardrobe</span>
+<h2 class="font-headline-sm text-headline-sm text-on-surface tracking-tight">Curated Categories</h2>
+</div>
+<button class="font-label-md text-label-md text-primary font-bold flex items-center gap-0.5 hover:translate-x-1 transition-transform group">
+          See All <span class="material-symbols-outlined text-[16px] group-hover:translate-x-0.5 transition-transform">arrow_forward</span>
+</button>
+</div>
+<!-- Category Pill Cards (Matches inspiration cards: pure white, warm soft shadow, rounded-2xl, soft pink icon pod) -->
+<div class="grid grid-cols-4 gap-2.5">
+<!-- Cat 1: Kurtis -->
+<button class="anim-pop stagger-3 flex flex-col items-center p-2.5 rounded-2xl bg-surface-container-lowest shadow-sm hover:shadow-md hover:-translate-y-1 active:scale-95 transition-all duration-200 text-center group">
+<div class="w-12 h-12 rounded-xl bg-secondary-fixed flex items-center justify-center mb-2 group-hover:scale-110 group-hover:bg-primary-fixed transition-all duration-200 shadow-[0_4px_12px_rgba(225,29,72,0.1)]">
+<span class="material-symbols-outlined text-primary text-[24px] group-hover:scale-110 transition-transform">styler</span>
+</div>
+<span class="font-label-md text-label-md text-on-surface font-bold truncate w-full group-hover:text-primary transition-colors">Kurtis</span>
+<span class="font-label-eyebrow text-[10px] text-on-surface-variant/80">320+ styles</span>
+</button>
+<!-- Cat 2: Sarees -->
+<button class="anim-pop stagger-4 flex flex-col items-center p-2.5 rounded-2xl bg-surface-container-lowest shadow-sm hover:shadow-md hover:-translate-y-1 active:scale-95 transition-all duration-200 text-center group">
+<div class="w-12 h-12 rounded-xl bg-secondary-fixed flex items-center justify-center mb-2 group-hover:scale-110 group-hover:bg-primary-fixed transition-all duration-200 shadow-[0_4px_12px_rgba(225,29,72,0.1)]">
+<span class="material-symbols-outlined text-primary text-[24px] group-hover:scale-110 transition-transform">dry_cleaning</span>
+</div>
+<span class="font-label-md text-label-md text-on-surface font-bold truncate w-full group-hover:text-primary transition-colors">Sarees</span>
+<span class="font-label-eyebrow text-[10px] text-on-surface-variant/80">Pure Silk</span>
+</button>
+<!-- Cat 3: Dresses -->
+<button class="anim-pop stagger-5 flex flex-col items-center p-2.5 rounded-2xl bg-surface-container-lowest shadow-sm hover:shadow-md hover:-translate-y-1 active:scale-95 transition-all duration-200 text-center group">
+<div class="w-12 h-12 rounded-xl bg-secondary-fixed flex items-center justify-center mb-2 group-hover:scale-110 group-hover:bg-primary-fixed transition-all duration-200 shadow-[0_4px_12px_rgba(225,29,72,0.1)]">
+<span class="material-symbols-outlined text-primary text-[24px] group-hover:scale-110 transition-transform">woman</span>
+</div>
+<span class="font-label-md text-label-md text-on-surface font-bold truncate w-full group-hover:text-primary transition-colors">Dresses</span>
+<span class="font-label-eyebrow text-[10px] text-on-surface-variant/80">Maxi &amp; Midi</span>
+</button>
+<!-- Cat 4: Fabrics -->
+<button class="anim-pop stagger-6 flex flex-col items-center p-2.5 rounded-2xl bg-surface-container-lowest shadow-sm hover:shadow-md hover:-translate-y-1 active:scale-95 transition-all duration-200 text-center group">
+<div class="w-12 h-12 rounded-xl bg-secondary-fixed flex items-center justify-center mb-2 group-hover:scale-110 group-hover:bg-primary-fixed transition-all duration-200 shadow-[0_4px_12px_rgba(225,29,72,0.1)]">
+<span class="material-symbols-outlined text-primary text-[24px] group-hover:scale-110 transition-transform">texture</span>
+</div>
+<span class="font-label-md text-label-md text-on-surface font-bold truncate w-full group-hover:text-primary transition-colors">Fabrics</span>
+<span class="font-label-eyebrow text-[10px] text-on-surface-variant/80">By the Metre</span>
+</button>
+</div>
+</div>
+<!-- Verified Authenticity Banner -->
+<div class="shimmer-container anim-fade-up stagger-4 flex items-center justify-between p-3.5 rounded-2xl bg-surface-container-low shadow-sm hover:shadow-md transition-all duration-200 group cursor-pointer">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-xl bg-surface-container-lowest flex items-center justify-center text-primary shadow-sm group-hover:scale-105 transition-transform">
+<span class="material-symbols-outlined text-[22px]" style="font-variation-settings: 'FILL' 1;">verified</span>
+</div>
+<div>
+<h4 class="font-label-lg text-label-lg text-on-surface leading-tight">100% Verified Artisan Ware</h4>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Quality-checked handlooms direct from master weavers</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-primary text-[20px] group-hover:translate-x-1 transition-transform">chevron_right</span>
+</div>
+<!-- Flash Delivery / Trending Catalog Heading -->
+<div class="anim-fade-up stagger-5 flex items-center justify-between pt-1">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-primary animate-ping"></span>
+<h3 class="font-headline-sm text-headline-sm text-on-surface tracking-tight">Express Apparel</h3>
+</div>
+<div class="flex items-center gap-1.5">
+<span class="live-pulse font-label-eyebrow text-label-eyebrow uppercase text-primary font-bold bg-primary-fixed/80 px-2.5 py-0.5 rounded-full shadow-xs">35-Min Drop</span>
+</div>
+</div>
+<!-- Product Grid: 2 Columns -->
+<div class="grid grid-cols-2 gap-3.5">
+<!-- Product Card 1: Embroidered Anarkali Kurta Set -->
+<div class="anim-fade-up stagger-5 flex flex-col bg-surface-container-lowest rounded-2xl shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300 overflow-hidden relative group">
+<div class="relative w-full aspect-[4/5] bg-surface-container-high overflow-hidden">
+<img class="w-full h-full object-cover group-hover:scale-108 transition-transform duration-500 ease-out" data-alt="Editorial studio photo of a female model wearing an opulent deep berry-red Anarkali kurta set with intricate golden zari embroidery along the neckline and cuffs. Warm soft ambient lighting, clean minimal aesthetic, high quality cotton silk sheen." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBTs6-ZqrlCWEJVbPDPREz0wpb5KSte4RfbM_CFWtYByj1Qc_k44_GCyF1iH4BGfJnWitJDsFkbG5QdTkr1lWbmeRjm4Sjw1-H24gH-93XY9maRVKsweEwf47isp-cXHwTuC01nyYYwhghENAssQln3RbbqPdr5ZU7vbKVIAZzaBN3nCBPzrEWX99MdjRBISiVH6LhmgYy1UufvPL6FavGOUabgo-pl4fxAqy5IIErLKuy3XyzrqnSLzg"/>
+<!-- Badge Overlays -->
+<div class="absolute top-2 left-2 flex flex-col gap-1 z-10">
+<span class="shimmer-container px-2 py-0.5 rounded-md bg-secondary-container text-on-secondary font-label-eyebrow text-[10px] font-extrabold uppercase shadow-sm">
+              48% OFF
+            </span>
+<span class="float-badge px-2 py-0.5 rounded-md bg-tertiary-fixed text-on-tertiary-fixed font-label-eyebrow text-[10px] font-bold flex items-center gap-0.5 shadow-sm">
+<span class="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span> Only 2 Left
+            </span>
+</div>
+<!-- Wishlist Action -->
+<button aria-label="Add to wishlist" class="wishlist-btn absolute top-2 right-2 w-8 h-8 rounded-full bg-surface-container-lowest/90 backdrop-blur-md flex items-center justify-center text-on-surface-variant hover:text-primary active:scale-75 transition-all shadow-sm z-10" type="button">
+<span class="material-symbols-outlined text-[18px] transition-transform duration-200">favorite</span>
+</button>
+</div>
+<div class="flex flex-col p-3 space-y-1 flex-1 justify-between">
+<div>
+<div class="flex items-center justify-between text-on-surface-variant mb-0.5">
+<span class="font-label-eyebrow text-label-eyebrow uppercase tracking-wider text-primary font-bold">Avanya Ethnic</span>
+<div class="flex items-center gap-0.5 text-on-surface">
+<span class="material-symbols-outlined text-amber-500 text-[14px]" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="font-label-md text-label-md font-bold">4.8</span>
+</div>
+</div>
+<h4 class="font-title-md text-title-md text-on-surface line-clamp-1 font-bold group-hover:text-primary transition-colors" title="Embroidered Anarkali Kurta Set">Embroidered Anarkali Kurta Set</h4>
+<p class="font-body-sm text-body-sm text-on-surface-variant truncate">Pure Mulmul Silk with Chiffon Dupatta</p>
+</div>
+<div class="pt-2">
+<div class="flex items-baseline gap-1.5">
+<span class="font-headline-sm text-headline-sm text-primary font-extrabold">₹1,299</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant line-through">₹2,499</span>
+</div>
+<button class="add-to-cart-btn w-full mt-2.5 py-2 px-3 rounded-xl bg-primary-container hover:bg-primary text-on-primary font-label-md text-label-md flex items-center justify-center gap-1.5 shadow-sm hover:shadow active:scale-95 transition-all duration-200" type="button">
+<span class="material-symbols-outlined text-[16px]">shopping_bag</span>
+<span>Add to Cart</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Product Card 2: Handloom Cotton Saree with Zari -->
+<div class="anim-fade-up stagger-6 flex flex-col bg-surface-container-lowest rounded-2xl shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300 overflow-hidden relative group">
+<div class="relative w-full aspect-[4/5] bg-surface-container-high overflow-hidden">
+<img class="w-full h-full object-cover group-hover:scale-108 transition-transform duration-500 ease-out" data-alt="Elegant close up studio showcase of a handloom cotton saree in soft ivory and rose-berry hues with broad golden zari woven border draped gracefully. Atmospheric warm daylight, refined textile folds, rich Indian craftsmanship." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBZmXmAng2VIvmt-e5UoQ1MrsXUMl1p1ftqAD3jjKM_YhlObUmOfd_rwaYD9cuGHuKnJVJBq6kagdOAfjiCSzvvDeVpdrAoGZBOD7YgEfEhdUx85DVetiWSmEdkgQISuSVzZXuSiadjUZUFFvsv0XIZp7_tRq9rvE-Exol7J2LYupakSoB-rwJjs7Y3evVbNoXHjav-QXpye1FUGXeKzjdjw_34arHkcmA3NY6gd6xMd-6DRSq6M5oNfw"/>
+<div class="absolute top-2 left-2 flex flex-col gap-1 z-10">
+<span class="shimmer-container px-2 py-0.5 rounded-md bg-secondary-container text-on-secondary font-label-eyebrow text-[10px] font-extrabold uppercase shadow-sm">
+              42% OFF
+            </span>
+<span class="px-2 py-0.5 rounded-md bg-surface-container-lowest/90 text-on-surface font-label-eyebrow text-[10px] font-bold shadow-sm">
+              Ready to Ship
+            </span>
+</div>
+<button aria-label="Add to wishlist" class="wishlist-btn absolute top-2 right-2 w-8 h-8 rounded-full bg-surface-container-lowest/90 backdrop-blur-md flex items-center justify-center text-on-surface-variant hover:text-primary active:scale-75 transition-all shadow-sm z-10" type="button">
+<span class="material-symbols-outlined text-[18px] transition-transform duration-200">favorite</span>
+</button>
+</div>
+<div class="flex flex-col p-3 space-y-1 flex-1 justify-between">
+<div>
+<div class="flex items-center justify-between text-on-surface-variant mb-0.5">
+<span class="font-label-eyebrow text-label-eyebrow uppercase tracking-wider text-primary font-bold">Varanasi Looms</span>
+<div class="flex items-center gap-0.5 text-on-surface">
+<span class="material-symbols-outlined text-amber-500 text-[14px]" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="font-label-md text-label-md font-bold">4.9</span>
+</div>
+</div>
+<h4 class="font-title-md text-title-md text-on-surface line-clamp-1 font-bold group-hover:text-primary transition-colors" title="Handloom Cotton Saree with Zari">Handloom Cotton Saree with Zari</h4>
+<p class="font-body-sm text-body-sm text-on-surface-variant truncate">Includes unstitched blouse piece</p>
+</div>
+<div class="pt-2">
+<div class="flex items-baseline gap-1.5">
+<span class="font-headline-sm text-headline-sm text-primary font-extrabold">₹1,849</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant line-through">₹3,190</span>
+</div>
+<button class="add-to-cart-btn w-full mt-2.5 py-2 px-3 rounded-xl bg-primary-container hover:bg-primary text-on-primary font-label-md text-label-md flex items-center justify-center gap-1.5 shadow-sm hover:shadow active:scale-95 transition-all duration-200" type="button">
+<span class="material-symbols-outlined text-[16px]">shopping_bag</span>
+<span>Add to Cart</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Product Card 3: Tiered Floral Rayon Maxi Dress -->
+<div class="anim-fade-up stagger-7 flex flex-col bg-surface-container-lowest rounded-2xl shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300 overflow-hidden relative group">
+<div class="relative w-full aspect-[4/5] bg-surface-container-high overflow-hidden">
+<img class="w-full h-full object-cover group-hover:scale-108 transition-transform duration-500 ease-out" data-alt="Fashion lifestyle photograph of a flowing tiered maxi dress with delicate hand-printed floral motifs in blush pink, rose berry, and peach tones. Shot outdoors in gentle sunlit courtyard with lush green planters." src="https://lh3.googleusercontent.com/aida-public/AB6AXuChjjRPXtK6wGlAzoX8MBkuhS5YQslHvyJa70gSCTmiApO-Lv00JijbP2efRpHEXOYf7Sb03MXrwmH90rYSHdWR_oiv_PNVMCQPGogU99bT_moi70avCMo2utLRF3l_PH6o7WaUE_ndCaN1oW4g9nWiFuH3yLqZDFknFOazu7KzBYjldvcFKSVuQDqubPby_0bCn0qmp1p5scLFl83Y1KDLoHjsLtaL4FCmrZV4k7E3Zx-u5XYrt3g3KQ"/>
+<div class="absolute top-2 left-2 flex flex-col gap-1 z-10">
+<span class="shimmer-container px-2 py-0.5 rounded-md bg-secondary-container text-on-secondary font-label-eyebrow text-[10px] font-extrabold uppercase shadow-sm">
+              50% OFF
+            </span>
+</div>
+<button aria-label="Add to wishlist" class="wishlist-btn absolute top-2 right-2 w-8 h-8 rounded-full bg-surface-container-lowest/90 backdrop-blur-md flex items-center justify-center text-on-surface-variant hover:text-primary active:scale-75 transition-all shadow-sm z-10" type="button">
+<span class="material-symbols-outlined text-[18px] transition-transform duration-200">favorite</span>
+</button>
+</div>
+<div class="flex flex-col p-3 space-y-1 flex-1 justify-between">
+<div>
+<div class="flex items-center justify-between text-on-surface-variant mb-0.5">
+<span class="font-label-eyebrow text-label-eyebrow uppercase tracking-wider text-primary font-bold">Gulabi Studio</span>
+<div class="flex items-center gap-0.5 text-on-surface">
+<span class="material-symbols-outlined text-amber-500 text-[14px]" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="font-label-md text-label-md font-bold">4.7</span>
+</div>
+</div>
+<h4 class="font-title-md text-title-md text-on-surface line-clamp-1 font-bold group-hover:text-primary transition-colors" title="Tiered Floral Rayon Maxi Dress">Tiered Floral Rayon Maxi Dress</h4>
+<p class="font-body-sm text-body-sm text-on-surface-variant truncate">Breathable weave with waist tie-up</p>
+</div>
+<div class="pt-2">
+<div class="flex items-baseline gap-1.5">
+<span class="font-headline-sm text-headline-sm text-primary font-extrabold">₹999</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant line-through">₹1,999</span>
+</div>
+<button class="add-to-cart-btn w-full mt-2.5 py-2 px-3 rounded-xl bg-primary-container hover:bg-primary text-on-primary font-label-md text-label-md flex items-center justify-center gap-1.5 shadow-sm hover:shadow active:scale-95 transition-all duration-200" type="button">
+<span class="material-symbols-outlined text-[16px]">shopping_bag</span>
+<span>Add to Cart</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Product Card 4: Chanderi Silk Festive Tunic -->
+<div class="anim-fade-up stagger-8 flex flex-col bg-surface-container-lowest rounded-2xl shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300 overflow-hidden relative group">
+<div class="relative w-full aspect-[4/5] bg-surface-container-high overflow-hidden">
+<img class="w-full h-full object-cover group-hover:scale-108 transition-transform duration-500 ease-out" data-alt="High-fashion product photo of a contemporary Chanderi silk tunic in deep crimson rose with understated silver gotta patti details on the split hem. Warm studio photography, textured background, premium finish." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCDxj9qJ4rjOXEvz3V6zfl19DxQXEbbEWw_QYLO5CIyooXurrCEoz26n4Ap5-gXK2jOHfrqWTMVBprdXjwQhbIOn2RxUXpCI07pnEoVqzLSstv9c8rSmZQbB8oD1rzO-PeymawCnUIlxzVgXZZR2KmroE6OLT2MAKSAocBZyiOj37d4-WoHcSqU3SEVit5U_EZG0Y5TYqeRHYQ960WCk6-gJGgxel3HpjeP4FxQJBqDjC3NB2w76D_ymw"/>
+<div class="absolute top-2 left-2 flex flex-col gap-1 z-10">
+<span class="shimmer-container px-2 py-0.5 rounded-md bg-secondary-container text-on-secondary font-label-eyebrow text-[10px] font-extrabold uppercase shadow-sm">
+              45% OFF
+            </span>
+</div>
+<button aria-label="Add to wishlist" class="wishlist-btn absolute top-2 right-2 w-8 h-8 rounded-full bg-surface-container-lowest/90 backdrop-blur-md flex items-center justify-center text-on-surface-variant hover:text-primary active:scale-75 transition-all shadow-sm z-10" type="button">
+<span class="material-symbols-outlined text-[18px] transition-transform duration-200">favorite</span>
+</button>
+</div>
+<div class="flex flex-col p-3 space-y-1 flex-1 justify-between">
+<div>
+<div class="flex items-center justify-between text-on-surface-variant mb-0.5">
+<span class="font-label-eyebrow text-label-eyebrow uppercase tracking-wider text-primary font-bold">Rawastram</span>
+<div class="flex items-center gap-0.5 text-on-surface">
+<span class="material-symbols-outlined text-amber-500 text-[14px]" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="font-label-md text-label-md font-bold">4.6</span>
+</div>
+</div>
+<h4 class="font-title-md text-title-md text-on-surface line-clamp-1 font-bold group-hover:text-primary transition-colors" title="Chanderi Silk Festive Tunic">Chanderi Silk Festive Tunic</h4>
+<p class="font-body-sm text-body-sm text-on-surface-variant truncate">Semi-formal silk blend with pockets</p>
+</div>
+<div class="pt-2">
+<div class="flex items-baseline gap-1.5">
+<span class="font-headline-sm text-headline-sm text-primary font-extrabold">₹1,599</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant line-through">₹2,899</span>
+</div>
+<button class="add-to-cart-btn w-full mt-2.5 py-2 px-3 rounded-xl bg-primary-container hover:bg-primary text-on-primary font-label-md text-label-md flex items-center justify-center gap-1.5 shadow-sm hover:shadow active:scale-95 transition-all duration-200" type="button">
+<span class="material-symbols-outlined text-[16px]">shopping_bag</span>
+<span>Add to Cart</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Micro Story / Fitting Guarantee Footnote -->
+<div class="anim-fade-up stagger-8 flex items-center gap-3 p-3.5 bg-surface-container-lowest rounded-2xl shadow-sm hover:shadow-md transition-all mt-2 cursor-pointer group">
+<div class="w-9 h-9 rounded-xl bg-secondary-fixed flex items-center justify-center text-primary flex-shrink-0 group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-[20px]">local_shipping</span>
+</div>
+<div class="flex-1 min-w-0">
+<span class="font-label-md text-label-md text-on-surface font-bold block">Instant Try &amp; Return at Doorstep</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Rider waits 10 mins while you try on your apparel</span>
+</div>
+</div>
+</div>
+<!-- Dynamic Brand Diagonal Ribbon Accent (Bottom Left) -->
+<div class="absolute -bottom-16 -left-10 w-44 h-48 pointer-events-none z-0 opacity-80 select-none transform -rotate-12">
+<div class="w-6 h-52 bg-primary/20 rounded-full transform rotate-45 -translate-x-4"></div>
+<div class="w-7 h-52 bg-primary-container rounded-full transform rotate-45 translate-x-4 translate-y-3 shadow-sm"></div>
+<div class="w-5 h-52 bg-tertiary-container rounded-full transform rotate-45 translate-x-12 translate-y-6"></div>
+</div>
+</div>
+</main><nav class="fixed bottom-0 w-full z-50 pb-safe bg-white/90 backdrop-blur-xl shadow-[0_-4px_20px_rgba(225,29,72,0.05)]" data-active-classes="text-primary font-bold"><div class="flex items-center justify-around h-16 px-margin"><a aria-current="page" class="nav-tab flex flex-col items-center justify-center w-16 h-12 active:scale-90 transition-all text-primary font-bold" data-path="catalog" href="#"><span class="material-symbols-outlined text-[24px] transition-transform">storefront</span><span class="font-label-md text-label-md tracking-tight mt-0.5">Catalog</span></a><a class="nav-tab flex flex-col items-center justify-center w-16 h-12 text-on-surface-variant hover:text-primary active:scale-90 transition-all" data-path="orders" href="#"><span class="material-symbols-outlined text-[24px] transition-transform">receipt_long</span><span class="font-label-md text-label-md tracking-tight mt-0.5">Orders</span></a><a class="nav-tab relative flex flex-col items-center justify-center w-16 h-12 text-on-surface-variant hover:text-primary active:scale-90 transition-all" data-path="cart" href="#"><div class="relative"><span class="material-symbols-outlined text-[24px] transition-transform">shopping_bag</span><span class="absolute -top-1 -right-2 px-1.5 py-0.2 rounded-full bg-primary-container text-on-primary font-label-eyebrow text-[10px] leading-tight flex items-center justify-center shadow-sm min-w-[17px] text-center font-bold" id="cart-counter">3</span></div><span class="font-label-md text-label-md tracking-tight mt-0.5">Cart</span></a><a class="nav-tab flex flex-col items-center justify-center w-16 h-12 text-on-surface-variant hover:text-primary active:scale-90 transition-all" data-path="support-profile" href="#"><span class="material-symbols-outlined text-[24px] transition-transform">support_agent</span><span class="font-label-md text-label-md tracking-tight mt-0.5">Support</span></a></div></nav>
+<script>
+  // Add to Cart interactive flow with flying +1 particle & cart badge bounce
+  let currentCartCount = 3;
+  const cartBadge = document.getElementById('cart-counter');
+
+  document.querySelectorAll('.add-to-cart-btn').forEach(btn => {
+    btn.addEventListener('click', function(e) {
+      e.preventDefault();
+      if (this.dataset.added === 'true') return;
+      this.dataset.added = 'true';
+
+      const originalHtml = this.innerHTML;
+      this.innerHTML = '<span class="material-symbols-outlined text-[16px] animate-spin">sync</span><span>Adding...</span>';
+      this.classList.replace('bg-primary-container', 'bg-tertiary');
+
+      // Create floating +1 particle
+      const rect = this.getBoundingClientRect();
+      const cartRect = cartBadge.getBoundingClientRect();
+
+      const particle = document.createElement('div');
+      particle.className = 'fly-particle font-bold text-xs bg-primary text-white px-2 py-1 rounded-full shadow-lg flex items-center gap-0.5';
+      particle.innerHTML = '<span>+1</span>';
+      particle.style.left = `${rect.left + rect.width / 2 - 14}px`;
+      particle.style.top = `${rect.top}px`;
+
+      const deltaX = cartRect.left - rect.left;
+      const deltaY = cartRect.top - rect.top;
+      particle.style.setProperty('--target-x', `${deltaX}px`);
+      particle.style.setProperty('--target-y', `${deltaY}px`);
+
+      document.body.appendChild(particle);
+
+      setTimeout(() => {
+        particle.remove();
+        currentCartCount++;
+        cartBadge.textContent = currentCartCount;
+        cartBadge.classList.remove('badge-pop');
+        void cartBadge.offsetWidth; // trigger reflow
+        cartBadge.classList.add('badge-pop');
+      }, 700);
+
+      setTimeout(() => {
+        this.innerHTML = '<span class="material-symbols-outlined text-[16px]">check_circle</span><span>In Bag</span>';
+        this.classList.remove('bg-tertiary');
+        this.classList.add('bg-green-700', 'text-white');
+      }, 600);
+    });
+  });
+
+  // Wishlist Heart Button Interactive Toggle
+  document.querySelectorAll('.wishlist-btn').forEach(btn => {
+    btn.addEventListener('click', function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      const icon = this.querySelector('.material-symbols-outlined');
+      const isFilled = icon.style.fontVariationSettings.includes("'FILL' 1");
+
+      if (isFilled) {
+        icon.style.fontVariationSettings = "'FILL' 0";
+        this.classList.remove('heart-liked');
+      } else {
+        icon.style.fontVariationSettings = "'FILL' 1";
+        this.classList.add('heart-liked');
+      }
+    });
+  });
+
+  // Bottom Nav Tab active state switching
+  document.querySelectorAll('.nav-tab').forEach(tab => {
+    tab.addEventListener('click', function(e) {
+      e.preventDefault();
+      document.querySelectorAll('.nav-tab').forEach(t => {
+        t.classList.remove('text-primary', 'font-bold');
+        t.classList.add('text-on-surface-variant');
+        t.removeAttribute('aria-current');
+      });
+      this.classList.remove('text-on-surface-variant');
+      this.classList.add('text-primary', 'font-bold');
+      this.setAttribute('aria-current', 'page');
+    });
+  });
+</script></body></html>
