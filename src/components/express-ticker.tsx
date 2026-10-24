@@ -29,20 +29,20 @@ export function ExpressTicker() {
   const formatNum = (num: number) => (num < 10 ? `0${num}` : `${num}`);
 
   return (
-    <View className="my-2.5 p-3.5 rounded-2xl bg-gradient-to-r from-[#ffdada] via-surface-container-low to-[#ffdada] border border-primary/20 flex flex-row items-center justify-between shadow-xs">
+    <View style={{ backgroundColor: '#F4F1EA', borderColor: '#D9D9D5' }} className="my-2.5 p-3.5 rounded-2xl border flex flex-row items-center justify-between shadow-xs">
       <View className="flex flex-row items-center gap-2.5">
-        <View className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center shadow-xs">
-          <Icon name="bolt" size={20} color="#ffffff" />
+        <View className="w-9 h-9 rounded-xl bg-[#111111] flex items-center justify-center shadow-xs">
+          <Icon name="bolt" size={20} color="#FFFFFF" />
         </View>
 
         <View>
-          <View className="flex flex-row items-center gap-1">
-            <Text className="font-label-eyebrow text-[10px] uppercase text-primary font-extrabold tracking-wider">
-              FLASH EXPRESS DROP
+          <View className="flex flex-row items-center gap-1.5">
+            <Text style={{ color: '#111111' }} className="text-[10px] uppercase font-black tracking-wider">
+              DROP_04 EXPRESS
             </Text>
-            <View className="w-1.5 h-1.5 rounded-full bg-primary" />
+            <View className="w-1.5 h-1.5 rounded-full bg-[#FF5A1F]" />
           </View>
-          <Text className="font-headline-sm text-[14px] text-on-surface font-extrabold tracking-tight">
+          <Text className="text-[14px] text-[#111111] font-black tracking-tight">
             35-Min Guaranteed Doorstep
           </Text>
         </View>
@@ -50,20 +50,20 @@ export function ExpressTicker() {
 
       {/* Countdown Timer Badges */}
       <View className="flex flex-row items-center gap-1">
-        <View className="px-2 py-1 rounded-lg bg-white border border-primary/20 shadow-2xs">
-          <Text className="font-headline-sm text-[12px] text-primary font-extrabold">
+        <View className="px-2 py-1 rounded-lg bg-[#ffffff] border border-[#D9D9D5]">
+          <Text className="text-[12px] text-[#111111] font-black">
             {formatNum(timeLeft.hours)}
           </Text>
         </View>
-        <Text className="font-headline-sm text-[12px] text-primary font-extrabold">:</Text>
-        <View className="px-2 py-1 rounded-lg bg-white border border-primary/20 shadow-2xs">
-          <Text className="font-headline-sm text-[12px] text-primary font-extrabold">
+        <Text className="text-[12px] text-[#111111] font-bold">:</Text>
+        <View className="px-2 py-1 rounded-lg bg-[#ffffff] border border-[#D9D9D5]">
+          <Text className="text-[12px] text-[#111111] font-black">
             {formatNum(timeLeft.minutes)}
           </Text>
         </View>
-        <Text className="font-headline-sm text-[12px] text-primary font-extrabold">:</Text>
-        <View className="px-2 py-1 rounded-lg bg-primary shadow-2xs">
-          <Text className="font-headline-sm text-[12px] text-white font-extrabold">
+        <Text className="text-[12px] text-[#111111] font-bold">:</Text>
+        <View className="px-2 py-1 rounded-lg bg-[#111111]">
+          <Text className="text-[12px] text-white font-black">
             {formatNum(timeLeft.seconds)}
           </Text>
         </View>

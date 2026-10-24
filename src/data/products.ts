@@ -40,9 +40,9 @@ export const PRODUCTS: Product[] = [
     careInstructions: 'Dry Clean Only. Steam iron on low heat setting.',
     sizes: ['S', 'M', 'L', 'XL', 'XXL'],
     colors: [
-      { name: 'Berry Crimson', hex: '#b80035' },
-      { name: 'Royal Gold', hex: '#d97706' },
-      { name: 'Emerald', hex: '#047857' },
+      { name: 'Signal Orange', hex: '#FF5A1F' },
+      { name: 'Ink Black', hex: '#111111' },
+      { name: 'Concrete Grey', hex: '#D9D9D5' },
     ],
     images: [
       'https://lh3.googleusercontent.com/aida-public/AB6AXuBTs6-ZqrlCWEJVbPDPREz0wpb5KSte4RfbM_CFWtYByj1Qc_k44_GCyF1iH4BGfJnWitJDsFkbG5QdTkr1lWbmeRjm4Sjw1-H24gH-93XY9maRVKsweEwf47isp-cXHwTuC01nyYYwhghENAssQln3RbbqPdr5ZU7vbKVIAZzaBN3nCBPzrEWX99MdjRBISiVH6LhmgYy1UufvPL6FavGOUabgo-pl4fxAqy5IIErLKuy3XyzrqnSLzg',

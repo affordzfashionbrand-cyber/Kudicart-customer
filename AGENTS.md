@@ -39,3 +39,41 @@ Docs: https://docs.expo.dev/eas/index.md
 - If `ios/` and `android/` directories do not exist, they are generated (Continuous Native Generation). Never create or edit them by hand — configure native behavior in `app.json` and config plugins.
 - Expo Go only includes its bundled native modules. After adding a library with native code, the app needs a development build: `npx expo run:ios|android` locally, or `eas build --profile development`.
 - Prefer recommended Expo modules over third-party libraries, and check your available skills before adding dependencies. Docs: https://docs.expo.dev/versions/latest/index.md
+
+## Typography & Fonts (MANDATORY FOR ALL SCREENS & COMPONENTS)
+
+The app uses two curated brand font families loaded via `@expo-google-fonts`:
+1. **Interface / Body Text**: `Plus Jakarta Sans`
+2. **Editorial / Luxury Titles**: `Playfair Display`
+
+**Always import `Fonts` from `@/constants/theme`**:
+```tsx
+import { Fonts } from '@/constants/theme';
+```
+
+- **UI / Body / Labels / Buttons**:
+  - Regular: `fontFamily: Fonts.sans`
+  - Medium: `fontFamily: Fonts.sansMedium`
+  - SemiBold: `fontFamily: Fonts.sansSemiBold`
+  - Bold: `fontFamily: Fonts.sansBold`
+- **Editorial / Headings / Brand Accents**:
+  - Editorial Headings: `<EditorialText first="Drop" second="location." fontSize={18} lineHeight={22} singleLine withDot />`
+  - Serif Regular: `fontFamily: Fonts.serifRegular`
+  - Serif SemiBold: `fontFamily: Fonts.serifSemiBold`
+  - Serif Bold: `fontFamily: Fonts.serifBold`
+  - Serif Italic: `fontFamily: Fonts.serifItalic`
+
+**NEVER use bare `<Text>` without specifying brand `fontFamily` from `Fonts` or `<EditorialText>`. Generic system fonts look basic and break brand identity.**
+
+## Performance & Component Optimization (MANDATORY)
+
+- **Memoization**: Wrap reusable subcomponents in `React.memo()`.
+- **Stable References**: Wrap all event handlers passed to children in `useCallback()` and expensive calculations in `useMemo()`.
+- **Form / Input Isolation**: Keep text input state (e.g. Card Number, CVV, Coupon codes) isolated or memoized so keystrokes do not re-render the entire 1,000-line screen tree.
+- **Images**: Always use `expo-image` (`<Image source={{ uri }} contentFit="cover" transition={150} />`) for high-performance memory caching and smooth image transitions.
+- **Lists & ScrollViews**: Always specify `showsVerticalScrollIndicator={false}`, `scrollEventThrottle={16}`, and `contentContainerStyle`.
+
+## Commerce UX Benchmark (Ajio & Myntra Standard)
+
+- **Checkout**: Always include 3-step progress stepper (Bag -> Address -> Payment), deliver-to address card with change action, Doorstep Try & Buy toggle, delivery instructions chips, item preview, coupon input with quick-apply chips, comprehensive payment options (UPI apps + VPA, formatted Cards, Net Banking, COD, Kudicash coins), detailed bill breakdown with savings banner, trust badges, sticky bottom bar, and animated confirmation screen.
+- **Product Detail**: Include gallery carousel, Try & Buy badge, size selector, specifications matrix, reviews, complete-the-ensemble, and smart bottom bar that reveals related products catalog on scroll.

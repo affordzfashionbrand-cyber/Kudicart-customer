@@ -1,5 +1,5 @@
 import React from 'react';
-import { Text, Platform, StyleProp, TextStyle } from 'react-native';
+import { Text, StyleProp, TextStyle } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 
 interface IconProps {

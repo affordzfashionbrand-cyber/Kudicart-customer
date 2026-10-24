@@ -144,14 +144,14 @@ export function HeroCarousel() {
               </View>
 
               <View className="flex flex-row items-center gap-2 pt-1">
-                <View className="px-2.5 py-1 rounded-full bg-primary">
-                  <Text className="font-label-eyebrow text-[10px] text-white font-extrabold">
+                <View className="px-2.5 py-1 rounded-full bg-[#111111] border border-white/20">
+                  <Text className="text-[10px] text-white font-extrabold uppercase">
                     {banner.discount}
                   </Text>
                 </View>
 
                 <View className="flex flex-row items-center gap-0.5 px-2.5 py-1 rounded-full bg-white/20 backdrop-blur-md">
-                  <Text className="font-label-md text-[11px] text-white font-bold">
+                  <Text className="text-[11px] text-white font-bold">
                     {banner.buttonText}
                   </Text>
                   <Icon name="arrow_forward" size={13} color="#ffffff" />
@@ -168,7 +168,7 @@ export function HeroCarousel() {
           <View
             key={idx}
             className={`h-1.5 rounded-full transition-all duration-300 ${
-              activeIndex === idx ? 'w-6 bg-primary' : 'w-1.5 bg-surface-container-high'
+              activeIndex === idx ? 'w-6 bg-[#111111]' : 'w-1.5 bg-[#D9D9D5]'
             }`}
           />
         ))}
