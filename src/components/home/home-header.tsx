@@ -1,17 +1,19 @@
 import React from 'react';
 import { View, Text, Pressable } from 'react-native';
 import { Image } from 'expo-image';
-import { MapPin, ChevronDown, UserRound } from 'lucide-react-native';
+import { MapPin, ChevronDown, UserRound, Bell } from 'lucide-react-native';
 import { AnimatedPressable } from '@/components/common/animated-pressable';
 import { useDarkStore } from '@/store/useDarkStore';
 import { Fonts } from '@/constants/theme';
 import { UniversalSearchBar } from '@/components/home/search-bar';
+import { Alert } from 'react-native';
 
 export interface HomeHeaderProps {
   paddingTop: number;
   selectedAddressText: string;
   onOpenAddressModal: () => void;
   onOpenAccount: () => void;
+  onOpenNotifications?: () => void;
   query: string;
   onQueryChange: (text: string) => void;
   onSelectSearchQuery: (text: string) => void;
@@ -24,6 +26,7 @@ export const HomeHeader = React.memo(function HomeHeader({
   selectedAddressText,
   onOpenAddressModal,
   onOpenAccount,
+  onOpenNotifications,
   query,
   onQueryChange,
   onSelectSearchQuery,
@@ -79,13 +82,13 @@ export const HomeHeader = React.memo(function HomeHeader({
           </View>
         </View>
 
-        {/* Right Action Icons: Express Drop Badge and Profile */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+        {/* Right Action Icons: Express Drop Badge, Notifications & Profile */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           <AnimatedPressable onPress={openDarkStoreModal}>
             <View
               style={{
                 backgroundColor: isServiceable === false ? '#FEF2F2' : '#111111',
-                paddingHorizontal: 10,
+                paddingHorizontal: 9,
                 paddingVertical: 5,
                 borderRadius: 999,
                 borderWidth: 1,
@@ -120,6 +123,49 @@ export const HomeHeader = React.memo(function HomeHeader({
               </Text>
             </View>
           </AnimatedPressable>
+
+          {/* Notification Bell */}
+          <AnimatedPressable
+            onPress={
+              onOpenNotifications ||
+              (() =>
+                Alert.alert(
+                  'Atelier Notifications',
+                  'You have no unread alerts. All active drops are on schedule.',
+                  [{ text: 'Dismiss', style: 'cancel' }],
+                ))
+            }
+          >
+            <View
+              style={{
+                width: 34,
+                height: 34,
+                backgroundColor: '#F4F1EA',
+                borderRadius: 17,
+                borderWidth: 1,
+                borderColor: '#D9D9D5',
+                justifyContent: 'center',
+                alignItems: 'center',
+                position: 'relative',
+              }}
+            >
+              <Bell size={16} color="#111111" />
+              <View
+                style={{
+                  width: 7,
+                  height: 7,
+                  backgroundColor: '#FF5A1F',
+                  borderRadius: 3.5,
+                  position: 'absolute',
+                  top: 1,
+                  right: 1,
+                  borderWidth: 1.5,
+                  borderColor: '#ffffff',
+                }}
+              />
+            </View>
+          </AnimatedPressable>
+
           <AnimatedPressable onPress={onOpenAccount}>
             <View
               style={{
@@ -135,19 +181,6 @@ export const HomeHeader = React.memo(function HomeHeader({
               }}
             >
               <UserRound size={17} color="#111111" />
-              <View
-                style={{
-                  width: 8,
-                  height: 8,
-                  backgroundColor: '#FF5A1F',
-                  borderRadius: 4,
-                  position: 'absolute',
-                  top: 0,
-                  right: 0,
-                  borderWidth: 1.5,
-                  borderColor: '#ffffff',
-                }}
-              />
             </View>
           </AnimatedPressable>
         </View>

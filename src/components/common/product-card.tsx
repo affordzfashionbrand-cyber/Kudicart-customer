@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { Heart, ShoppingCart, Zap } from 'lucide-react-native';
 import { LazyImage } from './lazy-image';
 import { AnimatedPressable } from './animated-pressable';
@@ -24,7 +24,8 @@ export const ProductCard = React.memo(function ProductCard({
   badge,
 }: ProductCardProps) {
   const title = product.name || product.title;
-  const imageUri = product.image || (Array.isArray(product.images) ? product.images[0] : null);
+  const fallbackImage = 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=800&q=85';
+  const imageUri = product.image || (Array.isArray(product.images) && product.images.length > 0 ? product.images[0] : null) || fallbackImage;
   const formattedPrice = typeof product.price === 'number' ? formatPrice(product.price) : product.price;
 
   return (
@@ -35,9 +36,10 @@ export const ProductCard = React.memo(function ProductCard({
     >
       {/* Double Bezel Card Shell */}
       <View className="p-[4px] bg-[#F4F1EA] border border-[#D9D9D5] rounded-[24px] mb-[16px]">
-        <View className="relative bg-white rounded-[20px] aspect-[0.76] overflow-hidden">
+        <View className="relative bg-[#F4F1EA] rounded-[20px] aspect-[0.76] overflow-hidden">
           <LazyImage
             source={imageUri}
+            containerStyle={StyleSheet.absoluteFill}
             style={{ width: '100%', height: '100%' }}
             contentFit="cover"
             priority="low"

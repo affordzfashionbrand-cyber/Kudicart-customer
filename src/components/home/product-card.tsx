@@ -81,7 +81,8 @@ export function ProductCard({
         style={styles.imageContainer}
       >
         <LazyImage
-          source={{ uri: product.image }}
+          source={{ uri: product.image || 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=800&q=85' }}
+          containerStyle={StyleSheet.absoluteFill}
           style={styles.productImage}
           contentFit="cover"
           priority="low"

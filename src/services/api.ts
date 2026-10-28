@@ -812,7 +812,8 @@ export type OrderStatus =
   | 'ASSIGNED'
   | 'PICKED_UP'
   | 'OUT_FOR_DELIVERY'
-  | 'DELIVERED';
+  | 'DELIVERED'
+  | 'CANCELLED';
 
 export interface OrderItemModel {
   id: string;
