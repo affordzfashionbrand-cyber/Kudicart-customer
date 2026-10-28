@@ -4,9 +4,9 @@ import {
   Text,
   ScrollView,
   TouchableOpacity,
-  Image,
   StyleSheet,
 } from 'react-native';
+import { LazyImage } from '@/components/common/lazy-image';
 import { CATEGORY_STRIP_ITEMS, CategoryItem } from '@/data/mockCategories';
 
 interface CategoryStripProps {
@@ -23,6 +23,9 @@ export function CategoryStrip({
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
+        nestedScrollEnabled={true}
+        directionalLockEnabled={true}
+        overScrollMode="never"
         contentContainerStyle={styles.scrollContent}
       >
         {CATEGORY_STRIP_ITEMS.map((item) => {
@@ -42,10 +45,11 @@ export function CategoryStrip({
                   isSelected && styles.iconCircleActive,
                 ]}
               >
-                <Image
-                  source={{ uri: item.image }}
+                <LazyImage
+                  source={item.image}
                   style={styles.itemImage}
-                  resizeMode="cover"
+                  contentFit="cover"
+                  priority="normal"
                 />
 
                 {item.badge && (

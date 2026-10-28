@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { View, Text, ScrollView, Animated } from 'react-native';
+import { View, Text, ScrollView, Animated, Platform } from 'react-native';
 import {
   ShoppingBag,
   Zap,
@@ -117,6 +117,10 @@ export const WishlistView = React.memo(function WishlistView({
     <View style={{ flex: 1, backgroundColor: '#FAF8F5' }}>
       <ScrollView
         showsVerticalScrollIndicator={false}
+        removeClippedSubviews={Platform.OS !== 'web'}
+        overScrollMode="never"
+        keyboardShouldPersistTaps="handled"
+        decelerationRate="normal"
         contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 110 }}
       >
         {/* Top Header */}
@@ -234,7 +238,14 @@ export const WishlistView = React.memo(function WishlistView({
 
             {/* Filter Tabs */}
             <View style={{ marginBottom: 14 }}>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                nestedScrollEnabled={true}
+                directionalLockEnabled={true}
+                overScrollMode="never"
+                contentContainerStyle={{ gap: 6 }}
+              >
                 {[
                   { id: 'ALL', label: `All (${products.length})` },
                   ...(womenCount > 0 ? [{ id: 'WOMEN', label: `Women (${womenCount})` }] : []),

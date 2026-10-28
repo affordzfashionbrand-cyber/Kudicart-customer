@@ -4,13 +4,14 @@ import { Ruler, CheckCircle2, Check } from 'lucide-react-native';
 import { AVAILABLE_SIZES } from './product-constants';
 
 interface ProductSizeSectionProps {
-  selectedSize: string;
+  selectedSize: string | null;
   onSelectSize: (size: string) => void;
   onOpenSizeGuide: () => void;
   isDarkStoreProduct: boolean;
   dualSizeTrial: boolean;
   onToggleDualSizeTrial: () => void;
   adjacentSize: string;
+  hasError?: boolean;
 }
 
 export function ProductSizeSection({
@@ -21,13 +22,28 @@ export function ProductSizeSection({
   dualSizeTrial,
   onToggleDualSizeTrial,
   adjacentSize,
+  hasError = false,
 }: ProductSizeSectionProps) {
   return (
-    <View style={{ paddingHorizontal: 16, marginTop: 18 }}>
+    <View
+      style={{
+        paddingHorizontal: 16,
+        marginTop: 18,
+        paddingVertical: hasError ? 8 : 0,
+        backgroundColor: hasError ? 'rgba(255, 90, 31, 0.05)' : 'transparent',
+        borderRadius: 16,
+        borderWidth: hasError ? 1.5 : 0,
+        borderColor: hasError ? '#FF5A1F' : 'transparent',
+      }}
+    >
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <Text style={{ fontSize: 13, fontWeight: '900', color: '#111111' }}>Select Size</Text>
-          <Text style={{ fontSize: 11, color: '#71717A' }}>(Runs true to couture drape)</Text>
+          <Text style={{ fontSize: 13, fontWeight: '900', color: hasError ? '#FF5A1F' : '#111111' }}>
+            {hasError ? 'Select Size (Required)' : 'Select Size'}
+          </Text>
+          <Text style={{ fontSize: 11, color: hasError ? '#EA580C' : '#71717A' }}>
+            {hasError ? '• Choose your fit below' : '(Runs true to couture drape)'}
+          </Text>
         </View>
 
         <Pressable
@@ -52,8 +68,8 @@ export function ProductSizeSection({
                 height: 44,
                 borderRadius: 14,
                 backgroundColor: isSelected ? '#111111' : '#FFFFFF',
-                borderWidth: 1,
-                borderColor: isSelected ? '#111111' : '#E5E0D8',
+                borderWidth: isSelected ? 1.5 : hasError ? 1.5 : 1,
+                borderColor: isSelected ? '#111111' : hasError ? '#FF5A1F' : '#E5E0D8',
                 alignItems: 'center',
                 justifyContent: 'center',
               }}

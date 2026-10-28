@@ -37,7 +37,14 @@ export function ProductEnsembleSection({
         />
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingRight: 16 }}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        nestedScrollEnabled={true}
+        directionalLockEnabled={true}
+        overScrollMode="never"
+        contentContainerStyle={{ gap: 12, paddingRight: 16 }}
+      >
         {ensembleProducts.map((ep) => (
           <View key={ep.id} style={{ width: 175 }}>
             <ProductCard

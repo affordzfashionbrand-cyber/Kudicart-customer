@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React from 'react';
 import {
   View,
   Text,
@@ -32,18 +32,6 @@ interface DarkStoreViewProps {
   onOpen?: (product: any) => void;
   onOpenDarkStoreModal?: () => void;
 }
-
-const DARK_STORE_FILTERS = [
-  { id: 'ALL', label: 'All Fast Drops' },
-  { id: 'FAST', label: '⚡ Under 20 Mins', icon: 'zap' },
-  { id: 'TRY_BUY', label: 'Doorstep Try & Buy', icon: 'check' },
-  { id: 'WOMEN', label: "Women's Vault" },
-  { id: 'MEN', label: "Men's Atelier" },
-  { id: 'ETHNIC', label: 'Ethnic Couture' },
-  { id: 'ACCESSORIES', label: 'Bags & Accessories' },
-  { id: 'BUDGET', label: 'Under ₹3,999' },
-];
-
 export const DarkStoreView = React.memo(function DarkStoreView({
   products = DEFAULT_PRODUCTS,
   wishlist = [],
@@ -55,8 +43,6 @@ export const DarkStoreView = React.memo(function DarkStoreView({
   const router = useRouter();
   const { selectedDarkStore, darkStores, openDarkStoreModal } = useDarkStore();
   const { addItem, toggleWishlist: storeToggleWishlist, wishlist: storeWishlist } = useCartStore();
-
-  const [activeFilter, setActiveFilter] = useState('ALL');
 
   // Active store fallback to Indiranagar Hub if none selected
   const currentStore = selectedDarkStore || darkStores[0];
@@ -104,18 +90,7 @@ export const DarkStoreView = React.memo(function DarkStoreView({
     }
   };
 
-  const filteredProducts = useMemo(() => {
-    return products.filter((p) => {
-      if (activeFilter === 'FAST') return p.price < 8000;
-      if (activeFilter === 'TRY_BUY') return true;
-      if (activeFilter === 'WOMEN') return p.category === 'Women';
-      if (activeFilter === 'MEN') return p.category === 'Men';
-      if (activeFilter === 'ETHNIC') return p.wear === 'Ethnic';
-      if (activeFilter === 'ACCESSORIES') return p.category === 'Accessories';
-      if (activeFilter === 'BUDGET') return p.price < 3999;
-      return true;
-    });
-  }, [products, activeFilter]);
+  const filteredProducts = products;
 
   return (
     <ScrollView
@@ -382,52 +357,6 @@ export const DarkStoreView = React.memo(function DarkStoreView({
         </View>
       </View>
 
-      {/* Horizontal Filter Chips */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 16, gap: 8 }}
-      >
-        {DARK_STORE_FILTERS.map((item) => {
-          const isSelected = activeFilter === item.id;
-          return (
-            <Pressable
-              key={item.id}
-              onPress={() => setActiveFilter(item.id)}
-              style={{
-                paddingHorizontal: 14,
-                paddingVertical: 8,
-                borderRadius: 20,
-                backgroundColor: isSelected ? '#111111' : '#FFFFFF',
-                borderWidth: 1.2,
-                borderColor: isSelected ? '#111111' : '#E8E5DF',
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 5,
-                shadowColor: '#000000',
-                shadowOffset: { width: 0, height: 1 },
-                shadowOpacity: isSelected ? 0.12 : 0.04,
-                shadowRadius: 4,
-                elevation: 2,
-              }}
-            >
-              {item.icon === 'zap' && (
-                <Zap size={12} color={isSelected ? '#FF5A1F' : '#FF5A1F'} fill="#FF5A1F" />
-              )}
-              <Text
-                style={{
-                  fontSize: 12,
-                  fontWeight: isSelected ? '800' : '600',
-                  color: isSelected ? '#FFFFFF' : '#333333',
-                }}
-              >
-                {item.label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
-
       {/* Count & Status Row */}
       <View
         style={{
@@ -435,6 +364,7 @@ export const DarkStoreView = React.memo(function DarkStoreView({
           justifyContent: 'space-between',
           alignItems: 'flex-end',
           paddingHorizontal: 20,
+          marginTop: 20,
           marginBottom: 16,
         }}
       >

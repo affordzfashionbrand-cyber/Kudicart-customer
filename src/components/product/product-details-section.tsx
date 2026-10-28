@@ -3,6 +3,7 @@ import { View, Text, Pressable } from 'react-native';
 import { Star, ShieldCheck } from 'lucide-react-native';
 import { EditorialText } from '@/components/common/section-title';
 import { formatPrice } from '@/data/homeData';
+import { FontStyles } from '@/constants/theme';
 import { COLOR_VARIANTS } from './product-constants';
 
 interface ProductDetailsSectionProps {
@@ -33,18 +34,20 @@ export function ProductDetailsSection({
       {/* Brand & Edition Row */}
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
         <Text
-          style={{
-            fontSize: 9.5,
-            fontWeight: '900',
-            color: '#FF5A1F',
-            letterSpacing: 1.4,
-            textTransform: 'uppercase',
-          }}
+          style={[
+            FontStyles.sansBold,
+            {
+              fontSize: 9.5,
+              color: '#FF5A1F',
+              letterSpacing: 1.4,
+              textTransform: 'uppercase',
+            },
+          ]}
         >
           {brand} • SIGNATURE RUNWAY COLLECTION
         </Text>
         <View style={{ backgroundColor: '#F0ECE4', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 }}>
-          <Text style={{ fontSize: 8.5, fontWeight: '800', color: '#71717A' }}>LIMITED RUN</Text>
+          <Text style={[FontStyles.sansBold, { fontSize: 8.5, color: '#71717A' }]}>LIMITED RUN</Text>
         </View>
       </View>
 
@@ -61,15 +64,15 @@ export function ProductDetailsSection({
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
           <Star size={13} color="#D4AF37" fill="#D4AF37" />
-          <Text style={{ fontSize: 12, fontWeight: '900', color: '#111111' }}>{rating.toFixed(1)}</Text>
-          <Text style={{ fontSize: 11, color: '#71717A' }}>({reviewsCount} verified reviews)</Text>
+          <Text style={[FontStyles.sansBold, { fontSize: 12, color: '#111111' }]}>{rating.toFixed(1)}</Text>
+          <Text style={[FontStyles.sansRegular, { fontSize: 11, color: '#71717A' }]}>({reviewsCount} verified reviews)</Text>
         </View>
 
         <View style={{ width: 3, height: 3, borderRadius: 1.5, backgroundColor: '#D9D9D5' }} />
 
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
           <ShieldCheck size={13} color="#10B981" />
-          <Text style={{ fontSize: 10.5, fontWeight: '800', color: '#10B981' }}>
+          <Text style={[FontStyles.sansBold, { fontSize: 10.5, color: '#10B981' }]}>
             Silk Mark Certified
           </Text>
         </View>
@@ -77,10 +80,10 @@ export function ProductDetailsSection({
 
       {/* Price Row */}
       <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8, marginBottom: 2 }}>
-        <Text style={{ fontSize: 24, fontWeight: '900', color: '#111111' }}>
+        <Text style={[FontStyles.sansBold, { fontSize: 24, color: '#111111' }]}>
           {formatPrice(price)}
         </Text>
-        <Text style={{ fontSize: 14, color: '#A0A0A0', textDecorationLine: 'line-through' }}>
+        <Text style={[FontStyles.sansRegular, { fontSize: 14, color: '#A0A0A0', textDecorationLine: 'line-through' }]}>
           {formatPrice(originalPrice)}
         </Text>
         {savingsAmount > 0 && (
@@ -92,24 +95,24 @@ export function ProductDetailsSection({
               borderRadius: 6,
             }}
           >
-            <Text style={{ fontSize: 10, fontWeight: '900', color: '#FF5A1F' }}>
+            <Text style={[FontStyles.sansBold, { fontSize: 10, color: '#FF5A1F' }]}>
               SAVE {formatPrice(savingsAmount)}
             </Text>
           </View>
         )}
       </View>
 
-      <Text style={{ fontSize: 10.5, color: '#8A8580' }}>
+      <Text style={[FontStyles.sansRegular, { fontSize: 10.5, color: '#8A8580' }]}>
         Inclusive of all artisan levies & hand-tied ceremonial packaging
       </Text>
 
       {/* Atelier Hue / Swatches */}
       <View style={{ marginTop: 14 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-          <Text style={{ fontSize: 11.5, fontWeight: '900', color: '#111111' }}>
+          <Text style={[FontStyles.sansBold, { fontSize: 11.5, color: '#111111' }]}>
             Atelier Shade: <Text style={{ color: '#FF5A1F' }}>{selectedColor}</Text>
           </Text>
-          <Text style={{ fontSize: 9.5, fontWeight: '700', color: '#71717A' }}>3 Colorways</Text>
+          <Text style={[FontStyles.sansMedium, { fontSize: 9.5, color: '#71717A' }]}>3 Colorways</Text>
         </View>
         <View style={{ flexDirection: 'row', gap: 8 }}>
           {COLOR_VARIANTS.map((c) => {
@@ -141,11 +144,13 @@ export function ProductDetailsSection({
                   }}
                 />
                 <Text
-                  style={{
-                    fontSize: 10.5,
-                    fontWeight: isSelected ? '800' : '600',
-                    color: isSelected ? '#111111' : '#71717A',
-                  }}
+                  style={[
+                    isSelected ? FontStyles.sansBold : FontStyles.sansMedium,
+                    {
+                      fontSize: 10.5,
+                      color: isSelected ? '#111111' : '#71717A',
+                    },
+                  ]}
                 >
                   {c.name}
                 </Text>

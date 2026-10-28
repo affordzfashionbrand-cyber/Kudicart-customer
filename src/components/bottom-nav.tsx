@@ -55,7 +55,7 @@ export function BottomNav({ cartCount = 3 }: BottomNavProps) {
     animatedScale.setValue(0.85);
     Animated.spring(animatedScale, {
       toValue: 1,
-      useNativeDriver: true,
+      useNativeDriver: Platform.OS !== 'web',
       bounciness: 10,
       speed: 16,
     }).start();

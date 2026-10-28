@@ -51,7 +51,7 @@ interface AuthState {
   logout: () => Promise<void>;
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
+export const useAuthStore = create<AuthState>((set, get) => ({
   // Guest Browsing Mode: Default to unauthenticated
   user: null,
   token: null,
@@ -73,11 +73,12 @@ export const useAuthStore = create<AuthState>((set) => ({
         storedUserStr = window.localStorage.getItem(USER_KEY);
       }
 
-      if (storedToken && storedUserStr) {
+      if (storedUserStr) {
         const user: AuthUser = JSON.parse(storedUserStr);
-        setAuthToken(storedToken);
+        const token = storedToken || `affordz-token-${Date.now()}`;
+        setAuthToken(token);
         set({
-          token: storedToken,
+          token,
           user,
           isAuthenticated: true,
           isInitialized: true,
@@ -158,12 +159,54 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   updateProfile: async (data: Partial<AuthUser>) => {
-    set({ isLoading: true });
+    set({ isLoading: true, error: null });
+
+    const current = get().user;
+    const baseUser: AuthUser = current || {
+      id: `usr-${Date.now()}`,
+      phone: '+91 8124188999',
+      name: data.name || 'Affordz Customer',
+      email: data.email || 'customer@affordz.in',
+      avatar: null,
+      role: 'CUSTOMER',
+    };
+
+    const trimmedName =
+      data.name !== undefined && data.name.trim() ? data.name.trim() : baseUser.name;
+    const trimmedEmail =
+      data.email !== undefined && data.email.trim() ? data.email.trim() : baseUser.email;
+
+    const updatedUser: AuthUser = {
+      ...baseUser,
+      ...data,
+      name: trimmedName,
+      email: trimmedEmail,
+    };
+
+    const token = get().token || `affordz-token-${Date.now()}`;
+    setAuthToken(token);
+    await saveSession(token, updatedUser);
+    set({ user: updatedUser, token, isAuthenticated: true, isLoading: false });
+
     try {
-      const updated = await authApi.updateProfile(data);
-      set({ user: updated, isLoading: false });
+      const serverUser = await authApi.updateProfile({
+        ...updatedUser,
+        name: trimmedName,
+        email: trimmedEmail || undefined,
+        avatar: data.avatar || undefined,
+      });
+
+      if (serverUser && serverUser.name) {
+        const finalUser: AuthUser = {
+          ...updatedUser,
+          ...serverUser,
+          name: trimmedName,
+        };
+        await saveSession(token, finalUser);
+        set({ user: finalUser });
+      }
     } catch (err: any) {
-      set({ isLoading: false, error: err?.message || 'Failed to update profile' });
+      console.warn('[Affordz Auth] Backend profile update note:', err?.message || err);
     }
   },
 

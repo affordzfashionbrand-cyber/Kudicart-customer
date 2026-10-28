@@ -27,24 +27,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSupportStore } from '@/store/useSupportStore';
 import { safeBack } from '@/utils/navigation';
-import { Fonts } from '@/constants/theme';
+import { Fonts, FontStyles } from '@/constants/theme';
+import { AnimatedPressable } from '@/components/common/animated-pressable';
 
 const bespokeEasing = Easing.bezier(0.32, 0.72, 0, 1);
-
-const AnimatedPressable = ({ children, style, className, onPress, scaleTo = 0.97 }: any) => {
-  const scale = useRef(new Animated.Value(1)).current;
-  const handlePressIn = () =>
-    Animated.timing(scale, { toValue: scaleTo, duration: 250, easing: bespokeEasing, useNativeDriver: true }).start();
-  const handlePressOut = () =>
-    Animated.timing(scale, { toValue: 1, duration: 250, easing: bespokeEasing, useNativeDriver: true }).start();
-  return (
-    <Pressable onPressIn={handlePressIn} onPressOut={handlePressOut} onPress={onPress}>
-      <Animated.View style={[style, { transform: [{ scale }] }]} className={className}>
-        {children}
-      </Animated.View>
-    </Pressable>
-  );
-};
 
 const SUPPORT_CATEGORIES = [
   'Try & Buy Fit Exchange',
@@ -170,17 +156,27 @@ export default function SupportScreen() {
         <View style={{ width: 38 }} />
       </View>
 
-      <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 100 }}
+        showsVerticalScrollIndicator={false}
+        removeClippedSubviews={Platform.OS !== 'web'}
+        overScrollMode="never"
+        keyboardShouldPersistTaps="handled"
+        decelerationRate="normal"
+      >
         <View style={{ paddingTop: 18, paddingBottom: 14 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 3 }}>
             <Sparkles size={13} color="#FF5A1F" />
-            <Text style={{ fontSize: 10, letterSpacing: 1.5, fontWeight: '900', color: '#FF5A1F', textTransform: 'uppercase' }}>
+            <Text style={[FontStyles.sansBold, { fontSize: 10, letterSpacing: 1.5, color: '#FF5A1F', textTransform: 'uppercase' }]}>
               DIRECT ATELIER SUPPORT
             </Text>
           </View>
-          <Text style={{ fontSize: 28, lineHeight: 32, letterSpacing: -0.5, color: '#111111' }}>
-            <Text style={{ fontFamily: Fonts.serifRegular, fontWeight: '400' }}>How can we</Text>{' '}
-            <Text style={{ fontFamily: Fonts.serifItalic, fontWeight: '400', fontStyle: 'italic' }}>assist you?</Text>
+          <Text
+            className="font-serif editorial-text"
+            style={{ fontFamily: Fonts.serifSemiBold, fontSize: 28, lineHeight: 32, letterSpacing: -0.5, color: '#111111' }}
+          >
+            <Text style={FontStyles.serifRegular}>How can we</Text>{' '}
+            <Text style={FontStyles.serifItalic}>assist you?</Text>
           </Text>
           <Text style={{ fontSize: 12.5, color: '#6B6667', marginTop: 4 }}>
             Instant doorstep resolutions, fit exchanges, or bespoke order styling.
@@ -208,7 +204,14 @@ export default function SupportScreen() {
         <Text style={{ fontSize: 10.5, fontWeight: '900', color: '#8E877E', letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 8 }}>
           SELECT INQUIRY CATEGORY
         </Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingBottom: 14 }}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          nestedScrollEnabled={true}
+          directionalLockEnabled={true}
+          overScrollMode="never"
+          contentContainerStyle={{ gap: 8, paddingBottom: 14 }}
+        >
           {SUPPORT_CATEGORIES.map((cat) => {
             const isSelected = selectedCategory === cat;
             return (

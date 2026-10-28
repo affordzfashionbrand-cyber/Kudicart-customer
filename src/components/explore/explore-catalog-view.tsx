@@ -5,6 +5,7 @@ import {
   ScrollView,
   TextInput,
   Pressable,
+  Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
@@ -19,6 +20,8 @@ import { AnimatedPressable } from '@/components/common/animated-pressable';
 import { ProductCard } from '@/components/common/product-card';
 import { EmptyState } from '@/components/common/empty-state';
 import { SectionTitle } from '@/components/common/section-title';
+import { UniversalSearchBar } from '@/components/home/search-bar';
+import { SearchSuggestionsOverlay } from '@/components/home/search-suggestions-overlay';
 import { ProductItem } from '@/data/homeData';
 import { useCartStore } from '@/store/useCartStore';
 import { useCatalogStore } from '@/store/useCatalogStore';
@@ -62,6 +65,7 @@ export const ExploreCatalogView = React.memo(function ExploreCatalogView({
   const storeProducts = useCatalogStore((s) => s.products);
 
   const [searchQuery, setSearchQuery] = useState(initialQuery);
+  const [isSearchOverlayVisible, setIsSearchOverlayVisible] = useState(false);
   const [selectedGender, setSelectedGender] = useState<'All' | 'Men' | 'Women' | 'Kids'>(initialGender);
   const [selectedCategory, setSelectedCategory] = useState<string>(initialCategory);
   const [selectedSubcategory, setSelectedSubcategory] = useState<string>('All');
@@ -197,7 +201,7 @@ export const ExploreCatalogView = React.memo(function ExploreCatalogView({
 
   return (
     <View style={{ flex: 1, backgroundColor: '#FAF8F5' }}>
-      {/* 1. Search Bar */}
+      {/* 1. Universal Search Bar */}
       <View
         style={{
           paddingHorizontal: 16,
@@ -207,34 +211,25 @@ export const ExploreCatalogView = React.memo(function ExploreCatalogView({
           borderBottomColor: '#E8E5DF',
         }}
       >
-        <View
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            backgroundColor: '#F7F5F0',
-            borderRadius: 14,
-            paddingHorizontal: 12,
-            borderWidth: 1,
-            borderColor: '#E2DFD8',
-          }}
-        >
-          <Search size={16} color="#8A8580" />
-          <TextInput
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            placeholder="Search by label, weave, silhouette..."
-            placeholderTextColor="#A0A0A0"
-            style={{ flex: 1, paddingVertical: 9, paddingHorizontal: 8, fontSize: 13, color: '#111111' }}
-          />
-          {searchQuery.length > 0 && (
-            <Pressable onPress={() => setSearchQuery('')} hitSlop={8}>
-              <X size={15} color="#8A8580" />
-            </Pressable>
-          )}
-        </View>
+        <UniversalSearchBar
+          query={searchQuery}
+          showLogoInside={true}
+          onQueryChange={setSearchQuery}
+          onOpenOverlay={() => setIsSearchOverlayVisible(true)}
+          onClear={() => setSearchQuery('')}
+          onBack={() => setSearchQuery('')}
+          placeholder="Search by label, weave, silhouette..."
+        />
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 110 }}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 110 }}
+        removeClippedSubviews={Platform.OS !== 'web'}
+        overScrollMode="never"
+        keyboardShouldPersistTaps="handled"
+        decelerationRate="normal"
+      >
         {/* 2. Gender Department Strip */}
         <View style={{ paddingHorizontal: 16, paddingTop: 10, paddingBottom: 6 }}>
           <View
@@ -270,7 +265,14 @@ export const ExploreCatalogView = React.memo(function ExploreCatalogView({
 
         {/* 3. Category Carousel */}
         <View style={{ paddingVertical: 8 }}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            nestedScrollEnabled={true}
+            directionalLockEnabled={true}
+            overScrollMode="never"
+            contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}
+          >
             {EXPLORE_CATEGORIES.map((cat) => {
               const active = selectedCategory === cat.id;
               return (
@@ -301,7 +303,14 @@ export const ExploreCatalogView = React.memo(function ExploreCatalogView({
         {/* 4. Subcategory Pills */}
         {activeCategoryDef.subcategories && (
           <View style={{ paddingBottom: 8 }}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 6 }}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              nestedScrollEnabled={true}
+              directionalLockEnabled={true}
+              overScrollMode="never"
+              contentContainerStyle={{ paddingHorizontal: 16, gap: 6 }}
+            >
               {activeCategoryDef.subcategories.map((sub) => {
                 const active = selectedSubcategory === sub;
                 return (
@@ -388,6 +397,28 @@ export const ExploreCatalogView = React.memo(function ExploreCatalogView({
           )}
         </View>
       </ScrollView>
+
+      {/* Live Search Suggestions Autocomplete Overlay */}
+      <SearchSuggestionsOverlay
+        visible={isSearchOverlayVisible}
+        query={searchQuery}
+        onQueryChange={setSearchQuery}
+        onSelectQuery={(term) => {
+          setSearchQuery(term);
+        }}
+        onOpenProduct={(product) => {
+          setIsSearchOverlayVisible(false);
+          if (propOnOpenProduct) {
+            propOnOpenProduct(product);
+          } else {
+            router.push({
+              pathname: '/product/[id]',
+              params: { id: String(product.id) },
+            });
+          }
+        }}
+        onClose={() => setIsSearchOverlayVisible(false)}
+      />
     </View>
   );
 });

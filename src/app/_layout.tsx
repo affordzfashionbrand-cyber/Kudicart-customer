@@ -1,9 +1,37 @@
 import '../global.css';
 import { DefaultTheme, ThemeProvider, Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { View, StyleSheet, Platform } from 'react-native';
+import { View, StyleSheet, Platform, LogBox } from 'react-native';
+
+LogBox.ignoreLogs([
+  '"shadow*" style props are deprecated',
+  '"textShadow*" style props are deprecated',
+  'props.pointerEvents is deprecated',
+  'Image: style.resizeMode is deprecated',
+  'Animated: `useNativeDriver` is not supported',
+  'Fetch request has been canceled',
+]);
+
+if (Platform.OS === 'web' && typeof console !== 'undefined') {
+  const _origWarn = console.warn;
+  console.warn = (...args: any[]) => {
+    const first = args[0];
+    if (
+      typeof first === 'string' &&
+      (first.includes('deprecated') ||
+        first.includes('useNativeDriver') ||
+        first.includes('pointerEvents') ||
+        first.includes('canceled') ||
+        first.includes('aborted'))
+    ) {
+      return;
+    }
+    _origWarn(...args);
+  };
+}
 import { useEffect, useState } from 'react';
 import { useAuthStore } from '@/store/useAuthStore';
+import { useSettingsStore } from '@/store/useSettingsStore';
 
 import { useFonts } from 'expo-font';
 import {
@@ -22,7 +50,6 @@ import {
 } from '@expo-google-fonts/plus-jakarta-sans';
 
 import { SplashScreenView } from '@/components/splash-screen';
-import { DemoWatermark } from '@/components/common/demo-watermark';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -53,22 +80,29 @@ export default function RootLayout() {
     PlusJakartaSans_400Regular_Italic,
     'Playfair Display': PlayfairDisplay_600SemiBold,
     'Playfair-Display': PlayfairDisplay_600SemiBold,
+    'PlayfairDisplay': PlayfairDisplay_600SemiBold,
     'PlayfairDisplay-Regular': PlayfairDisplay_400Regular,
     'PlayfairDisplay-Medium': PlayfairDisplay_500Medium,
     'PlayfairDisplay-SemiBold': PlayfairDisplay_600SemiBold,
     'PlayfairDisplay-Bold': PlayfairDisplay_700Bold,
+    'PlayfairDisplay-Italic': PlayfairDisplay_400Regular_Italic,
     'Plus Jakarta Sans': PlusJakartaSans_400Regular,
     'Plus-Jakarta-Sans': PlusJakartaSans_400Regular,
+    'PlusJakartaSans': PlusJakartaSans_400Regular,
     'PlusJakartaSans-Regular': PlusJakartaSans_400Regular,
     'PlusJakartaSans-Medium': PlusJakartaSans_500Medium,
     'PlusJakartaSans-SemiBold': PlusJakartaSans_600SemiBold,
     'PlusJakartaSans-Bold': PlusJakartaSans_700Bold,
     serif: PlayfairDisplay_600SemiBold,
     Georgia: PlayfairDisplay_600SemiBold,
+    'sans-serif': PlusJakartaSans_400Regular,
+    sans: PlusJakartaSans_400Regular,
+    editorial: PlayfairDisplay_600SemiBold,
   });
 
   useEffect(() => {
     useAuthStore.getState().initializeAuth();
+    useSettingsStore.getState().initializeSettings();
     if (Platform.OS === 'web' && typeof document !== 'undefined') {
       const linkId = 'affordz-google-fonts';
       if (!document.getElementById(linkId)) {
@@ -85,17 +119,19 @@ export default function RootLayout() {
         const style = document.createElement('style');
         style.id = styleId;
         style.innerHTML = `
+          html, body, #root {
+            font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+          }
+
           [dir="auto"],
-          [dir="auto"] *,
           div[dir="auto"],
           span[dir="auto"],
           [class*="css-text-"],
-          body,
           input,
           textarea,
           button,
           select {
-            font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+            font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
           }
 
           .font-serif,
@@ -112,6 +148,10 @@ export default function RootLayout() {
           .font-headline-md *,
           .font-headline-sm,
           .font-headline-sm *,
+          .editorial-text,
+          .editorial-text *,
+          [data-font="serif"],
+          [data-font="editorial"],
           [class*="font-serif"],
           [class*="font-editorial"],
           [class*="font-display"],
@@ -120,12 +160,15 @@ export default function RootLayout() {
           [style*="serif"],
           [style*="Georgia"],
           [style*="Playfair"],
+          [style*="PlayfairDisplay"],
           [dir="auto"][style*="serif"],
           [dir="auto"][style*="Georgia"],
           [dir="auto"][style*="Playfair"],
+          [dir="auto"][style*="PlayfairDisplay"],
           [dir="auto"] [style*="serif"],
           [dir="auto"] [style*="Georgia"],
           [dir="auto"] [style*="Playfair"],
+          [dir="auto"] [style*="PlayfairDisplay"],
           [class*="r-fontFamily-serif"],
           [class*="r-fontFamily-Georgia"],
           [class*="r-fontFamily-Playfair"] {
@@ -151,7 +194,6 @@ export default function RootLayout() {
     <ThemeProvider value={BrandTheme}>
       <View style={styles.outerContainer}>
         <View style={styles.phoneContainer}>
-          <DemoWatermark />
           <Stack
             screenOptions={{
               headerShown: false,
@@ -176,16 +218,22 @@ const styles = StyleSheet.create({
     flex: 1,
     width: '100%',
     height: '100%',
-    backgroundColor: '#F3EFEA',
+    backgroundColor: Platform.OS === 'web' ? '#EDE8E1' : '#FDFBF7',
     alignItems: 'center',
     justifyContent: 'center',
   },
   phoneContainer: {
     flex: 1,
     width: '100%',
-    maxWidth: 440,
-    backgroundColor: '#FDFBF7',
+    maxWidth: Platform.OS === 'web' ? 480 : '100%',
+    backgroundColor: '#FAF8F5',
     position: 'relative',
     overflow: 'hidden',
+    ...(Platform.OS === 'web'
+      ? {
+          boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.16), 0 0 0 1px rgba(0, 0, 0, 0.08)',
+          height: '100%',
+        }
+      : {}),
   },
 });

@@ -29,6 +29,7 @@ export interface ShopByCategoryViewProps {
   onOpen?: (product: any) => void;
   initialMode?: 'CATEGORY' | 'STORE';
   initialStoreId?: string | null;
+  isLoading?: boolean;
 }
 
 export const ShopByCategoryView = React.memo(function ShopByCategoryView({
@@ -40,6 +41,7 @@ export const ShopByCategoryView = React.memo(function ShopByCategoryView({
   onOpen: propOnOpen,
   initialMode = 'CATEGORY',
   initialStoreId = null,
+  isLoading = false,
 }: ShopByCategoryViewProps) {
   const router = useRouter();
   const { wishlist: storeWishlist, toggleWishlist: storeToggleWishlist, addItem } = useCartStore();
@@ -382,6 +384,7 @@ export const ShopByCategoryView = React.memo(function ShopByCategoryView({
           onToggleWishlist={handleToggleWishlist}
           onAddToBag={handleAddToBag}
           onOpenProduct={handleOpenProduct}
+          isLoading={isLoading}
         />
       )}
     </View>

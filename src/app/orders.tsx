@@ -9,7 +9,6 @@ import {
   Platform,
   RefreshControl,
   BackHandler,
-  Image,
   Alert,
   Modal,
   TextInput,
@@ -36,25 +35,13 @@ import { useOrderStore } from '@/store/useOrderStore';
 import { useCartStore } from '@/store/useCartStore';
 import { safeBack } from '@/utils/navigation';
 import { OrderModel, OrderStatus, reviewsApi } from '@/services/api';
-import { Fonts } from '@/constants/theme';
+import { Fonts, FontStyles } from '@/constants/theme';
+import { LazyImage } from '@/components/common/lazy-image';
+import { OrderCardSkeleton } from '@/components/common/skeleton';
+import { AnimatedPressable } from '@/components/common/animated-pressable';
 
 const bespokeEasing = Easing.bezier(0.32, 0.72, 0, 1);
 const formatPrice = (value: number) => `₹${value.toLocaleString('en-IN')}`;
-
-const AnimatedPressable = ({ children, style, className, onPress, scaleTo = 0.97 }: any) => {
-  const scale = useRef(new Animated.Value(1)).current;
-  const handlePressIn = () =>
-    Animated.timing(scale, { toValue: scaleTo, duration: 250, easing: bespokeEasing, useNativeDriver: true }).start();
-  const handlePressOut = () =>
-    Animated.timing(scale, { toValue: 1, duration: 250, easing: bespokeEasing, useNativeDriver: true }).start();
-  return (
-    <Pressable onPressIn={handlePressIn} onPressOut={handlePressOut} onPress={onPress}>
-      <Animated.View style={[style, { transform: [{ scale }] }]} className={className}>
-        {children}
-      </Animated.View>
-    </Pressable>
-  );
-};
 
 export default function OrdersScreen() {
   const router = useRouter();
@@ -153,6 +140,11 @@ export default function OrdersScreen() {
 
       <ScrollView
         contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 100 }}
+        showsVerticalScrollIndicator={false}
+        removeClippedSubviews={Platform.OS !== 'web'}
+        overScrollMode="never"
+        keyboardShouldPersistTaps="handled"
+        decelerationRate="normal"
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
@@ -161,22 +153,30 @@ export default function OrdersScreen() {
             colors={['#FF5A1F']}
           />
         }
-        showsVerticalScrollIndicator={false}
       >
         <View style={{ paddingTop: 18, paddingBottom: 14 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 3 }}>
             <Sparkles size={13} color="#FF5A1F" />
-            <Text style={{ fontSize: 10, letterSpacing: 1.5, fontWeight: '900', color: '#FF5A1F', textTransform: 'uppercase' }}>
+            <Text style={[FontStyles.sansBold, { fontSize: 10, letterSpacing: 1.5, color: '#FF5A1F', textTransform: 'uppercase' }]}>
               CURATED WARDROBE
             </Text>
           </View>
-          <Text style={{ fontSize: 28, lineHeight: 32, letterSpacing: -0.5, color: '#111111' }}>
-            <Text style={{ fontFamily: Fonts.serifRegular, fontWeight: '400' }}>Active & past</Text>{' '}
-            <Text style={{ fontFamily: Fonts.serifItalic, fontWeight: '400', fontStyle: 'italic' }}>drops.</Text>
+          <Text
+            className="font-serif editorial-text"
+            style={{ fontFamily: Fonts.serifSemiBold, fontSize: 28, lineHeight: 32, letterSpacing: -0.5, color: '#111111' }}
+          >
+            <Text style={FontStyles.serifRegular}>Active & past</Text>{' '}
+            <Text style={FontStyles.serifItalic}>drops.</Text>
           </Text>
         </View>
 
-        {orders.length === 0 ? (
+        {isLoading && orders.length === 0 ? (
+          <View style={{ gap: 12, marginTop: 8 }}>
+            <OrderCardSkeleton />
+            <OrderCardSkeleton />
+            <OrderCardSkeleton />
+          </View>
+        ) : orders.length === 0 ? (
           <View style={{ paddingVertical: 60, alignItems: 'center', justifyContent: 'center' }}>
             <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: '#F4F1EA', borderWidth: 1, borderColor: '#E8E5DF', justifyContent: 'center', alignItems: 'center', marginBottom: 16 }}>
               <Package size={32} color="#111111" />
@@ -250,10 +250,11 @@ export default function OrdersScreen() {
                         style={{ width: 52, height: 64, borderRadius: 12, backgroundColor: '#F4F1EA', borderWidth: 1, borderColor: '#E8E5DF', overflow: 'hidden' }}
                       >
                         {it.image ? (
-                          <Image
+                          <LazyImage
                             source={{ uri: it.image }}
                             style={{ width: '100%', height: '100%' }}
-                            resizeMode="cover"
+                            contentFit="cover"
+                            priority="low"
                           />
                         ) : (
                           <View style={{ width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' }}>
@@ -543,10 +544,10 @@ function OrderDetailView({
               }}
             >
               {item.image ? (
-                <Image
-                  source={{ uri: item.image }}
+                <LazyImage
+                  source={item.image}
                   style={{ width: 56, height: 70, borderRadius: 10, backgroundColor: '#F4F1EA' }}
-                  resizeMode="cover"
+                  contentFit="cover"
                 />
               ) : (
                 <View style={{ width: 56, height: 70, borderRadius: 10, backgroundColor: '#F4F1EA', alignItems: 'center', justifyContent: 'center' }}>

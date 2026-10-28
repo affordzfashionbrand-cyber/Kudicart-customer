@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, Pressable, Animated, Easing } from 'react-native';
+import { View, Text, Pressable, Animated, Easing, Platform } from 'react-native';
 import { ChevronRight } from 'lucide-react-native';
 import { BANK_OFFERS, bespokeEasing } from '@/data/homeData';
 
@@ -15,6 +15,7 @@ export const BankOffersTicker = React.memo(function BankOffersTicker({
   const [internalIndex, setInternalIndex] = useState(0);
   const bankSlideAnim = useRef(new Animated.Value(0)).current;
   const bankOpacityAnim = useRef(new Animated.Value(1)).current;
+  const isNative = Platform.OS !== 'web';
 
   const activeIndex = selectedIndex !== undefined ? selectedIndex : internalIndex;
   const currentBankOffer = BANK_OFFERS[activeIndex] || BANK_OFFERS[0];
@@ -32,12 +33,12 @@ export const BankOffersTicker = React.memo(function BankOffersTicker({
           toValue: -14,
           duration: 200,
           easing: Easing.out(Easing.ease),
-          useNativeDriver: true,
+          useNativeDriver: isNative,
         }),
         Animated.timing(bankOpacityAnim, {
           toValue: 0,
           duration: 180,
-          useNativeDriver: true,
+          useNativeDriver: isNative,
         }),
       ]).start(() => {
         setInternalIndex((prev) => (prev + 1) % BANK_OFFERS.length);
@@ -47,19 +48,19 @@ export const BankOffersTicker = React.memo(function BankOffersTicker({
             toValue: 0,
             duration: 250,
             easing: bespokeEasing,
-            useNativeDriver: true,
+            useNativeDriver: isNative,
           }),
           Animated.timing(bankOpacityAnim, {
             toValue: 1,
             duration: 220,
-            useNativeDriver: true,
+            useNativeDriver: isNative,
           }),
         ]).start();
       });
     }, 3800);
 
     return () => clearInterval(timer);
-  }, []);
+  }, [bankSlideAnim, bankOpacityAnim, isNative]);
 
   return (
     <Pressable

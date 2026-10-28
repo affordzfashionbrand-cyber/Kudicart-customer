@@ -10,6 +10,8 @@ import {
   NativeSyntheticEvent,
   NativeScrollEvent,
   LayoutChangeEvent,
+  BackHandler,
+  Platform,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,8 +20,12 @@ import { ShoppingBag, ArrowLeft, AlertCircle } from 'lucide-react-native';
 import { useCartStore } from '@/store/useCartStore';
 import { useCatalogStore } from '@/store/useCatalogStore';
 import { useDarkStore } from '@/store/useDarkStore';
+import { useAuthStore } from '@/store/useAuthStore';
+import { AuthModal } from '@/components/auth-modal';
 import { catalogApi, ApiProduct } from '@/services/api';
 import { safeBack } from '@/utils/navigation';
+import { SearchSuggestionsOverlay } from '@/components/home/search-suggestions-overlay';
+import { ProductDetailSkeleton } from '@/components/common/skeleton';
 
 import {
   AVAILABLE_SIZES,
@@ -40,6 +46,7 @@ import {
 } from '@/components/product';
 
 import { DEFAULT_PRODUCTS, ProductItem } from '@/data/homeData';
+import { resolveProductGalleryShots } from '@/data/product-gallery-data';
 
 export default function ProductDetailScreen() {
   const router = useRouter();
@@ -47,8 +54,21 @@ export default function ProductDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
 
   const { products: storeProducts } = useCatalogStore();
-  const { addItem, toggleWishlist, wishlist } = useCartStore();
+  const {
+    addItem,
+    updateQuantity,
+    removeItem,
+    toggleWishlist,
+    wishlist,
+    items: cartItems,
+  } = useCartStore();
   const { selectedDarkStore } = useDarkStore();
+  const { isAuthenticated } = useAuthStore();
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+
+  const totalCartCount = useMemo(() => {
+    return cartItems.reduce((acc, curr) => acc + curr.quantity, 0);
+  }, [cartItems]);
 
   const [liveProduct, setLiveProduct] = useState<ApiProduct | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -107,31 +127,36 @@ export default function ProductDetailScreen() {
         altText: fromDefault.name,
         galleryImages: [fromDefault.image],
         category: fromDefault.category,
-        fulfillmentType: 'DARK_STORE',
-        tryAndBuyEligible: true,
+        fulfillmentType: [4, 8, 9, 10, 102, 103, 106, 107].includes(Number(fromDefault.id)) ? 'DARK_STORE' : 'VENDOR',
+        tryAndBuyEligible: [4, 8, 9, 10, 102, 103, 106, 107].includes(Number(fromDefault.id)),
       };
     }
     return null;
   }, [liveProduct, storeProducts, id]);
 
-  // Determine Dark Store / Try & Buy Status
+  // Determine Dark Store / Try & Buy Status (Strict Invariant: Only DARK_STORE has Try & Buy)
   const isDarkStoreProduct = useMemo(() => {
-    return product?.fulfillmentType === 'DARK_STORE' || Boolean(product?.tryAndBuyEligible);
+    return product?.fulfillmentType === 'DARK_STORE';
   }, [product]);
 
-  // Lookbook Gallery Images
-  const galleryImages = useMemo(() => {
-    if (product?.galleryImages && product.galleryImages.length > 0) {
-      return product.galleryImages;
-    }
-    if (product?.image) {
-      return [product.image];
-    }
-    return [
-      'https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=800&q=85',
-      'https://images.unsplash.com/photo-1584917865442-de89df76afd3?auto=format&fit=crop&w=800&q=85',
-    ];
+  // Multi-Angle Lookbook Gallery Shots (Atelier 4-5 Angles Guarantee)
+  const galleryShots = useMemo(() => {
+    return resolveProductGalleryShots({
+      id: product?.id,
+      category: product?.category,
+      wear: (product as any)?.wear,
+      image: product?.image,
+      galleryImages: product?.galleryImages,
+    });
   }, [product]);
+
+  const galleryImages = useMemo(() => {
+    return galleryShots.map((s) => s.uri);
+  }, [galleryShots]);
+
+  const shotLabels = useMemo(() => {
+    return galleryShots.map((s) => s.label);
+  }, [galleryShots]);
 
   // Available Sizes for this Product
   const availableProductSizes = useMemo(() => {
@@ -143,17 +168,49 @@ export default function ProductDetailScreen() {
 
   // Interaction State
   const [activeImageIndex, setActiveImageIndex] = useState(0);
-  const [selectedSize, setSelectedSize] = useState('M');
+
+  useEffect(() => {
+    setActiveImageIndex(0);
+  }, [id]);
+  const [selectedSize, setSelectedSize] = useState<string>('M');
+  const [sizeError, setSizeError] = useState(false);
+  const sizeSectionLayoutY = useRef<number>(0);
+  const scrollViewRef = useRef<ScrollView>(null);
   const [selectedColor, setSelectedColor] = useState('Classic Fabric');
   const [dualSizeTrial, setDualSizeTrial] = useState(true);
   const [isSizeGuideOpen, setIsSizeGuideOpen] = useState(false);
 
-  // Set default selected size when available
+  // Search Suggestions State
+  const [isSearchOverlayVisible, setIsSearchOverlayVisible] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Hardware Back Handler for Search Overlay
+  useEffect(() => {
+    if (!isSearchOverlayVisible) return;
+    const onHardwareBack = () => {
+      setIsSearchOverlayVisible(false);
+      return true;
+    };
+    const sub = BackHandler.addEventListener('hardwareBackPress', onHardwareBack);
+    return () => sub.remove();
+  }, [isSearchOverlayVisible]);
+
+  // Ensure default selected size matches available product sizes
   useEffect(() => {
     if (availableProductSizes.length > 0 && !availableProductSizes.includes(selectedSize)) {
       setSelectedSize(availableProductSizes[0]);
     }
   }, [availableProductSizes, selectedSize]);
+
+  // Current item in bag for this product & selected size
+  const currentCartItem = useMemo(() => {
+    if (!product || !selectedSize) return null;
+    return cartItems.find(
+      (item) => item.productId === String(product.id) && item.size === selectedSize,
+    );
+  }, [cartItems, product, selectedSize]);
+
+  const currentQuantity = currentCartItem ? currentCartItem.quantity : 0;
 
   // Pincode & Delivery State
   const [pincode, setPincode] = useState('560038');
@@ -205,6 +262,8 @@ export default function ProductDetailScreen() {
     catalogYThreshold.current = event.nativeEvent.layout.y;
   }, []);
 
+  const isNative = Platform.OS !== 'web';
+
   const handleProductScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const currentY = event.nativeEvent.contentOffset.y;
     const threshold = catalogYThreshold.current;
@@ -215,7 +274,7 @@ export default function ProductDetailScreen() {
       isInCatalogZone.current = true;
       Animated.spring(buyBarTranslateY, {
         toValue: 120,
-        useNativeDriver: true,
+        useNativeDriver: isNative,
         tension: 80,
         friction: 12,
       }).start();
@@ -223,12 +282,12 @@ export default function ProductDetailScreen() {
       isInCatalogZone.current = false;
       Animated.spring(buyBarTranslateY, {
         toValue: 0,
-        useNativeDriver: true,
+        useNativeDriver: isNative,
         tension: 80,
         friction: 12,
       }).start();
     }
-  }, [buyBarTranslateY]);
+  }, [buyBarTranslateY, isNative]);
 
   const handleApplyPincode = (codeToApply?: string) => {
     const code = (codeToApply || pincodeInput).trim();
@@ -250,6 +309,7 @@ export default function ProductDetailScreen() {
 
   // Adjacent Size for Dual-Size Trial
   const adjacentSize = useMemo(() => {
+    if (!selectedSize) return availableProductSizes[1] || 'L';
     const idx = availableProductSizes.indexOf(selectedSize);
     if (idx === -1 || idx === availableProductSizes.length - 1) {
       return availableProductSizes[0] || 'M';
@@ -257,16 +317,9 @@ export default function ProductDetailScreen() {
     return availableProductSizes[idx + 1];
   }, [selectedSize, availableProductSizes]);
 
-  // Loading Screen
+  // High-Fidelity Skeleton Loading Screen
   if (isLoading && !product) {
-    return (
-      <View style={{ flex: 1, backgroundColor: '#FAF8F5', justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color="#FF5A1F" />
-        <Text style={{ marginTop: 12, fontSize: 13, color: '#6B6667', fontWeight: '700' }}>
-          Loading Runway Piece...
-        </Text>
-      </View>
-    );
+    return <ProductDetailSkeleton />;
   }
 
   // Clean 404 Not Found Screen
@@ -322,15 +375,17 @@ export default function ProductDetailScreen() {
     }
   };
 
-  const handleAddToCart = () => {
+  const handleAddToCart = async () => {
+    if (!product) return;
     if (product.stockQuantity <= 0) {
       showToast('This item is currently out of stock');
       return;
     }
 
+    const effectiveSize = selectedSize || availableProductSizes[0] || 'M';
     const trialSizeParam = dualSizeTrial && isDarkStoreProduct ? adjacentSize : undefined;
 
-    addItem(
+    await addItem(
       {
         id: String(product.id),
         brand: product.brand,
@@ -351,7 +406,7 @@ export default function ProductDetailScreen() {
         fulfillmentType: product.fulfillmentType,
         tryAndBuyEligible: product.tryAndBuyEligible,
       },
-      selectedSize,
+      effectiveSize,
       selectedColor,
       1,
       trialSizeParam,
@@ -359,25 +414,111 @@ export default function ProductDetailScreen() {
 
     showToast(
       trialSizeParam
-        ? `Added to Bag with Free Fit-Check Size ${trialSizeParam}`
-        : 'Added to Bag',
+        ? `Added Size ${effectiveSize} to Bag (Free Fit-Check ${trialSizeParam})`
+        : `Added Size ${effectiveSize} to Bag`,
     );
+  };
+
+  const executeBuyNow = async () => {
+    if (!product) return;
+    const effectiveSize = selectedSize || availableProductSizes[0] || 'M';
+    const trialSizeParam = dualSizeTrial && isDarkStoreProduct ? adjacentSize : undefined;
+
+    // Check if this item + size is already in cart
+    const existing = cartItems.find(
+      (item) => item.productId === String(product.id) && item.size === effectiveSize,
+    );
+
+    if (!existing) {
+      await addItem(
+        {
+          id: String(product.id),
+          brand: product.brand,
+          title: productTitle,
+          description: product.description || '',
+          price: product.price,
+          originalPrice: productMrp,
+          discount: `${discountPct}% OFF`,
+          rating: Number(product.rating) || 4.9,
+          reviewsCount: product.reviewsCount || 148,
+          stockQuantity: product.stockQuantity,
+          readyToShip: true,
+          sizes: availableProductSizes,
+          image: product.image,
+          altText: productTitle,
+          galleryImages: galleryImages,
+          category: product.category || 'Apparel',
+          fulfillmentType: product.fulfillmentType,
+          tryAndBuyEligible: product.tryAndBuyEligible,
+        },
+        effectiveSize,
+        selectedColor,
+        1,
+        trialSizeParam,
+      );
+    }
+
+    // Direct, guaranteed progression to checkout
+    router.push('/cart');
+  };
+
+  const handleBuyNow = async () => {
+    if (!product) return;
+    if (product.stockQuantity <= 0) {
+      showToast('This item is currently out of stock');
+      return;
+    }
+
+    if (!selectedSize) {
+      showToast('Please select a size first');
+      return;
+    }
+
+    if (!isAuthenticated) {
+      showToast('Please sign in to proceed with Buy Now');
+      setIsAuthModalOpen(true);
+      return;
+    }
+
+    await executeBuyNow();
+  };
+
+  const handleIncrementQuantity = () => {
+    if (currentCartItem) {
+      updateQuantity(currentCartItem.id, 1);
+      showToast(`Quantity updated to ${currentQuantity + 1}`);
+    }
+  };
+
+  const handleDecrementQuantity = () => {
+    if (currentCartItem) {
+      if (currentQuantity <= 1) {
+        removeItem(currentCartItem.id);
+        showToast('Removed from Bag');
+      } else {
+        updateQuantity(currentCartItem.id, -1);
+        showToast(`Quantity updated to ${currentQuantity - 1}`);
+      }
+    }
   };
 
   return (
     <View style={{ flex: 1, backgroundColor: '#FAF8F5' }}>
-      {/* 1. Glass Top Header */}
+      {/* 1. Glass Top Header with Bag icon (replacing likes) */}
       <ProductHeader
         topInset={insets.top}
-        isWished={isWished}
+        cartCount={totalCartCount}
         onBack={() => safeBack(router)}
-        onSearchPress={() => router.push('/explore')}
+        onOpenSearchOverlay={() => setIsSearchOverlayVisible(true)}
         onShare={handleShare}
-        onToggleWishlist={handleToggleWishlist}
+        onOpenBag={() => router.push('/cart')}
+        searchQuery={searchQuery}
+        onClearSearch={() => setSearchQuery('')}
       />
 
       {/* 2. Scrollable Body Content */}
       <ScrollView
+        ref={scrollViewRef}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{
           paddingTop: Math.max(insets.top, 10) + 54,
@@ -385,6 +526,11 @@ export default function ProductDetailScreen() {
         }}
         onScroll={handleProductScroll}
         scrollEventThrottle={16}
+        removeClippedSubviews={Platform.OS !== 'web'}
+        keyboardShouldPersistTaps="handled"
+        overScrollMode="never"
+        decelerationRate="normal"
+        directionalLockEnabled={true}
       >
         {/* Floating Status Badge */}
         <ProductStatusBadge
@@ -397,11 +543,16 @@ export default function ProductDetailScreen() {
         {/* 3. Lookbook Carousel Stage */}
         <ProductGallery
           galleryImages={galleryImages}
+          shotLabels={shotLabels}
+          productTitle={productTitle}
+          brand={product.brand}
           activeImageIndex={activeImageIndex}
           onSelectImage={setActiveImageIndex}
           isDarkStoreProduct={isDarkStoreProduct}
           deliveryMinutes={selectedDarkStore?.deliveryMinutes || product.darkStoreHub?.deliveryMinutes}
           discountPct={discountPct}
+          isWished={isWished}
+          onToggleWishlist={handleToggleWishlist}
         />
 
         {/* 4. Product Identity & Pricing Block */}
@@ -437,15 +588,25 @@ export default function ProductDetailScreen() {
         />
 
         {/* 6. Size & Fit Selector with Secondary Fit-Check Trial Size */}
-        <ProductSizeSection
-          selectedSize={selectedSize}
-          onSelectSize={setSelectedSize}
-          onOpenSizeGuide={() => setIsSizeGuideOpen(true)}
-          isDarkStoreProduct={isDarkStoreProduct}
-          dualSizeTrial={dualSizeTrial}
-          onToggleDualSizeTrial={() => setDualSizeTrial(!dualSizeTrial)}
-          adjacentSize={adjacentSize}
-        />
+        <View
+          onLayout={(e) => {
+            sizeSectionLayoutY.current = e.nativeEvent.layout.y;
+          }}
+        >
+          <ProductSizeSection
+            selectedSize={selectedSize}
+            onSelectSize={(sz) => {
+              setSelectedSize(sz);
+              setSizeError(false);
+            }}
+            onOpenSizeGuide={() => setIsSizeGuideOpen(true)}
+            isDarkStoreProduct={isDarkStoreProduct}
+            dualSizeTrial={dualSizeTrial}
+            onToggleDualSizeTrial={() => setDualSizeTrial(!dualSizeTrial)}
+            adjacentSize={adjacentSize}
+            hasError={sizeError}
+          />
+        </View>
 
         {/* Specs, Materials & Craftsmanship */}
         <ProductSpecsSection isDarkStoreProduct={isDarkStoreProduct} />
@@ -487,8 +648,15 @@ export default function ProductDetailScreen() {
           onOpenProduct={(epId) => router.push({ pathname: '/product/[id]', params: { id: epId } })}
         />
 
-        {/* Verified Reviews Section */}
-        <ProductReviewsSection />
+        {/* Verified Reviews Section with Write Review Modal */}
+        <ProductReviewsSection
+          productId={String(product.id)}
+          productTitle={productTitle}
+          productImage={product.image}
+          brand={product.brand}
+          rating={Number(product.rating) || 4.9}
+          reviewsCount={product.reviewsCount || 148}
+        />
 
         {/* Related Products Catalog */}
         <View onLayout={handleCatalogLayout}>
@@ -542,11 +710,12 @@ export default function ProductDetailScreen() {
           deliveryMinutes={selectedDarkStore?.deliveryMinutes || product.darkStoreHub?.deliveryMinutes}
           bottomInset={insets.bottom}
           stockQuantity={product.stockQuantity}
+          currentQuantity={currentQuantity}
+          selectedSize={selectedSize}
           onAddToCart={handleAddToCart}
-          onBuyNow={() => {
-            handleAddToCart();
-            router.push('/cart');
-          }}
+          onIncrementQuantity={handleIncrementQuantity}
+          onDecrementQuantity={handleDecrementQuantity}
+          onBuyNow={handleBuyNow}
         />
       </Animated.View>
 
@@ -578,6 +747,41 @@ export default function ProductDetailScreen() {
           <Text style={{ color: '#FFFFFF', fontSize: 11.5, fontWeight: '800' }}>{toastMessage}</Text>
         </Animated.View>
       )}
+
+      {/* Live Search Suggestions Autocomplete Overlay */}
+      <SearchSuggestionsOverlay
+        visible={isSearchOverlayVisible}
+        query={searchQuery}
+        onQueryChange={setSearchQuery}
+        onSelectQuery={(term) => {
+          setIsSearchOverlayVisible(false);
+          router.push({
+            pathname: '/explore',
+            params: { q: term },
+          });
+        }}
+        onOpenProduct={(selected) => {
+          setIsSearchOverlayVisible(false);
+          if (String(selected.id) !== String(id)) {
+            router.push({
+              pathname: '/product/[id]',
+              params: { id: String(selected.id) },
+            });
+          }
+        }}
+        onClose={() => setIsSearchOverlayVisible(false)}
+      />
+
+      {/* Authentication Modal for Buy Now */}
+      <AuthModal
+        visible={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        onSuccess={() => {
+          setIsAuthModalOpen(false);
+          showToast('Signed in successfully! Progressing to checkout...');
+          executeBuyNow();
+        }}
+      />
     </View>
   );
 }

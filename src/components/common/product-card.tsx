@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text } from 'react-native';
-import { Image } from 'expo-image';
 import { Heart, ShoppingCart, Zap } from 'lucide-react-native';
+import { LazyImage } from './lazy-image';
 import { AnimatedPressable } from './animated-pressable';
 import { EditorialText } from './section-title';
 import { formatPrice } from '@/data/homeData';
@@ -28,16 +28,19 @@ export const ProductCard = React.memo(function ProductCard({
   const formattedPrice = typeof product.price === 'number' ? formatPrice(product.price) : product.price;
 
   return (
-    <AnimatedPressable className="w-full" onPress={() => (onOpen ? onOpen(product) : onBag(product.id))}>
+    <AnimatedPressable
+      className="w-full"
+      scaleTo={0.985}
+      onPress={() => (onOpen ? onOpen(product) : onBag(product.id))}
+    >
       {/* Double Bezel Card Shell */}
       <View className="p-[4px] bg-[#F4F1EA] border border-[#D9D9D5] rounded-[24px] mb-[16px]">
         <View className="relative bg-white rounded-[20px] aspect-[0.76] overflow-hidden">
-          <Image
-            source={{ uri: imageUri }}
+          <LazyImage
+            source={imageUri}
             style={{ width: '100%', height: '100%' }}
             contentFit="cover"
-            recyclingKey={String(product.id)}
-            transition={150}
+            priority="low"
           />
 
           {badge ? (
@@ -49,7 +52,12 @@ export const ProductCard = React.memo(function ProductCard({
 
           <AnimatedPressable
             className="absolute top-[12px] right-[12px] w-[34px] h-[34px] bg-white/90 backdrop-blur-md rounded-full justify-center items-center shadow-sm"
-            onPress={() => onWishlist(product.id)}
+            scaleTo={0.9}
+            hitSlop={8}
+            onPress={(e) => {
+              e?.stopPropagation?.();
+              onWishlist(product.id);
+            }}
           >
             <Heart size={18} color={wished ? '#EF4444' : '#111111'} fill={wished ? '#EF4444' : 'none'} />
           </AnimatedPressable>
@@ -79,7 +87,12 @@ export const ProductCard = React.memo(function ProductCard({
           </View>
           <AnimatedPressable
             className="w-[30px] h-[30px] rounded-full bg-[#111111] justify-center items-center"
-            onPress={() => onBag(product.id)}
+            scaleTo={0.88}
+            hitSlop={8}
+            onPress={(e) => {
+              e?.stopPropagation?.();
+              onBag(product.id);
+            }}
           >
             <ShoppingCart size={14} color="#ffffff" strokeWidth={2.2} />
           </AnimatedPressable>

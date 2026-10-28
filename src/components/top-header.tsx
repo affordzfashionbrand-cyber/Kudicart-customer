@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, Image, TouchableOpacity } from 'react-native';
+import { View, Text, TouchableOpacity } from 'react-native';
+import { Image } from 'expo-image';
 import { Icon } from '@/components/icon';
 import { NotificationModal } from '@/components/notification-modal';
 
@@ -17,9 +18,10 @@ export function TopHeader({ subtitle = 'Catalog', onProfilePress }: TopHeaderPro
         {/* Brand Logo & Badge */}
         <View className="flex flex-row items-center gap-2">
           <Image
-            source={require('@/assets/images/splash-icon.png')}
-            style={{ width: 34, height: 34, borderRadius: 8 }}
-            resizeMode="cover"
+            source={require('@/assets/images/logo-removebg-preview.png')}
+            style={{ width: 34, height: 34 }}
+            contentFit="contain"
+            transition={150}
           />
           <View className="flex flex-row items-baseline">
             <Text className="font-extrabold text-[#111111] tracking-tight text-[19px]">
@@ -56,7 +58,9 @@ export function TopHeader({ subtitle = 'Catalog', onProfilePress }: TopHeaderPro
               source={{
                 uri: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200&auto=format&fit=crop&q=80',
               }}
-              className="w-full h-full object-cover"
+              style={{ width: '100%', height: '100%' }}
+              contentFit="cover"
+              transition={150}
             />
           </TouchableOpacity>
         </View>

@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, TextStyle, StyleProp } from 'react-native';
-import { Fonts } from '@/constants/theme';
+import { Fonts, FontStyles } from '@/constants/theme';
 
 export function splitEditorial(rawText: string): { first: string; second: string } {
   if (!rawText) return { first: '', second: '' };
@@ -62,8 +62,10 @@ export const EditorialText = React.memo(function EditorialText({
   return (
     <Text
       numberOfLines={numberOfLines}
+      className="font-serif editorial-text"
       style={[
         {
+          fontFamily: Fonts.serifSemiBold,
           fontSize,
           lineHeight: effectiveLineHeight,
           letterSpacing: -0.5,
@@ -74,18 +76,19 @@ export const EditorialText = React.memo(function EditorialText({
       ]}
     >
       {first ? (
-        <Text style={{ fontFamily: Fonts.serifRegular, fontWeight: '400' }}>
+        <Text style={FontStyles.serifRegular}>
           {first}
         </Text>
       ) : null}
       {first && secondFormatted ? (singleLine ? ' ' : '\n') : null}
       {secondFormatted ? (
         <Text
-          style={{
-            fontFamily: Fonts.serifSemiBold,
-            fontWeight: '700',
-            color,
-          }}
+          style={[
+            FontStyles.serifSemiBold,
+            {
+              color,
+            },
+          ]}
         >
           {secondFormatted}
         </Text>
@@ -142,39 +145,45 @@ export const SectionTitle = React.memo(function SectionTitle({
     <View style={{ marginBottom, alignItems: align === 'center' ? 'center' : 'flex-start' }}>
       {label ? (
         <Text
-          style={{
-            fontFamily: Fonts.sansBold,
-            fontSize: 11,
-            fontWeight: '700',
-            letterSpacing: 2.5,
-            color: labelColor,
-            textTransform: 'uppercase',
-            marginBottom: 8,
-            textAlign: align,
-          }}
+          style={[
+            FontStyles.sansBold,
+            {
+              fontSize: 11,
+              letterSpacing: 2.5,
+              color: labelColor,
+              textTransform: 'uppercase',
+              marginBottom: 8,
+              textAlign: align,
+            },
+          ]}
         >
           {label}
         </Text>
       ) : null}
       <Text
-        style={{
-          fontSize,
-          lineHeight: effectiveLineHeight,
-          letterSpacing: -0.5,
-          color: textColor,
-          textAlign: align,
-        }}
+        className="font-serif editorial-text"
+        style={[
+          {
+            fontFamily: Fonts.serifSemiBold,
+            fontSize,
+            lineHeight: effectiveLineHeight,
+            letterSpacing: -0.5,
+            color: textColor,
+            textAlign: align,
+          },
+        ]}
       >
-        <Text style={{ fontFamily: Fonts.serifRegular, fontWeight: '400' }}>{firstLine}</Text>
+        <Text style={FontStyles.serifRegular}>{firstLine}</Text>
         {secondLineFormatted ? (
           <>
             {singleLine ? ' ' : '\n'}
             <Text
-              style={{
-                fontFamily: Fonts.serifSemiBold,
-                fontWeight: '700',
-                color: textColor,
-              }}
+              style={[
+                FontStyles.serifSemiBold,
+                {
+                  color: textColor,
+                },
+              ]}
             >
               {secondLineFormatted}
             </Text>

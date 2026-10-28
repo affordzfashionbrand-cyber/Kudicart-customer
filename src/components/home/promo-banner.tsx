@@ -3,9 +3,9 @@ import {
   View,
   Text,
   TouchableOpacity,
-  Image,
   StyleSheet,
 } from 'react-native';
+import { LazyImage } from '@/components/common/lazy-image';
 import { Icon } from '@/components/icon';
 
 interface PromoBannerProps {
@@ -21,12 +21,11 @@ export function PromoBanner({ onPress }: PromoBannerProps) {
         style={styles.container}
       >
         {/* Background Image */}
-        <Image
-          source={{
-            uri: 'https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=1000&auto=format&fit=crop&q=80',
-          }}
+        <LazyImage
+          source="https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=1000&auto=format&fit=crop&q=80"
           style={styles.bgImage}
-          resizeMode="cover"
+          contentFit="cover"
+          priority="normal"
         />
 
         {/* Gradient Scrim */}

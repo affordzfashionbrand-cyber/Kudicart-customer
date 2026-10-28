@@ -95,6 +95,9 @@ export function DealCountdownSection({
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
+        nestedScrollEnabled={true}
+        directionalLockEnabled={true}
+        overScrollMode="never"
         contentContainerStyle={styles.scrollContent}
       >
         {dealProducts.map((item) => (

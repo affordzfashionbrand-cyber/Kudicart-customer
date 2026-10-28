@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Image, ScrollView, Dimensions } from 'react-native';
+import { View, ScrollView, Dimensions } from 'react-native';
+import { LazyImage } from '@/components/common/lazy-image';
 import homepageData from '../../assets/homepage_data.json';
 
 const { width } = Dimensions.get('window');
@@ -25,10 +26,10 @@ export default function BannerCarousel({ source = 'ajio' }: BannerCarouselProps)
         {banners.map((url, index) => (
           <View key={index} style={{ width }} className="px-3">
             <View className="overflow-hidden rounded-2xl border-2 border-[#D9D9D5] bg-[#F4F1EA] shadow-sm">
-              <Image 
-                source={{ uri: url }} 
-                className="w-full h-48 bg-[#F4F1EA]"
-                resizeMode="cover"
+              <LazyImage 
+                source={url} 
+                style={{ width: '100%', height: 192 }}
+                contentFit="cover"
               />
             </View>
           </View>

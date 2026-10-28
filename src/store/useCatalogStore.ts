@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { catalogApi, ApiProduct, CategoryItem } from '@/services/api';
+import { catalogApi, ApiProduct, CategoryItem, ApiSearchSuggestionsResponse } from '@/services/api';
 
 export type FulfillmentFilterType = 'ALL' | 'DARK_STORE' | 'VENDOR';
 
@@ -17,6 +17,11 @@ interface CatalogState {
   error: string | null;
   selectedProduct: ApiProduct | null;
 
+  // Search & Suggestions State
+  searchSuggestions: ApiSearchSuggestionsResponse | null;
+  isSuggestionsLoading: boolean;
+  recentSearches: string[];
+
   fetchCategories: () => Promise<void>;
   fetchDarkStores: () => Promise<void>;
   fetchCoupons: () => Promise<void>;
@@ -25,6 +30,9 @@ interface CatalogState {
     search?: string;
     sort?: string;
     fulfillmentType?: string;
+    tryAndBuyOnly?: boolean | string;
+    minPrice?: number;
+    maxPrice?: number;
   }) => Promise<void>;
   refreshCatalog: () => Promise<void>;
   setSelectedCategory: (cat: string) => void;
@@ -32,6 +40,13 @@ interface CatalogState {
   setSortBy: (sort: string) => void;
   setFulfillmentFilter: (filter: FulfillmentFilterType) => void;
   fetchProductById: (id: string) => Promise<ApiProduct | null>;
+
+  // Search actions
+  fetchSearchSuggestions: (q?: string) => Promise<void>;
+  clearSearchSuggestions: () => void;
+  addRecentSearch: (term: string) => void;
+  clearRecentSearches: () => void;
+  executeSearch: (term: string) => Promise<void>;
 }
 
 export const useCatalogStore = create<CatalogState>((set, get) => ({
@@ -47,6 +62,11 @@ export const useCatalogStore = create<CatalogState>((set, get) => ({
   isRefreshing: false,
   error: null,
   selectedProduct: null,
+
+  // Search Initial State
+  searchSuggestions: null,
+  isSuggestionsLoading: false,
+  recentSearches: ['Silk Sarees', 'Kurtis', 'Linen Shirts'],
 
   fetchCategories: async () => {
     try {
@@ -94,6 +114,9 @@ export const useCatalogStore = create<CatalogState>((set, get) => ({
         search,
         sort,
         fulfillmentType,
+        tryAndBuyOnly: overrideParams?.tryAndBuyOnly,
+        minPrice: overrideParams?.minPrice,
+        maxPrice: overrideParams?.maxPrice,
       });
       set({ products, isLoading: false });
     } catch (err: any) {
@@ -145,5 +168,40 @@ export const useCatalogStore = create<CatalogState>((set, get) => ({
       console.warn('Error fetching product by id:', err);
       return null;
     }
+  },
+
+  fetchSearchSuggestions: async (q?: string) => {
+    set({ isSuggestionsLoading: true });
+    try {
+      const suggestions = await catalogApi.getSearchSuggestions(q, 8);
+      set({ searchSuggestions: suggestions, isSuggestionsLoading: false });
+    } catch (err) {
+      console.warn('Error fetching suggestions:', err);
+      set({ isSuggestionsLoading: false });
+    }
+  },
+
+  clearSearchSuggestions: () => {
+    set({ searchSuggestions: null, isSuggestionsLoading: false });
+  },
+
+  addRecentSearch: (term: string) => {
+    const clean = term.trim();
+    if (!clean) return;
+    const current = get().recentSearches.filter((item) => item.toLowerCase() !== clean.toLowerCase());
+    set({ recentSearches: [clean, ...current].slice(0, 8) });
+  },
+
+  clearRecentSearches: () => {
+    set({ recentSearches: [] });
+  },
+
+  executeSearch: async (term: string) => {
+    const clean = term.trim();
+    set({ searchQuery: clean });
+    if (clean) {
+      get().addRecentSearch(clean);
+    }
+    await get().fetchProducts({ search: clean });
   },
 }));

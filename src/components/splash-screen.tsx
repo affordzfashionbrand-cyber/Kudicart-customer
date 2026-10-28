@@ -6,6 +6,7 @@ import {
   StyleSheet,
   useWindowDimensions,
   TouchableOpacity,
+  Platform,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { Icon } from '@/components/icon';
@@ -32,6 +33,7 @@ export function SplashScreenView({
   const [screenOpacity] = useState(() => new Animated.Value(1));
 
   const [loadingStep, setLoadingStep] = useState('Locating nearest Affordz express hub...');
+  const isNative = Platform.OS !== 'web';
 
   useEffect(() => {
     // 1. Logo entrance: scale & fade in
@@ -40,12 +42,12 @@ export function SplashScreenView({
         toValue: 1,
         bounciness: 8,
         speed: 10,
-        useNativeDriver: true,
+        useNativeDriver: isNative,
       }),
       Animated.timing(logoOpacity, {
         toValue: 1,
         duration: 600,
-        useNativeDriver: true,
+        useNativeDriver: isNative,
       }),
     ]).start();
 
@@ -55,14 +57,14 @@ export function SplashScreenView({
         toValue: 1,
         duration: 700,
         delay: 350,
-        useNativeDriver: true,
+        useNativeDriver: isNative,
       }),
       Animated.spring(textTranslateY, {
         toValue: 0,
         bounciness: 6,
         speed: 12,
         delay: 350,
-        useNativeDriver: true,
+        useNativeDriver: isNative,
       }),
     ]).start();
 
@@ -72,12 +74,12 @@ export function SplashScreenView({
         Animated.timing(glowPulse, {
           toValue: 1.14,
           duration: 1200,
-          useNativeDriver: true,
+          useNativeDriver: isNative,
         }),
         Animated.timing(glowPulse, {
           toValue: 1,
           duration: 1200,
-          useNativeDriver: true,
+          useNativeDriver: isNative,
         }),
       ])
     ).start();
@@ -103,7 +105,7 @@ export function SplashScreenView({
       Animated.timing(screenOpacity, {
         toValue: 0,
         duration: 500,
-        useNativeDriver: true,
+        useNativeDriver: isNative,
       }).start(() => {
         if (onFinish) onFinish();
       });
@@ -120,7 +122,7 @@ export function SplashScreenView({
     Animated.timing(screenOpacity, {
       toValue: 0,
       duration: 300,
-      useNativeDriver: true,
+      useNativeDriver: isNative,
     }).start(() => {
       if (onFinish) onFinish();
     });
@@ -179,9 +181,10 @@ export function SplashScreenView({
         >
           <View style={styles.logoShadowBox}>
             <Image
-              source={require('@/assets/images/splash-icon.png')}
+              source={require('@/assets/images/logo-removebg-preview.png')}
               style={styles.logoImage}
-              contentFit="cover"
+              contentFit="contain"
+              transition={150}
             />
           </View>
         </Animated.View>
@@ -330,6 +333,7 @@ const styles = StyleSheet.create({
     elevation: 8,
     borderWidth: 1.5,
     borderColor: '#D9D9D5',
+    padding: 12,
   },
   logoImage: {
     width: '100%',

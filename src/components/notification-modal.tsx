@@ -72,7 +72,7 @@ export function NotificationModal({ visible, onClose }: NotificationModalProps) 
         toValue: 0,
         duration: 400,
         easing: bespokeEasing,
-        useNativeDriver: true,
+        useNativeDriver: Platform.OS !== 'web',
       }).start();
     } else {
       slideAnim.setValue(600);
@@ -84,7 +84,7 @@ export function NotificationModal({ visible, onClose }: NotificationModalProps) 
       toValue: Dimensions.get('window').height,
       duration: 300,
       easing: bespokeEasing,
-      useNativeDriver: true,
+      useNativeDriver: Platform.OS !== 'web',
     }).start(() => {
       onClose();
     });

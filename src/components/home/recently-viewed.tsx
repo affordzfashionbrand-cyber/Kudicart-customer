@@ -57,6 +57,9 @@ export function RecentlyViewed({
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
+        nestedScrollEnabled={true}
+        directionalLockEnabled={true}
+        overScrollMode="never"
         contentContainerStyle={styles.scrollContent}
       >
         {products.map((item) => (

@@ -4,8 +4,8 @@ import {
   Text,
   Modal,
   TouchableOpacity,
-  Image,
 } from 'react-native';
+import { LazyImage } from '@/components/common/lazy-image';
 import { Icon } from '@/components/icon';
 
 interface VisualSearchModalProps {
@@ -117,9 +117,10 @@ export function VisualSearchModal({
                   style={{ backgroundColor: '#F4F1EA', borderColor: '#D9D9D5' }}
                   className="flex flex-row items-center gap-3 p-2.5 rounded-xl border"
                 >
-                  <Image
-                    source={{ uri: item.image }}
-                    className="w-10 h-10 rounded-lg object-cover"
+                  <LazyImage
+                    source={item.image}
+                    style={{ width: 40, height: 40, borderRadius: 8 }}
+                    contentFit="cover"
                   />
                   <View className="flex-1">
                     <Text className="text-[12px] font-bold text-[#111111]">

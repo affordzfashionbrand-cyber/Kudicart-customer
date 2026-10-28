@@ -3,7 +3,6 @@ import {
   View,
   Text,
   TouchableOpacity,
-  Image,
   StyleSheet,
   Animated,
 } from 'react-native';
@@ -11,6 +10,8 @@ import { useRouter } from 'expo-router';
 import { MockProduct } from '@/data/mockProducts';
 import { Icon } from '@/components/icon';
 import { EditorialText } from '@/components/common/section-title';
+import { FontStyles } from '@/constants/theme';
+import { LazyImage } from '@/components/common/lazy-image';
 
 interface ProductCardProps {
   product: MockProduct;
@@ -79,10 +80,11 @@ export function ProductCard({
         activeOpacity={0.9}
         style={styles.imageContainer}
       >
-        <Image
+        <LazyImage
           source={{ uri: product.image }}
           style={styles.productImage}
-          resizeMode="cover"
+          contentFit="cover"
+          priority="low"
         />
 
         {/* Bestseller / Category Badge */}
@@ -214,9 +216,9 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   badgeText: {
+    ...FontStyles.sansBold,
     color: '#ffffff',
     fontSize: 8,
-    fontWeight: '800',
     letterSpacing: 0.5,
   },
   stockBadgePill: {
@@ -231,9 +233,9 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   stockBadgeText: {
+    ...FontStyles.sansBold,
     color: '#b91c1c',
     fontSize: 8,
-    fontWeight: '800',
   },
   multiAngleIcon: {
     position: 'absolute',
@@ -266,15 +268,15 @@ const styles = StyleSheet.create({
     padding: 10,
   },
   brandName: {
+    ...FontStyles.sansMedium,
     fontSize: 9.5,
-    fontWeight: '500',
     color: '#71717a',
     letterSpacing: 1.5,
     textTransform: 'uppercase',
   },
   productName: {
+    ...FontStyles.sansBold,
     fontSize: 12,
-    fontWeight: '700',
     color: '#1b1b1e',
     marginTop: 2,
     lineHeight: 16,
@@ -291,11 +293,12 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   ratingText: {
+    ...FontStyles.sansBold,
     fontSize: 11,
-    fontWeight: '700',
     color: '#1b1b1e',
   },
   reviewsCount: {
+    ...FontStyles.sansRegular,
     fontSize: 10.5,
     color: '#a1a1aa',
   },
@@ -307,18 +310,19 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   salePrice: {
+    ...FontStyles.sansBold,
     fontSize: 13.5,
-    fontWeight: '900',
     color: '#1b1b1e',
   },
   mrpText: {
+    ...FontStyles.sansRegular,
     fontSize: 11,
     color: '#a1a1aa',
     textDecorationLine: 'line-through',
   },
   discountText: {
+    ...FontStyles.sansBold,
     fontSize: 10,
-    fontWeight: '800',
     color: '#16a34a',
   },
   offerPriceRow: {
@@ -334,12 +338,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#16a34a',
   },
   offerPriceText: {
+    ...FontStyles.sansMedium,
     fontSize: 10.5,
     color: '#16a34a',
-    fontWeight: '600',
   },
   offerBold: {
-    fontWeight: '800',
+    ...FontStyles.sansBold,
   },
   addBagBtn: {
     flexDirection: 'row',
@@ -353,8 +357,8 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   addBagText: {
+    ...FontStyles.sansBold,
     fontSize: 11,
-    fontWeight: '800',
     color: '#111111',
   },
 });

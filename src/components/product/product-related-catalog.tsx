@@ -179,7 +179,8 @@ export const ProductRelatedCatalog = React.memo(function ProductRelatedCatalog({
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        nestedScrollEnabled
+        nestedScrollEnabled={true}
+        directionalLockEnabled={true}
         overScrollMode="never"
         contentContainerStyle={{ gap: 8, paddingBottom: 16 }}
       >

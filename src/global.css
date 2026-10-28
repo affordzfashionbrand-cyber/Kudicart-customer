@@ -24,17 +24,19 @@ html, body {
 }
 
 /* Universal default: Every React Native Text component renders as [dir="auto"] */
+html, body, #root {
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+}
+
 [dir="auto"],
-[dir="auto"] *,
 div[dir="auto"],
 span[dir="auto"],
 [class*="css-text-"],
-body,
 input,
 textarea,
 button,
 select {
-  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
 /* All editorial headlines, serif accents, and lookbook titles */
@@ -52,6 +54,10 @@ select {
 .font-headline-md *,
 .font-headline-sm,
 .font-headline-sm *,
+.editorial-text,
+.editorial-text *,
+[data-font="serif"],
+[data-font="editorial"],
 [class*="font-serif"],
 [class*="font-editorial"],
 [class*="font-display"],
@@ -60,12 +66,15 @@ select {
 [style*="serif"],
 [style*="Georgia"],
 [style*="Playfair"],
+[style*="PlayfairDisplay"],
 [dir="auto"][style*="serif"],
 [dir="auto"][style*="Georgia"],
 [dir="auto"][style*="Playfair"],
+[dir="auto"][style*="PlayfairDisplay"],
 [dir="auto"] [style*="serif"],
 [dir="auto"] [style*="Georgia"],
 [dir="auto"] [style*="Playfair"],
+[dir="auto"] [style*="PlayfairDisplay"],
 [class*="r-fontFamily-serif"],
 [class*="r-fontFamily-Georgia"],
 [class*="r-fontFamily-Playfair"] {
@@ -96,4 +105,21 @@ input:focus, textarea:focus, input:focus-visible, textarea:focus-visible {
   outline: none !important;
   outline-style: none !important;
   box-shadow: none !important;
+}
+
+/* 60fps Momentum Scrolling & Touch Interactivity */
+html {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+body {
+  overscroll-behavior-y: none;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  touch-action: pan-x pan-y;
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
 }

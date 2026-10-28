@@ -3,13 +3,14 @@ import {
   View,
   Text,
   TouchableOpacity,
-  Image,
   StyleSheet,
   useWindowDimensions,
   Animated,
 } from 'react-native';
 import { HERO_BANNERS, HeroBanner } from '@/data/mockBanners';
 import { Icon } from '@/components/icon';
+import { FontStyles } from '@/constants/theme';
+import { LazyImage } from '@/components/common/lazy-image';
 
 interface HeroCarouselProps {
   onBannerPress?: (banner: HeroBanner) => void;
@@ -81,10 +82,11 @@ export function HeroCarousel({ onBannerPress }: HeroCarouselProps) {
     <View style={styles.container}>
       <View style={[styles.card, { width: bannerWidth }]}>
         {/* Background Image with Dark Gradient Tint */}
-        <Image
+        <LazyImage
           source={{ uri: banner.image }}
           style={styles.bannerImage}
-          resizeMode="cover"
+          contentFit="cover"
+          priority="high"
         />
 
         {/* Gradient Scrim Overlay */}
@@ -212,24 +214,24 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   badgeText: {
+    ...FontStyles.sansBold,
     color: '#ffffff',
     fontSize: 10,
-    fontWeight: '900',
     letterSpacing: 0.8,
   },
   title: {
+    ...FontStyles.serifSemiBold,
     fontSize: 22,
-    fontWeight: '900',
     color: '#F7F7F5',
     letterSpacing: -0.5,
     lineHeight: 28,
   },
   subtitle: {
+    ...FontStyles.sansMedium,
     fontSize: 12,
     color: '#D9D9D5',
     marginTop: 6,
     lineHeight: 16,
-    fontWeight: '500',
   },
   ctaButton: {
     flexDirection: 'row',
@@ -248,9 +250,9 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   ctaText: {
+    ...FontStyles.sansBold,
     color: '#111111',
     fontSize: 11,
-    fontWeight: '900',
     letterSpacing: 0.8,
   },
   arrowButton: {

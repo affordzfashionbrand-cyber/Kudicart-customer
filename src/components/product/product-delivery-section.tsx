@@ -130,33 +130,44 @@ export function ProductDeliverySection({
             style={{
               backgroundColor: '#FFFFFF',
               borderRadius: 18,
-              padding: 12,
+              padding: 14,
               borderWidth: 1,
               borderColor: '#E8E5DF',
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: 10,
             }}
           >
-            <View
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: 16,
-                backgroundColor: '#F7F5F0',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <RotateCcw size={15} color="#111111" />
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#3B82F6' }} />
+                <Text style={{ fontSize: 10.5, fontWeight: '900', color: '#1D4ED8', textTransform: 'uppercase' }}>
+                  Direct Boutique Dispatch
+                </Text>
+              </View>
+              <View style={{ backgroundColor: '#F3F4F6', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 }}>
+                <Text style={{ fontSize: 8.5, fontWeight: '800', color: '#6B7280' }}>NO TRY & BUY</Text>
+              </View>
             </View>
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 12, fontWeight: '800', color: '#111111' }}>
-                Standard Boutique Dispatch
-              </Text>
-              <Text style={{ fontSize: 10, color: '#71717A' }}>
-                Delivered in 2-3 business days with doorstep exchanges available.
-              </Text>
+
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <View
+                style={{
+                  width: 34,
+                  height: 34,
+                  borderRadius: 17,
+                  backgroundColor: '#F7F5F0',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <RotateCcw size={15} color="#111111" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 12.5, fontWeight: '800', color: '#111111' }}>
+                  Shipped from Artisan Vendor Studio
+                </Text>
+                <Text style={{ fontSize: 10.5, color: '#71717A', lineHeight: 15, marginTop: 2 }}>
+                  Delivered in 2-4 business days. Note: Doorstep Try & Buy is exclusive to 18-Min Dark Store products; standard 7-day doorstep return/exchange policy applies.
+                </Text>
+              </View>
             </View>
           </View>
         </View>

@@ -3,9 +3,9 @@ import {
   View,
   Text,
   Animated,
-  Image,
   Platform,
 } from 'react-native';
+import { LazyImage } from '@/components/common/lazy-image';
 import {
   Home,
   LayoutGrid,
@@ -71,6 +71,7 @@ export const FloatingBottomBar = React.memo(function FloatingBottomBar({
   wishlistCount = 0,
 }: FloatingBottomBarProps) {
   const { selectedDarkStore } = useDarkStore();
+  const isNative = Platform.OS !== 'web';
 
   // Cycling product index for animated multi-item showcase
   const [productIndex, setProductIndex] = useState(0);
@@ -94,11 +95,11 @@ export const FloatingBottomBar = React.memo(function FloatingBottomBar({
   useEffect(() => {
     if (totalBagCount > 0) {
       Animated.sequence([
-        Animated.timing(bagScale, { toValue: 1.12, duration: 140, useNativeDriver: true }),
-        Animated.spring(bagScale, { toValue: 1, friction: 4, tension: 70, useNativeDriver: true }),
+        Animated.timing(bagScale, { toValue: 1.12, duration: 140, useNativeDriver: isNative }),
+        Animated.spring(bagScale, { toValue: 1, friction: 4, tension: 70, useNativeDriver: isNative }),
       ]).start();
     }
-  }, [totalBagCount, bagScale]);
+  }, [totalBagCount, bagScale, isNative]);
 
   // Cycle products smoothly every 2.4s
   useEffect(() => {
@@ -108,17 +109,17 @@ export const FloatingBottomBar = React.memo(function FloatingBottomBar({
         Animated.timing(productTranslateY, {
           toValue: -10,
           duration: 220,
-          useNativeDriver: true,
+          useNativeDriver: isNative,
         }),
         Animated.timing(productOpacity, {
           toValue: 0,
           duration: 200,
-          useNativeDriver: true,
+          useNativeDriver: isNative,
         }),
         Animated.timing(productScale, {
           toValue: 0.88,
           duration: 220,
-          useNativeDriver: true,
+          useNativeDriver: isNative,
         }),
       ]).start(() => {
         // Switch to next product
@@ -134,24 +135,24 @@ export const FloatingBottomBar = React.memo(function FloatingBottomBar({
             toValue: 0,
             friction: 7,
             tension: 50,
-            useNativeDriver: true,
+            useNativeDriver: isNative,
           }),
           Animated.timing(productOpacity, {
             toValue: 1,
             duration: 240,
-            useNativeDriver: true,
+            useNativeDriver: isNative,
           }),
           Animated.spring(productScale, {
             toValue: 1,
             friction: 7,
-            useNativeDriver: true,
+            useNativeDriver: isNative,
           }),
         ]).start();
       });
     }, 2400);
 
     return () => clearInterval(interval);
-  }, [productTranslateY, productOpacity, productScale]);
+  }, [productTranslateY, productOpacity, productScale, isNative]);
 
   // Cycle catchy prefix smoothly every 4.8s
   useEffect(() => {
@@ -160,12 +161,12 @@ export const FloatingBottomBar = React.memo(function FloatingBottomBar({
         Animated.timing(prefixOpacity, {
           toValue: 0,
           duration: 200,
-          useNativeDriver: true,
+          useNativeDriver: isNative,
         }),
         Animated.timing(prefixTranslateY, {
           toValue: -6,
           duration: 200,
-          useNativeDriver: true,
+          useNativeDriver: isNative,
         }),
       ]).start(() => {
         setPrefixIndex((prev) => (prev + 1) % CATCHY_PREFIXES.length);
@@ -174,19 +175,19 @@ export const FloatingBottomBar = React.memo(function FloatingBottomBar({
           Animated.timing(prefixOpacity, {
             toValue: 1,
             duration: 240,
-            useNativeDriver: true,
+            useNativeDriver: isNative,
           }),
           Animated.timing(prefixTranslateY, {
             toValue: 0,
             duration: 240,
-            useNativeDriver: true,
+            useNativeDriver: isNative,
           }),
         ]).start();
       });
     }, 4800);
 
     return () => clearInterval(prefixInterval);
-  }, [prefixOpacity, prefixTranslateY]);
+  }, [prefixOpacity, prefixTranslateY, isNative]);
 
   // Subtle live pulse for the lightning / beacon
   useEffect(() => {
@@ -195,18 +196,18 @@ export const FloatingBottomBar = React.memo(function FloatingBottomBar({
         Animated.timing(pulseScale, {
           toValue: 1.25,
           duration: 900,
-          useNativeDriver: true,
+          useNativeDriver: isNative,
         }),
         Animated.timing(pulseScale, {
           toValue: 1,
           duration: 900,
-          useNativeDriver: true,
+          useNativeDriver: isNative,
         }),
       ])
     );
     loop.start();
     return () => loop.stop();
-  }, [pulseScale]);
+  }, [pulseScale, isNative]);
 
   const isDarkStoreActive = currentTab === 'DARK_STORE';
   const currentItem = DARK_STORE_SHOWCASE_ITEMS[productIndex];
@@ -528,9 +529,10 @@ export const FloatingBottomBar = React.memo(function FloatingBottomBar({
                 overflow: 'hidden',
               }}
             >
-              <Image
-                source={{ uri: nextItem.image }}
-                style={{ width: '100%', height: '100%', resizeMode: 'cover' }}
+              <LazyImage
+                source={nextItem.image}
+                style={{ width: '100%', height: '100%' }}
+                contentFit="cover"
               />
             </View>
 
@@ -555,9 +557,10 @@ export const FloatingBottomBar = React.memo(function FloatingBottomBar({
                 shadowRadius: 4,
               }}
             >
-              <Image
-                source={{ uri: currentItem.image }}
-                style={{ width: '100%', height: '100%', resizeMode: 'cover' }}
+              <LazyImage
+                source={currentItem.image}
+                style={{ width: '100%', height: '100%' }}
+                contentFit="cover"
               />
             </Animated.View>
 

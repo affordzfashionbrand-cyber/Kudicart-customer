@@ -27,10 +27,13 @@ import {
 import { ProductCard } from '@/components/common/product-card';
 import { EmptyState } from '@/components/common/empty-state';
 import { EditorialText } from '@/components/common/section-title';
+import { UniversalSearchBar } from '@/components/home/search-bar';
+import { SearchSuggestionsOverlay } from '@/components/home/search-suggestions-overlay';
 import {
   CATEGORY_COLLECTIONS,
   CategoryItemDef,
 } from '@/components/categories/category-data';
+import { COMPLETE_CATEGORY_HIERARCHY } from '@/data/category-hierarchy-data';
 import { formatPrice, ProductItem } from '@/data/homeData';
 import { useCartStore } from '@/store/useCartStore';
 import { useCatalogStore } from '@/store/useCatalogStore';
@@ -44,8 +47,6 @@ type PriceFilter = 'all' | 'under2k' | 'under5k' | 'above5k';
 export default function CategoryResultsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
-  const effectiveWidth = Math.min(width, 440);
 
   const { id } = useLocalSearchParams<{ id?: string }>();
   const normalizedId = (id || 'all').toLowerCase();
@@ -58,8 +59,64 @@ export default function CategoryResultsScreen() {
     return items.reduce((sum, item) => sum + (item.quantity || 1), 0);
   }, [items]);
 
-  // Identify matching category metadata
+  // Identify matching category metadata from 3-Tier Hierarchy (L1, L2, L3)
   const categoryDef: CategoryItemDef = useMemo(() => {
+    // 1. Search in 3-Tier COMPLETE_CATEGORY_HIERARCHY
+    for (const dept of COMPLETE_CATEGORY_HIERARCHY) {
+      if (
+        dept.id.toLowerCase() === normalizedId ||
+        dept.slug.toLowerCase() === normalizedId ||
+        dept.name.toLowerCase() === normalizedId
+      ) {
+        return {
+          id: dept.id,
+          name: dept.name,
+          subtitle: `${dept.countText} • Instant Doorstep Drop`,
+          gender: dept.gender === 'Women' || dept.gender === 'Men' || dept.gender === 'Kids' ? dept.gender : 'All',
+          wear: 'All',
+          image: dept.image,
+          subcategories: ['All', ...dept.subcategories.map((s) => s.name)],
+        };
+      }
+
+      for (const sub of dept.subcategories) {
+        if (
+          sub.id.toLowerCase() === normalizedId ||
+          sub.slug.toLowerCase() === normalizedId ||
+          sub.name.toLowerCase() === normalizedId
+        ) {
+          return {
+            id: sub.id,
+            name: sub.name,
+            subtitle: `${sub.countText} • Instant Doorstep Drop`,
+            gender: sub.gender === 'Women' || sub.gender === 'Men' || sub.gender === 'Kids' ? sub.gender : 'All',
+            wear: sub.name,
+            image: sub.image,
+            subcategories: ['All', ...sub.subcategories.map((l) => l.name)],
+          };
+        }
+
+        for (const leaf of sub.subcategories) {
+          if (
+            leaf.id.toLowerCase() === normalizedId ||
+            leaf.slug.toLowerCase() === normalizedId ||
+            leaf.name.toLowerCase() === normalizedId
+          ) {
+            return {
+              id: leaf.id,
+              name: leaf.name,
+              subtitle: `${leaf.countText} • Instant Doorstep Drop`,
+              gender: leaf.gender === 'Women' || leaf.gender === 'Men' || leaf.gender === 'Kids' ? leaf.gender : 'All',
+              wear: leaf.name,
+              image: leaf.image,
+              subcategories: ['All', 'Express 18m', 'Try & Buy', 'Top Rated'],
+            };
+          }
+        }
+      }
+    }
+
+    // 2. Fallback to CATEGORY_COLLECTIONS
     const found = CATEGORY_COLLECTIONS.find(
       (c) =>
         c.id.toLowerCase() === normalizedId ||
@@ -88,6 +145,7 @@ export default function CategoryResultsScreen() {
   // Filters and Sorting State
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [isSearchOverlayVisible, setIsSearchOverlayVisible] = useState(false);
   const [selectedSubcategory, setSelectedSubcategory] = useState<string>('All');
   const [activeSort, setActiveSort] = useState<SortOption>('featured');
   const [activePriceFilter, setActivePriceFilter] = useState<PriceFilter>('all');
@@ -249,24 +307,17 @@ export default function CategoryResultsScreen() {
   // FlatList Header Component
   const renderListHeader = () => (
     <View>
-      {/* Search Bar Input */}
-      <View style={styles.searchContainer}>
-        <View style={styles.searchBar}>
-          <Search size={16} color="#FF5A1F" />
-          <TextInput
-            placeholder={`Search ${categoryDef.name}...`}
-            placeholderTextColor="#8C8889"
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            style={styles.searchInput}
-            selectionColor="#FF5A1F"
-          />
-          {searchQuery.length > 0 && (
-            <Pressable onPress={() => setSearchQuery('')} hitSlop={8}>
-              <X size={15} color="#6B6667" />
-            </Pressable>
-          )}
-        </View>
+      {/* Universal Search Bar */}
+      <View style={{ paddingHorizontal: 16, marginBottom: 12 }}>
+        <UniversalSearchBar
+          query={searchQuery}
+          showLogoInside={true}
+          onQueryChange={setSearchQuery}
+          onOpenOverlay={() => setIsSearchOverlayVisible(true)}
+          onClear={() => setSearchQuery('')}
+          onBack={() => setSearchQuery('')}
+          placeholder={`Search ${categoryDef.name}...`}
+        />
       </View>
 
       {/* Editorial Category Banner */}
@@ -306,6 +357,9 @@ export default function CategoryResultsScreen() {
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
+            nestedScrollEnabled={true}
+            directionalLockEnabled={true}
+            overScrollMode="never"
             contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}
           >
             {categoryDef.subcategories.map((sub) => {
@@ -336,6 +390,9 @@ export default function CategoryResultsScreen() {
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
+          nestedScrollEnabled={true}
+          directionalLockEnabled={true}
+          overScrollMode="never"
           contentContainerStyle={{ paddingHorizontal: 16, gap: 8, alignItems: 'center' }}
         >
           <View style={styles.sortIndicator}>
@@ -409,13 +466,7 @@ export default function CategoryResultsScreen() {
   );
 
   return (
-    <View style={styles.outerContainer}>
-      <View
-        style={[
-          styles.phoneContainer,
-          { maxWidth: effectiveWidth, paddingTop: Math.max(insets.top, 8) },
-        ]}
-      >
+    <View style={{ flex: 1, backgroundColor: '#FDFBF7', paddingTop: Math.max(insets.top, 8) }}>
         {/* Top Header */}
         <View style={styles.header}>
           <Pressable onPress={() => safeBack(router)} hitSlop={12} style={styles.iconButton}>
@@ -456,6 +507,13 @@ export default function CategoryResultsScreen() {
             numColumns={2}
             columnWrapperStyle={{ justifyContent: 'space-between', paddingHorizontal: 16 }}
             ListHeaderComponent={renderListHeader}
+            removeClippedSubviews={Platform.OS !== 'web'}
+            maxToRenderPerBatch={8}
+            updateCellsBatchingPeriod={50}
+            initialNumToRender={8}
+            windowSize={7}
+            keyboardShouldPersistTaps="handled"
+            overScrollMode="never"
             renderItem={({ item }) => (
               <View style={styles.gridItem}>
                 <ProductCard
@@ -519,8 +577,25 @@ export default function CategoryResultsScreen() {
             </Pressable>
           </View>
         )}
+
+        {/* Live Search Suggestions Autocomplete Overlay */}
+        <SearchSuggestionsOverlay
+          visible={isSearchOverlayVisible}
+          query={searchQuery}
+          onQueryChange={setSearchQuery}
+          onSelectQuery={(term) => {
+            setSearchQuery(term);
+          }}
+          onOpenProduct={(product) => {
+            setIsSearchOverlayVisible(false);
+            router.push({
+              pathname: '/product/[id]',
+              params: { id: String(product.id) },
+            });
+          }}
+          onClose={() => setIsSearchOverlayVisible(false)}
+        />
       </View>
-    </View>
   );
 }
 

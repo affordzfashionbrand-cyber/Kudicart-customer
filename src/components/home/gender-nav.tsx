@@ -4,10 +4,10 @@ import {
   Text,
   ScrollView,
   TouchableOpacity,
-  Image,
   StyleSheet,
   Animated,
 } from 'react-native';
+import { LazyImage } from '@/components/common/lazy-image';
 import { GENDER_CATEGORIES, GenderCategory } from '@/data/mockCategories';
 
 interface GenderNavProps {
@@ -24,6 +24,9 @@ export function GenderNav({
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
+        nestedScrollEnabled={true}
+        directionalLockEnabled={true}
+        overScrollMode="never"
         contentContainerStyle={styles.scrollContent}
       >
         {GENDER_CATEGORIES.map((cat) => {
@@ -46,10 +49,11 @@ export function GenderNav({
                   isSelected && styles.imageWrapperActive,
                 ]}
               >
-                <Image
-                  source={{ uri: cat.image }}
+                <LazyImage
+                  source={cat.image}
                   style={styles.avatarImage}
-                  resizeMode="cover"
+                  contentFit="cover"
+                  priority="normal"
                 />
               </View>
 

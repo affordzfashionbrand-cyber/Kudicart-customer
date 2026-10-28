@@ -40,6 +40,9 @@ export function BrandsSection({ onBrandPress }: BrandsSectionProps) {
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
+        nestedScrollEnabled={true}
+        directionalLockEnabled={true}
+        overScrollMode="never"
         contentContainerStyle={styles.scrollContent}
       >
         {MOCK_BRANDS.map((item) => (

@@ -4,9 +4,9 @@ import {
   Text,
   ScrollView,
   TouchableOpacity,
-  Image,
   Dimensions,
 } from 'react-native';
+import { LazyImage } from '@/components/common/lazy-image';
 import { useRouter } from 'expo-router';
 import { Icon } from '@/components/icon';
 
@@ -110,9 +110,11 @@ export function HeroCarousel() {
             className="h-44 rounded-3xl overflow-hidden relative shadow-md bg-inverse-surface flex flex-row"
           >
             {/* Background Image */}
-            <Image
-              source={{ uri: banner.image }}
-              className="absolute inset-0 w-full h-full object-cover"
+            <LazyImage
+              source={banner.image}
+              style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
+              contentFit="cover"
+              priority="high"
             />
 
             {/* Gradient Dark Overlay */}

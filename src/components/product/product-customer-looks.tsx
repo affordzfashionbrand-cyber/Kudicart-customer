@@ -31,7 +31,14 @@ export function ProductCustomerLooks() {
         </View>
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingRight: 16 }}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        nestedScrollEnabled={true}
+        directionalLockEnabled={true}
+        overScrollMode="never"
+        contentContainerStyle={{ gap: 12, paddingRight: 16 }}
+      >
         {CUSTOMER_LOOKS.map((look) => (
           <View
             key={look.id}

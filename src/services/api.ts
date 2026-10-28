@@ -1,10 +1,40 @@
 import { Platform } from 'react-native';
+import { COMPLETE_CATEGORY_HIERARCHY } from '@/data/category-hierarchy-data';
 
 const API_BASE_URL =
   process.env.EXPO_PUBLIC_API_URL ||
   (Platform.OS === 'android' ? 'http://10.0.2.2:3001' : 'http://localhost:3001');
 
 const isProduction = process.env.EXPO_PUBLIC_APP_ENV === 'production';
+
+export const PRODUCT_ID_MAP: Record<string, string> = {
+  '101': 'prod-2',
+  'prod-101': 'prod-2',
+  '102': 'prod-1',
+  'prod-102': 'prod-1',
+  '103': 'prod-3',
+  'prod-103': 'prod-3',
+  '104': 'prod-5',
+  'prod-104': 'prod-5',
+  '105': 'prod-6',
+  'prod-105': 'prod-6',
+  '106': 'prod-4',
+  'prod-106': 'prod-4',
+  '107': 'prod-10',
+  'prod-107': 'prod-10',
+  '108': 'prod-7',
+  'prod-108': 'prod-7',
+  '1': 'prod-1',
+  '2': 'prod-5',
+  '3': 'prod-9',
+  '4': 'prod-6',
+  '5': 'prod-5',
+  '6': 'prod-6',
+  '7': 'prod-7',
+  '8': 'prod-8',
+  '9': 'prod-4',
+  '10': 'prod-10',
+};
 
 // Token management in-memory (fails closed to null)
 let authToken: string | null = null;
@@ -44,7 +74,13 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     return await res.json();
   } catch (error: any) {
     clearTimeout(timeoutId);
-    console.warn(`[Affordz API] ${endpoint} request error:`, error?.message || error);
+    const isAborted =
+      error?.name === 'AbortError' ||
+      error?.message?.includes('canceled') ||
+      error?.message?.includes('aborted');
+    if (!isAborted) {
+      console.warn(`[Affordz API] ${endpoint} request error:`, error?.message || error);
+    }
     throw error;
   }
 }
@@ -118,7 +154,7 @@ export const authApi = {
     } catch {
       return {
         id: 'usr-1',
-        phone: '+91 98450 12890',
+        phone: '+91 8124188999',
         name: 'Ananya Sharma',
         email: 'ananya.sharma@example.com',
         avatar:
@@ -129,17 +165,23 @@ export const authApi = {
   },
 
   updateProfile: async (data: Partial<AuthUser>): Promise<AuthUser> => {
+    const payload: Record<string, any> = {};
+    if (data.name && data.name.trim()) payload.name = data.name.trim();
+    if (data.email && data.email.trim() && data.email.includes('@')) payload.email = data.email.trim();
+    if (data.avatar) payload.avatar = data.avatar;
+
     try {
       return await request<AuthUser>('/api/v1/users/me', {
         method: 'PATCH',
-        body: JSON.stringify(data),
+        body: JSON.stringify(payload),
       });
-    } catch {
+    } catch (err: any) {
+      console.warn('[Affordz Auth] updateProfile remote sync note:', err?.message || err);
       return {
-        id: 'usr-1',
-        phone: '+91 98450 12890',
-        name: data.name || 'Ananya Sharma',
-        email: data.email || 'ananya.sharma@example.com',
+        id: data.id || 'usr-1',
+        phone: data.phone || '+91 8124188999',
+        name: data.name?.trim() || 'Affordz Customer',
+        email: data.email?.trim() || 'customer@affordz.in',
         avatar: data.avatar || null,
         role: 'CUSTOMER',
       };
@@ -153,9 +195,18 @@ export const authApi = {
 export interface CategoryItem {
   id: string;
   name: string;
+  slug?: string;
+  level?: 1 | 2 | 3;
+  parentId?: string | null;
   countText: string;
   icon: string;
   image?: string;
+  banner?: string;
+  gender?: 'Women' | 'Men' | 'Kids' | 'Unisex';
+  productCount?: number;
+  displayOrder?: number;
+  subcategories?: CategoryItem[];
+  children?: CategoryItem[];
 }
 
 export interface ApiProduct {
@@ -190,17 +241,47 @@ export interface ApiProduct {
   };
 }
 
+export interface ApiSearchSuggestionItem {
+  text: string;
+  type: 'keyword' | 'category' | 'brand';
+  highlight?: string;
+  count?: number;
+}
+
+export interface ApiSearchSuggestionsResponse {
+  query: string;
+  suggestions: ApiSearchSuggestionItem[];
+  categories: Array<{ id: string; name: string; count: number }>;
+  brands: Array<{ name: string; count: number }>;
+  trending: string[];
+  recentPicks: ApiProduct[];
+}
+
 export const catalogApi = {
-  getCategories: async (): Promise<CategoryItem[]> => {
+  getCategories: async (params?: { tree?: boolean; parentId?: string; level?: number; gender?: string }): Promise<CategoryItem[]> => {
     try {
-      return await request<CategoryItem[]>('/api/v1/categories');
+      const q = new URLSearchParams();
+      if (params?.tree) q.append('tree', 'true');
+      if (params?.parentId) q.append('parentId', params.parentId);
+      if (params?.level) q.append('level', String(params.level));
+      if (params?.gender && params.gender !== 'All') q.append('gender', params.gender);
+      const qs = q.toString() ? `?${q.toString()}` : '';
+      return await request<CategoryItem[]>(`/api/v1/categories${qs}`);
     } catch {
-      return [
-        { id: 'kurtis', name: 'Kurtis', countText: '320+ styles', icon: 'styler', image: 'https://images.unsplash.com/photo-1539109136881-3be0616acf4b?auto=format&fit=crop&w=400&q=80' },
-        { id: 'sarees', name: 'Sarees', countText: 'Pure Silk', icon: 'dry_cleaning', image: 'https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=400&q=80' },
-        { id: 'dresses', name: 'Dresses', countText: 'Maxi & Midi', icon: 'woman', image: 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?auto=format&fit=crop&w=400&q=80' },
-        { id: 'fabrics', name: 'Fabrics', countText: 'By the Metre', icon: 'texture', image: 'https://images.unsplash.com/photo-1584917865442-de89df76afd3?auto=format&fit=crop&w=400&q=80' },
-      ];
+      return COMPLETE_CATEGORY_HIERARCHY as any;
+    }
+  },
+
+  getCategoriesHierarchy: async (gender?: string): Promise<CategoryItem[]> => {
+    try {
+      const q = gender && gender !== 'All' ? `?gender=${encodeURIComponent(gender)}` : '';
+      return await request<CategoryItem[]>(`/api/v1/categories/hierarchy${q}`);
+    } catch {
+      if (!gender || gender === 'All') return COMPLETE_CATEGORY_HIERARCHY as any;
+      const g = gender.toLowerCase();
+      return COMPLETE_CATEGORY_HIERARCHY.filter(
+        (c) => c.gender.toLowerCase() === g || c.gender.toLowerCase() === 'unisex',
+      ) as any;
     }
   },
 
@@ -375,10 +456,107 @@ export const catalogApi = {
 
   getProductById: async (id: string): Promise<ApiProduct> => {
     try {
-      return await request<ApiProduct>(`/api/v1/products/${id}`);
+      const rawId = String(id).trim();
+      const mappedId =
+        PRODUCT_ID_MAP[rawId] ||
+        (rawId.startsWith('prod-') || rawId.startsWith('deal-') ? rawId : `prod-${rawId}`);
+      return await request<ApiProduct>(`/api/v1/products/${mappedId}`);
     } catch {
+      const all = await catalogApi.getProducts().catch(() => []);
+      const fallbackId = PRODUCT_ID_MAP[String(id)] || String(id);
+      return all.find((p) => p.id === id || p.id === fallbackId) || all[0];
+    }
+  },
+
+  getSearchSuggestions: async (q?: string, limit?: number): Promise<ApiSearchSuggestionsResponse> => {
+    try {
+      const params = new URLSearchParams();
+      if (q) params.append('q', q);
+      if (limit) params.append('limit', String(limit));
+      const qs = params.toString() ? `?${params.toString()}` : '';
+      return await request<ApiSearchSuggestionsResponse>(`/api/v1/search/suggestions${qs}`);
+    } catch {
+      const cleanQ = (q || '').trim().toLowerCase();
+      const trending = [
+        'Handloom Silk Sarees',
+        'Embroidered Anarkali Sets',
+        'Chanderi Silk Tunics',
+        'Tiered Floral Maxi Dresses',
+        'Structured Linen Shirts',
+        'Raw Selvedge Denim',
+        'Court Leather Sneakers',
+        'Minimal Leather Totes',
+      ];
       const all = await catalogApi.getProducts();
-      return all.find((p) => p.id === id) || all[0];
+      if (!cleanQ) {
+        return {
+          query: '',
+          suggestions: trending.map((text) => ({ text, type: 'keyword' })),
+          categories: [
+            { id: 'kurtis', name: 'Kurtis', count: 12 },
+            { id: 'sarees', name: 'Sarees', count: 8 },
+            { id: 'dresses', name: 'Dresses', count: 15 },
+          ],
+          brands: [
+            { name: 'Avanya Ethnic', count: 6 },
+            { name: 'Gulabi Studio', count: 5 },
+          ],
+          trending,
+          recentPicks: all.slice(0, 4),
+        };
+      }
+
+      const matchingSuggestions = trending
+        .filter((t) => t.toLowerCase().includes(cleanQ))
+        .map((text) => ({ text, type: 'keyword' as const }));
+
+      const matchingProducts = all.filter(
+        (p) =>
+          p.title.toLowerCase().includes(cleanQ) ||
+          p.brand.toLowerCase().includes(cleanQ) ||
+          (p.category && p.category.toLowerCase().includes(cleanQ)),
+      );
+
+      return {
+        query: q || '',
+        suggestions: matchingSuggestions,
+        categories: [],
+        brands: [],
+        trending,
+        recentPicks: matchingProducts.slice(0, 4),
+      };
+    }
+  },
+
+  searchProducts: async (params?: {
+    search?: string;
+    category?: string;
+    fulfillmentType?: string;
+    tryAndBuyOnly?: boolean | string;
+    sortBy?: string;
+    sort?: string;
+    minPrice?: number;
+    maxPrice?: number;
+    page?: number;
+    limit?: number;
+  }): Promise<ApiProduct[]> => {
+    try {
+      const query = new URLSearchParams();
+      if (params?.category && params.category !== 'All') query.append('category', params.category);
+      if (params?.search) query.append('search', params.search);
+      if (params?.sort) query.append('sort', params.sort);
+      if (params?.sortBy) query.append('sortBy', params.sortBy);
+      if (params?.fulfillmentType) query.append('fulfillmentType', params.fulfillmentType);
+      if (params?.tryAndBuyOnly) query.append('tryAndBuyOnly', String(params.tryAndBuyOnly));
+      if (params?.minPrice !== undefined) query.append('minPrice', String(params.minPrice));
+      if (params?.maxPrice !== undefined) query.append('maxPrice', String(params.maxPrice));
+      if (params?.page) query.append('page', String(params.page));
+      if (params?.limit) query.append('limit', String(params.limit));
+
+      const qs = query.toString() ? `?${query.toString()}` : '';
+      return await request<ApiProduct[]>(`/api/v1/search${qs}`);
+    } catch {
+      return catalogApi.getProducts(params);
     }
   },
 };
@@ -453,7 +631,18 @@ export const cartApi = {
     try {
       return await request<CartModel>('/api/v1/cart/items', {
         method: 'POST',
-        body: JSON.stringify({ productId, size, quantity, trialSize, color }),
+        body: JSON.stringify({
+          productId:
+            String(productId).startsWith('prod-') || String(productId).startsWith('deal-')
+              ? String(productId)
+              : !isNaN(Number(productId))
+              ? `prod-${productId}`
+              : String(productId),
+          size,
+          quantity,
+          ...(trialSize ? { trialSize } : {}),
+          ...(color ? { color } : {}),
+        }),
       });
     } catch (e: any) {
       throw e;
@@ -675,7 +864,19 @@ export interface TrackingModel {
   orderNumber: string;
   status: OrderStatus;
   etaMinutes: number;
+  itemTotal?: number;
+  deliveryFee?: number;
+  taxes?: number;
+  discountAmount?: number;
+  couponCode?: string | null;
+  isTryAndBuy?: boolean;
+  grandTotal?: number;
+  paymentMethod?: string;
+  paymentStatus?: string;
+  deliveryAddress?: AddressModel;
+  items?: OrderItemModel[];
   milestones: OrderTrackingMilestone[];
+  history?: any[];
   driver?: {
     id: string;
     name: string;
@@ -899,6 +1100,20 @@ export const ordersApi = {
     }
   },
 
+  updateOrderStatus: async (orderId: string, status: OrderStatus, note?: string): Promise<any> => {
+    try {
+      return await request(`/api/v1/orders/${orderId}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status, note: note || `Status updated to ${status}` }),
+      });
+    } catch {
+      const ord = inMemoryOrders.find((o) => o.id === orderId || o.orderNumber === orderId);
+      if (ord) {
+        ord.status = status;
+      }
+      return { success: true, status };
+    }
+  },
   trackOrder: async (orderId: string): Promise<TrackingModel> => {
     try {
       return await request<TrackingModel>(`/api/v1/orders/${orderId}/track`);
@@ -1026,7 +1241,9 @@ export const reviewsApi = {
 
   getProductReviews: async (productId: string): Promise<ReviewModel[]> => {
     try {
-      return await request<ReviewModel[]>(`/api/v1/reviews/products/${productId}`);
+      const rawId = String(productId).trim();
+      const mappedId = PRODUCT_ID_MAP[rawId] || rawId;
+      return await request<ReviewModel[]>(`/api/v1/reviews/products/${mappedId}`);
     } catch {
       return [
         {

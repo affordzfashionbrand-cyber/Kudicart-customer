@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { View, Text, ScrollView, Animated, Pressable, RefreshControl, NativeSyntheticEvent, NativeScrollEvent } from 'react-native';
+import { View, Text, ScrollView, Animated, Pressable, RefreshControl, NativeSyntheticEvent, NativeScrollEvent, BackHandler, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { ShoppingBag, Sparkles, ChevronRight } from 'lucide-react-native';
+import { ShoppingBag, Sparkles, ChevronRight, AlertTriangle, Zap, MapPin } from 'lucide-react-native';
 
 import { useAddressStore } from '@/store/useAddressStore';
 import { useAuthStore } from '@/store/useAuthStore';
@@ -43,6 +43,9 @@ import { BankOffersModal } from '@/components/home/bank-offers-modal';
 import { TryBuyModal } from '@/components/home/try-buy-modal';
 import { FloatingBottomBar } from '@/components/home/floating-bottom-bar';
 import { EditorialText } from '@/components/common/section-title';
+import { HeroBannerSkeleton, CategoryStripSkeleton, ProductCardSkeleton } from '@/components/common/skeleton';
+import { SearchSuggestionsOverlay } from '@/components/home/search-suggestions-overlay';
+import { SearchResultsView } from '@/components/home/search-results-view';
 
 import { ShopView } from '@/components/views/shop-view';
 import { WishlistView } from '@/components/views/wishlist-view';
@@ -53,6 +56,7 @@ import { DarkStoreView } from '@/components/views/dark-store-view';
 import { AuthModal } from '@/components/auth-modal';
 import { AddressModal } from '@/components/address-modal';
 import { SelectDarkStoreModal } from '@/components/home/select-dark-store-modal';
+import { LocationOnboardingModal } from '@/components/location/location-onboarding-modal';
 import { useDarkStore } from '@/store/useDarkStore';
 
 export default function Page() {
@@ -66,6 +70,9 @@ export default function Page() {
     activeCoupons,
     isLoading,
     isRefreshing,
+    fulfillmentFilter,
+    setFulfillmentFilter,
+    executeSearch,
     refreshCatalog,
     fetchCategories,
     fetchProducts,
@@ -73,8 +80,15 @@ export default function Page() {
     fetchCoupons,
   } = useCatalogStore();
   const { items: cartItems, addItem, toggleWishlist: storeToggleWishlist, wishlist: storeWishlist } = useCartStore();
-  const { user } = useAuthStore();
-  const { addresses, selectedAddressId, setSelectedAddressId } = useAddressStore();
+  const { user, logout } = useAuthStore();
+  const {
+    addresses,
+    selectedAddressId,
+    setSelectedAddressId,
+    hasLocationConfirmed,
+    getServiceability,
+    getSelectedAddress,
+  } = useAddressStore();
   const { isDarkStoreModalOpen, openDarkStoreModal, closeDarkStoreModal } = useDarkStore();
 
   // Screen Tabs & Active Filters
@@ -85,9 +99,26 @@ export default function Page() {
   const [selectedWear, setSelectedWear] = useState<string>('All');
   const [maxPriceFilter, setMaxPriceFilter] = useState<number | null>(null);
 
+  // Search Suggestions Overlay Modal
+  const [isSearchOverlayVisible, setIsSearchOverlayVisible] = useState(false);
+
   // Modals
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
+  const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
+
+  const serviceability = getServiceability();
+  const selectedAddress = getSelectedAddress();
+
+  // Upfront Location Gate: Prompt on initial visit if not confirmed yet
+  useEffect(() => {
+    if (!hasLocationConfirmed) {
+      const timer = setTimeout(() => {
+        setIsLocationModalOpen(true);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [hasLocationConfirmed]);
   const [isBankModalOpen, setIsBankModalOpen] = useState(false);
   const [isTryAndBuyModalOpen, setIsTryAndBuyModalOpen] = useState(false);
   const [currentBankIndex, setCurrentBankIndex] = useState(0);
@@ -103,6 +134,8 @@ export default function Page() {
   const categoryTranslateY = useRef(new Animated.Value(0)).current;
   const isCategoryVisible = useRef(true);
 
+  const isNative = Platform.OS !== 'web';
+
   const handleHomeScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const currentY = event.nativeEvent.contentOffset.y;
     const diff = currentY - lastScrollY.current;
@@ -113,33 +146,33 @@ export default function Page() {
         isCategoryVisible.current = true;
         Animated.spring(categoryTranslateY, {
           toValue: 0,
-          useNativeDriver: true,
+          useNativeDriver: isNative,
           tension: 80,
           friction: 12,
         }).start();
       }
-    } else if (diff > 8 && isCategoryVisible.current) {
+    } else if (diff > 12 && isCategoryVisible.current) {
       // Scrolling DOWN past the section — hide it
       isCategoryVisible.current = false;
       Animated.spring(categoryTranslateY, {
         toValue: -CATEGORY_BAR_HEIGHT,
-        useNativeDriver: true,
+        useNativeDriver: isNative,
         tension: 80,
         friction: 12,
       }).start();
-    } else if (diff < -8 && !isCategoryVisible.current) {
+    } else if (diff < -12 && !isCategoryVisible.current) {
       // Scrolling UP — reveal it
       isCategoryVisible.current = true;
       Animated.spring(categoryTranslateY, {
         toValue: 0,
-        useNativeDriver: true,
+        useNativeDriver: isNative,
         tension: 80,
         friction: 12,
       }).start();
     }
 
     lastScrollY.current = currentY;
-  }, [categoryTranslateY]);
+  }, [categoryTranslateY, isNative]);
 
   // Initial Data Fetch
   useEffect(() => {
@@ -148,6 +181,28 @@ export default function Page() {
     fetchCoupons();
     fetchProducts();
   }, [fetchCategories, fetchDarkStores, fetchCoupons, fetchProducts]);
+
+  // Android Hardware Back Button Handling
+  useEffect(() => {
+    const onHardwareBack = () => {
+      if (isSearchOverlayVisible) {
+        setIsSearchOverlayVisible(false);
+        return true;
+      }
+      if (query.trim().length > 0) {
+        setQuery('');
+        return true;
+      }
+      if (tab !== 'HOME') {
+        setTab('HOME');
+        return true;
+      }
+      return false;
+    };
+
+    const sub = BackHandler.addEventListener('hardwareBackPress', onHardwareBack);
+    return () => sub.remove();
+  }, [isSearchOverlayVisible, query, tab]);
 
   // Derived Active Product Catalog normalized to ProductItem (Live API prioritized)
   const activeProducts = useMemo<ProductItem[]>(() => {
@@ -162,6 +217,10 @@ export default function Page() {
         category: p.category || 'Women',
         wear: (p as any).wear || 'Tops',
         image: p.image || (p.galleryImages && p.galleryImages[0]) || '',
+        fulfillmentType: (p as any).fulfillmentType || 'DARK_STORE',
+        tryAndBuyEligible: (p as any).tryAndBuyEligible ?? true,
+        fabric: (p as any).fabric,
+        description: (p as any).description,
       }));
     }
     return [...DEFAULT_PRODUCTS];
@@ -200,9 +259,9 @@ export default function Page() {
   const showToast = useCallback((message: string) => {
     setToast(message);
     Animated.sequence([
-      Animated.timing(toastAnim, { toValue: 0, duration: 320, easing: bespokeEasing, useNativeDriver: true }),
+      Animated.timing(toastAnim, { toValue: 0, duration: 320, easing: bespokeEasing, useNativeDriver: Platform.OS !== 'web' }),
       Animated.delay(1800),
-      Animated.timing(toastAnim, { toValue: 100, duration: 320, easing: bespokeEasing, useNativeDriver: true }),
+      Animated.timing(toastAnim, { toValue: 100, duration: 320, easing: bespokeEasing, useNativeDriver: Platform.OS !== 'web' }),
     ]).start(() => {
       setToast('');
     });
@@ -249,8 +308,8 @@ export default function Page() {
   // Header Handlers
   const handleSelectSearchQuery = useCallback((text: string) => {
     setQuery(text);
-    setTab('SHOP');
-  }, []);
+    executeSearch(text);
+  }, [executeSearch]);
 
   // Category Bubbles Handlers
   const handleSelectGender = useCallback((gender: 'All' | 'Men' | 'Women' | 'Kids') => {
@@ -285,9 +344,9 @@ export default function Page() {
     }
     if (item.searchQuery) {
       setQuery(item.searchQuery);
+      executeSearch(item.searchQuery);
     }
-    setTab('SHOP');
-  }, []);
+  }, [executeSearch]);
 
   const handleCuratedDealPress = useCallback((deal: CuratedDealCard) => {
     setSelectedGender(deal.gender);
@@ -297,9 +356,9 @@ export default function Page() {
     }
     if (deal.searchQuery) {
       setQuery(deal.searchQuery);
+      executeSearch(deal.searchQuery);
     }
-    setTab('SHOP');
-  }, []);
+  }, [executeSearch]);
 
   const handleBudgetPress = useCallback((item: BudgetStoreItem) => {
     setMaxPriceFilter(item.maxPrice);
@@ -308,19 +367,19 @@ export default function Page() {
 
   const handleTrendRadarPress = useCallback((item: TrendRadarItem) => {
     setQuery(item.searchQuery);
-    setTab('SHOP');
-  }, []);
+    executeSearch(item.searchQuery);
+  }, [executeSearch]);
 
   const handleBrandSelect = useCallback((tile: VendorBrandTile) => {
     const cleanQuery = tile.brand.replace(/[®|]/g, '').trim();
     setQuery(cleanQuery);
-    setTab('SHOP');
-  }, []);
+    executeSearch(cleanQuery);
+  }, [executeSearch]);
 
   const handleUrbanDealSelect = useCallback((deal: LuxeDealItem) => {
     setQuery(deal.brand);
-    setTab('SHOP');
-  }, []);
+    executeSearch(deal.brand);
+  }, [executeSearch]);
 
   const handleCopyBankCode = useCallback((code: string) => {
     setCopiedBankCode(code);
@@ -357,11 +416,18 @@ export default function Page() {
         <HomeHeader
           paddingTop={insets.top + 8}
           selectedAddressText={selectedAddressText}
-          onOpenAddressModal={() => setIsAddressModalOpen(true)}
+          isServiceable={serviceability.isServiceable}
+          onOpenAddressModal={() => setIsLocationModalOpen(true)}
           onOpenAccount={() => setTab('ACCOUNT')}
           query={query}
-          onQueryChange={setQuery}
+          onQueryChange={(text) => {
+            setQuery(text);
+            if (text.trim().length > 0) {
+              executeSearch(text);
+            }
+          }}
           onSelectSearchQuery={handleSelectSearchQuery}
+          onOpenSearchOverlay={() => setIsSearchOverlayVisible(true)}
         />
       )}
 
@@ -380,10 +446,15 @@ export default function Page() {
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: insets.bottom + 120 }}
-          onScroll={tab === 'HOME' ? handleHomeScroll : undefined}
+          onScroll={tab === 'HOME' && !query ? handleHomeScroll : undefined}
           scrollEventThrottle={16}
+          removeClippedSubviews={Platform.OS !== 'web'}
+          keyboardShouldPersistTaps="handled"
+          overScrollMode="never"
+          decelerationRate="normal"
+          directionalLockEnabled={true}
           refreshControl={
-            tab === 'HOME' ? (
+            tab === 'HOME' && !query ? (
               <RefreshControl
                 refreshing={isRefreshing}
                 onRefresh={refreshCatalog}
@@ -393,26 +464,43 @@ export default function Page() {
             ) : undefined
           }
         >
-        {/* Smart Sticky Category Bar — shown at top & on scroll-up, hidden on scroll-down */}
-        {tab === 'HOME' && (
-          <Animated.View
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              right: 0,
-              zIndex: 20,
-              transform: [{ translateY: categoryTranslateY }],
-            }}
-          >
-            <CategoryBubblesSection
-              selectedGender={selectedGender}
-              selectedWear={selectedWear}
-              onSelectGender={handleSelectGender}
-              onSelectWear={handleSelectWear}
-            />
-          </Animated.View>
-        )}
+        {/* Active Search Results View */}
+        {query.trim().length > 0 ? (
+          <SearchResultsView
+            query={query}
+            products={activeProducts}
+            wishlist={storeWishlist}
+            fulfillmentFilter={fulfillmentFilter}
+            onSelectFulfillmentFilter={setFulfillmentFilter}
+            onClearSearch={() => setQuery('')}
+            onWishlist={toggleWishlist}
+            onBag={addToBag}
+            onOpenProduct={handleOpenProduct}
+            onSelectSearchQuery={handleSelectSearchQuery}
+            isLoading={isLoading}
+          />
+        ) : (
+          <>
+            {/* Smart Sticky Category Bar — shown at top & on scroll-up, hidden on scroll-down */}
+            {tab === 'HOME' && (
+              <Animated.View
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  zIndex: 20,
+                  transform: [{ translateY: categoryTranslateY }],
+                }}
+              >
+                <CategoryBubblesSection
+                  selectedGender={selectedGender}
+                  selectedWear={selectedWear}
+                  onSelectGender={handleSelectGender}
+                  onSelectWear={handleSelectWear}
+                />
+              </Animated.View>
+            )}
 
         {tab === 'HOME' && (
           <View>
@@ -421,6 +509,98 @@ export default function Page() {
 
             {/* ROW 3: Compact Hero Banner Carousel with Isolated Auto-Advance Interval */}
             <HeroBannerSection onBannerPress={handleBannerPress} />
+
+            {/* Hyperlocal 18-Min Instant Drop Serviceability Banner */}
+            {!serviceability.isServiceable ? (
+              <View
+                style={{
+                  marginHorizontal: 16,
+                  marginTop: 12,
+                  marginBottom: 10,
+                  backgroundColor: '#FEF2F2',
+                  borderWidth: 1.5,
+                  borderColor: '#FCA5A5',
+                  borderRadius: 20,
+                  padding: 16,
+                  shadowColor: '#DC2626',
+                  shadowOffset: { width: 0, height: 3 },
+                  shadowOpacity: 0.08,
+                  shadowRadius: 8,
+                  elevation: 3,
+                }}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: '#FEE2E2', alignItems: 'center', justifyContent: 'center' }}>
+                      <AlertTriangle size={15} color="#DC2626" />
+                    </View>
+                    <Text style={{ fontSize: 11.5, fontWeight: '900', color: '#DC2626', letterSpacing: 0.8, textTransform: 'uppercase' }}>
+                      NOT AVAILABLE FOR THIS PLACE
+                    </Text>
+                  </View>
+
+                  <View style={{ backgroundColor: '#FFFFFF', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10, borderWidth: 1, borderColor: '#FECACA' }}>
+                    <Text style={{ fontSize: 10, fontWeight: '900', color: '#B91C1C' }}>
+                      {serviceability.distanceKm} KM (MAX 8.0 KM)
+                    </Text>
+                  </View>
+                </View>
+
+                <Text style={{ fontSize: 13, fontWeight: '800', color: '#991B1B', lineHeight: 18 }}>
+                  Instant 18-minute delivery is not available at {selectedAddress?.locality || selectedAddress?.city || 'this location'}.
+                </Text>
+                <Text style={{ fontSize: 11, color: '#7F1D1D', marginTop: 3, lineHeight: 16 }}>
+                  Our Ather 450X EV quick-commerce fleet operates within 8.0 km of Indiranagar Hub. Items can only be ordered via Standard Boutique Dispatch (2-4 Days) or choose another location.
+                </Text>
+
+                <Pressable
+                  onPress={() => setIsLocationModalOpen(true)}
+                  style={{
+                    marginTop: 12,
+                    backgroundColor: '#DC2626',
+                    borderRadius: 12,
+                    paddingVertical: 9,
+                    paddingHorizontal: 14,
+                    alignSelf: 'flex-start',
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 6,
+                  }}
+                >
+                  <MapPin size={13} color="#FFFFFF" />
+                  <Text style={{ fontSize: 11.5, fontWeight: '900', color: '#FFFFFF', letterSpacing: 0.5 }}>
+                    SELECT SERVICEABLE LOCATION
+                  </Text>
+                </Pressable>
+              </View>
+            ) : (
+              <View
+                style={{
+                  marginHorizontal: 16,
+                  marginTop: 10,
+                  marginBottom: 6,
+                  backgroundColor: '#F0FDF4',
+                  borderWidth: 1,
+                  borderColor: '#BBF7D0',
+                  borderRadius: 14,
+                  paddingHorizontal: 12,
+                  paddingVertical: 7,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                }}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Zap size={13} color="#15803D" fill="#15803D" />
+                  <Text style={{ fontSize: 11, fontWeight: '900', color: '#15803D' }}>
+                    ⚡ 18-Min Instant Drop Available at {selectedAddress?.locality || 'Indiranagar'}
+                  </Text>
+                </View>
+                <Text style={{ fontSize: 10, fontWeight: '800', color: '#166534' }}>
+                  {serviceability.distanceKm} km from Hub
+                </Text>
+              </View>
+            )}
 
             {/* Quick Strip: Doorstep Try & Buy Button */}
             <Pressable
@@ -559,6 +739,7 @@ export default function Page() {
               onWishlist={toggleWishlist}
               onBag={addToBag}
               onOpenProduct={handleOpenProduct}
+              isLoading={isLoading}
             />
           </View>
         )}
@@ -575,6 +756,7 @@ export default function Page() {
             onOpen={handleOpenProduct}
             maxPriceFilter={maxPriceFilter}
             onClearPriceFilter={() => setMaxPriceFilter(null)}
+            isLoading={isLoading}
           />
         )}
 
@@ -599,7 +781,9 @@ export default function Page() {
             onAddresses={() => setIsAddressModalOpen(true)}
             onTracking={() => router.push('/tracking')}
             onSupport={() => router.push('/support')}
+            onWishlist={() => setTab('WISHLIST')}
             onAuth={() => setIsAuthModalOpen(true)}
+            onLogout={logout}
           />
         )}
 
@@ -613,6 +797,8 @@ export default function Page() {
             onOpen={handleOpenProduct}
             onOpenDarkStoreModal={openDarkStoreModal}
           />
+        )}
+          </>
         )}
       </ScrollView>
     )}
@@ -646,9 +832,9 @@ export default function Page() {
         onSelectStore={(store) => {
           setToast(`Connected to ${store.shortName} • ${store.deliveryMinutes}m Drop`);
           Animated.sequence([
-            Animated.timing(toastAnim, { toValue: 0, duration: 250, useNativeDriver: true }),
+            Animated.timing(toastAnim, { toValue: 0, duration: 250, useNativeDriver: Platform.OS !== 'web' }),
             Animated.delay(2200),
-            Animated.timing(toastAnim, { toValue: 100, duration: 250, useNativeDriver: true }),
+            Animated.timing(toastAnim, { toValue: 100, duration: 250, useNativeDriver: Platform.OS !== 'web' }),
           ]).start();
         }}
       />
@@ -666,6 +852,16 @@ export default function Page() {
         onClose={() => setIsAddressModalOpen(false)}
         selectedAddressId={selectedAddressId}
         onSelectAddress={(addr) => setSelectedAddressId(addr.id)}
+      />
+
+      {/* Upfront 18-Min Location Onboarding & Serviceability Modal */}
+      <LocationOnboardingModal
+        visible={isLocationModalOpen}
+        onClose={() => setIsLocationModalOpen(false)}
+        onConfirm={(addr) => {
+          setSelectedAddressId(addr.id);
+          setIsLocationModalOpen(false);
+        }}
       />
 
       {/* Interactive Bank Offers Bottom Sheet Modal */}
@@ -689,6 +885,19 @@ export default function Page() {
           setIsTryAndBuyModalOpen(false);
           setTab('SHOP');
         }}
+      />
+
+      {/* Live Search Suggestions Autocomplete & Trending Overlay */}
+      <SearchSuggestionsOverlay
+        visible={isSearchOverlayVisible}
+        query={query}
+        onQueryChange={setQuery}
+        onSelectQuery={handleSelectSearchQuery}
+        onOpenProduct={(product) => {
+          setIsSearchOverlayVisible(false);
+          handleOpenProduct(product);
+        }}
+        onClose={() => setIsSearchOverlayVisible(false)}
       />
     </View>
   );

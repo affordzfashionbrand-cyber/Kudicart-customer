@@ -3,6 +3,7 @@ import { View, Text, ScrollView, Pressable } from 'react-native';
 import { ArrowUpDown } from 'lucide-react-native';
 import { SectionTitle } from '@/components/common/section-title';
 import { ProductCard } from '@/components/common/product-card';
+import { ProductCardSkeleton } from '@/components/common/skeleton';
 import { EmptyState } from '@/components/common/empty-state';
 import { ProductItem } from '@/data/homeData';
 
@@ -12,6 +13,7 @@ interface HomeProductCatalogSectionProps {
   onWishlist: (id: string | number) => void;
   onBag: (id: string | number) => void;
   onOpenProduct: (product: any) => void;
+  isLoading?: boolean;
 }
 
 const CATALOG_FILTER_TABS = ['All', 'Women', 'Men', 'Kids', 'Ethnic', 'Western', 'Footwear'];
@@ -24,6 +26,7 @@ export const HomeProductCatalogSection = React.memo(function HomeProductCatalogS
   onWishlist,
   onBag,
   onOpenProduct,
+  isLoading = false,
 }: HomeProductCatalogSectionProps) {
   const [selectedFilter, setSelectedFilter] = useState<string>('All');
   const [sortOption, setSortOption] = useState<SortType>('FEATURED');
@@ -121,6 +124,7 @@ export const HomeProductCatalogSection = React.memo(function HomeProductCatalogS
         horizontal
         showsHorizontalScrollIndicator={false}
         nestedScrollEnabled={true}
+        directionalLockEnabled={true}
         overScrollMode="never"
         contentContainerStyle={{ gap: 8, paddingBottom: 16 }}
       >
@@ -161,7 +165,15 @@ export const HomeProductCatalogSection = React.memo(function HomeProductCatalogS
       </ScrollView>
 
       {/* 2-Column Product Grid */}
-      {displayedProducts.length > 0 ? (
+      {isLoading ? (
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
+          {[1, 2, 3, 4].map((skeletonId) => (
+            <View key={skeletonId} style={{ width: '48%', marginBottom: 20 }}>
+              <ProductCardSkeleton />
+            </View>
+          ))}
+        </View>
+      ) : displayedProducts.length > 0 ? (
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
           {displayedProducts.map((product) => (
             <View key={product.id} style={{ width: '48%', marginBottom: 20 }}>

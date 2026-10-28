@@ -150,43 +150,40 @@ export const useCartStore = create<CartState>((set, get) => ({
   },
 
   addItem: async (product, size = 'M', color = 'Standard', quantity = 1, trialSize?: string) => {
+    const effectiveSize = size || 'M';
     const state = get();
-    // Try syncing with backend
-    try {
-      await cartApi.addItem(product.id, size, quantity, trialSize, color);
-    } catch {
-      // Offline fallback: keep working locally
-    }
 
     const existingIndex = state.items.findIndex(
-      (item) => item.productId === product.id && item.size === size,
+      (item) => item.productId === String(product.id) && item.size === effectiveSize,
     );
 
     let updatedItems: LocalCartItem[];
     if (existingIndex > -1) {
+      const isDark = state.items[existingIndex].fulfillmentType === 'DARK_STORE';
       updatedItems = [...state.items];
-      updatedItems[existingIndex].quantity += quantity;
-      if (trialSize) {
-        updatedItems[existingIndex].trialSize = trialSize;
-        updatedItems[existingIndex].isTryAndBuy = true;
-      }
+      updatedItems[existingIndex] = {
+        ...updatedItems[existingIndex],
+        quantity: updatedItems[existingIndex].quantity + quantity,
+        ...(trialSize && isDark ? { trialSize, isTryAndBuy: true } : {}),
+      };
     } else {
+      const isDark = (product.fulfillmentType || 'VENDOR') === 'DARK_STORE';
       const newItem: LocalCartItem = {
         id: `ci-${Date.now()}`,
-        productId: product.id,
-        title: product.title,
-        brand: product.brand,
+        productId: String(product.id),
+        title: product.title || (product as any).name || 'Artisan Garment',
+        brand: product.brand || 'Affordz',
         price: product.price,
-        originalPrice: product.originalPrice,
-        size,
-        trialSize: trialSize || null,
-        isTryAndBuy: Boolean(trialSize || product.tryAndBuyEligible),
+        originalPrice: product.originalPrice || Math.round(product.price * 1.4),
+        size: effectiveSize,
+        trialSize: isDark ? (trialSize || null) : null,
+        isTryAndBuy: isDark ? Boolean(trialSize || product.tryAndBuyEligible) : false,
         fulfillmentType: product.fulfillmentType || 'VENDOR',
         darkStoreHub: product.darkStoreHub || null,
         color,
         quantity,
         image: product.image,
-        discountBadge: product.discount,
+        discountBadge: product.discount || '30% OFF',
       };
       updatedItems = [...state.items, newItem];
     }
@@ -198,10 +195,19 @@ export const useCartStore = create<CartState>((set, get) => ({
       state.donationAmount,
     );
 
+    // 1. Immediately update Zustand store so navigation to /cart has items with 0ms lag
     set({
       items: updatedItems,
       ...totals,
     });
+
+    // 2. Sync with backend asynchronously
+    try {
+      await cartApi.addItem(String(product.id), effectiveSize, quantity, trialSize, color);
+    } catch {
+      // Offline fallback: graceful
+    }
+
     return true;
   },
 
@@ -211,16 +217,6 @@ export const useCartStore = create<CartState>((set, get) => ({
     if (!target) return;
 
     const newQty = target.quantity + delta;
-
-    try {
-      if (newQty > 0) {
-        await cartApi.updateQuantity(itemId, delta);
-      } else {
-        await cartApi.removeItem(itemId);
-      }
-    } catch {
-      // Offline graceful fallback
-    }
 
     let updatedItems: LocalCartItem[];
     if (newQty <= 0) {
@@ -236,20 +232,26 @@ export const useCartStore = create<CartState>((set, get) => ({
       state.donationAmount,
     );
 
+    // 1. Immediately update Zustand store for instant 0ms UI feedback
     set({
       items: updatedItems,
       ...totals,
     });
+
+    // 2. Sync with backend asynchronously
+    try {
+      if (newQty > 0) {
+        await cartApi.updateQuantity(itemId, delta);
+      } else {
+        await cartApi.removeItem(itemId);
+      }
+    } catch {
+      // Offline graceful fallback
+    }
   },
 
   removeItem: async (itemId) => {
     const state = get();
-    try {
-      await cartApi.removeItem(itemId);
-    } catch {
-      // graceful offline
-    }
-
     const updatedItems = state.items.filter((i) => i.id !== itemId);
     const totals = calculateTotals(
       updatedItems,
@@ -258,10 +260,18 @@ export const useCartStore = create<CartState>((set, get) => ({
       state.donationAmount,
     );
 
+    // 1. Immediately update Zustand store for instant 0ms UI feedback
     set({
       items: updatedItems,
       ...totals,
     });
+
+    // 2. Sync with backend asynchronously
+    try {
+      await cartApi.removeItem(itemId);
+    } catch {
+      // graceful offline
+    }
   },
 
   clearCart: async () => {

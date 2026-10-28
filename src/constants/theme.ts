@@ -5,7 +5,7 @@
 
 import '@/global.css';
 
-import { Platform } from 'react-native';
+import { Platform, TextStyle } from 'react-native';
 
 export const BrandColors = {
   softWhite: '#F7F7F5',
@@ -43,7 +43,7 @@ export const Colors = {
 export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark;
 
 export const Fonts = {
-  // Plus Jakarta Sans (Sans-serif)
+  // Plus Jakarta Sans (Modern Sans-serif)
   sans: Platform.select({
     web: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
     ios: 'PlusJakartaSans_400Regular',
@@ -63,6 +63,12 @@ export const Fonts = {
     default: 'PlusJakartaSans_600SemiBold',
   }) as string,
   sansBold: Platform.select({
+    web: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+    ios: 'PlusJakartaSans_700Bold',
+    android: 'PlusJakartaSans_700Bold',
+    default: 'PlusJakartaSans_700Bold',
+  }) as string,
+  sansExtraBold: Platform.select({
     web: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
     ios: 'PlusJakartaSans_700Bold',
     android: 'PlusJakartaSans_700Bold',
@@ -113,6 +119,60 @@ export const Fonts = {
     ios: 'ui-monospace',
     default: 'monospace',
   }) as string,
+};
+
+/**
+ * Universal cross-platform font style presets.
+ * Guarantees proper rendering on Web (with CSS fontWeight)
+ * AND native Android/iOS (without breaking native font lookup by double-specifying weights).
+ */
+export const FontStyles = {
+  sansRegular: {
+    fontFamily: Fonts.sans,
+    fontWeight: Platform.select({ web: '400', default: undefined }),
+  } as TextStyle,
+  sansMedium: {
+    fontFamily: Fonts.sansMedium,
+    fontWeight: Platform.select({ web: '500', default: undefined }),
+  } as TextStyle,
+  sansSemiBold: {
+    fontFamily: Fonts.sansSemiBold,
+    fontWeight: Platform.select({ web: '600', default: undefined }),
+  } as TextStyle,
+  sansBold: {
+    fontFamily: Fonts.sansBold,
+    fontWeight: Platform.select({ web: '700', default: undefined }),
+  } as TextStyle,
+  sansExtraBold: {
+    fontFamily: Fonts.sansExtraBold,
+    fontWeight: Platform.select({ web: '800', default: undefined }),
+  } as TextStyle,
+
+  serifRegular: {
+    fontFamily: Fonts.serifRegular,
+    fontWeight: Platform.select({ web: '400', default: undefined }),
+  } as TextStyle,
+  serifMedium: {
+    fontFamily: Fonts.serifMedium,
+    fontWeight: Platform.select({ web: '500', default: undefined }),
+  } as TextStyle,
+  serifSemiBold: {
+    fontFamily: Fonts.serifSemiBold,
+    fontWeight: Platform.select({ web: '600', default: undefined }),
+  } as TextStyle,
+  serifBold: {
+    fontFamily: Fonts.serifBold,
+    fontWeight: Platform.select({ web: '700', default: undefined }),
+  } as TextStyle,
+  serifItalic: {
+    fontFamily: Fonts.serifItalic,
+    fontStyle: 'italic',
+    fontWeight: Platform.select({ web: '400', default: undefined }),
+  } as TextStyle,
+
+  mono: {
+    fontFamily: Fonts.mono,
+  } as TextStyle,
 };
 
 export const Spacing = {

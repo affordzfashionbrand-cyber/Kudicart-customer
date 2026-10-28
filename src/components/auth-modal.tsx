@@ -1,20 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, Modal, TextInput, Pressable, Animated, Easing, KeyboardAvoidingView, Platform, Dimensions } from 'react-native';
+import { View, Text, Modal, TextInput, Animated, Easing, KeyboardAvoidingView, Platform, Dimensions, Pressable } from 'react-native';
 import { X, ArrowRight, ShieldCheck, CheckCircle2, AlertCircle } from 'lucide-react-native';
 import { useAuthStore } from '@/store/useAuthStore';
+import { AnimatedPressable } from '@/components/common/animated-pressable';
 
 const bespokeEasing = Easing.bezier(0.32, 0.72, 0, 1);
-
-const AnimatedPressable = ({ children, style, className, onPress, scaleTo = 0.96 }: any) => {
-  const scale = useRef(new Animated.Value(1)).current;
-  const handlePressIn = () => Animated.timing(scale, { toValue: scaleTo, duration: 400, easing: bespokeEasing, useNativeDriver: true }).start();
-  const handlePressOut = () => Animated.timing(scale, { toValue: 1, duration: 400, easing: bespokeEasing, useNativeDriver: true }).start();
-  return (
-    <Pressable onPressIn={handlePressIn} onPressOut={handlePressOut} onPress={onPress}>
-      <Animated.View style={[style, { transform: [{ scale }] }]} className={className}>{children}</Animated.View>
-    </Pressable>
-  );
-};
 
 interface AuthModalProps {
   visible: boolean;
@@ -23,6 +13,7 @@ interface AuthModalProps {
 }
 
 export function AuthModal({ visible, onClose, onSuccess }: AuthModalProps) {
+  const isNative = Platform.OS !== 'web';
   const [phoneNumber, setPhoneNumber] = useState('');
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [activeStep, setActiveStep] = useState<1 | 2>(1);
@@ -38,7 +29,7 @@ export function AuthModal({ visible, onClose, onSuccess }: AuthModalProps) {
 
   useEffect(() => {
     if (visible) {
-      Animated.timing(slideAnim, { toValue: 0, duration: 600, easing: bespokeEasing, useNativeDriver: true }).start();
+      Animated.timing(slideAnim, { toValue: 0, duration: 320, easing: bespokeEasing, useNativeDriver: isNative }).start();
       setActiveStep(1);
       setVerifiedSuccess(false);
       setError(null);
@@ -46,7 +37,7 @@ export function AuthModal({ visible, onClose, onSuccess }: AuthModalProps) {
       slideAnim.setValue(300);
       setError(null);
     }
-  }, [visible]);
+  }, [visible, isNative]);
 
   useEffect(() => {
     let timer: any;
@@ -58,7 +49,7 @@ export function AuthModal({ visible, onClose, onSuccess }: AuthModalProps) {
 
   const handleClose = () => {
     setError(null);
-    Animated.timing(slideAnim, { toValue: Dimensions.get('window').height, duration: 400, easing: bespokeEasing, useNativeDriver: true }).start(() => {
+    Animated.timing(slideAnim, { toValue: Dimensions.get('window').height, duration: 260, easing: bespokeEasing, useNativeDriver: isNative }).start(() => {
       onClose();
     });
   };

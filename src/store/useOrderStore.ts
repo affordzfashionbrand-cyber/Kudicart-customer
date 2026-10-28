@@ -1,11 +1,20 @@
 import { create } from 'zustand';
-import { ordersApi, OrderModel, TrackingModel, CheckoutPayload } from '@/services/api';
+import { ordersApi, OrderModel, TrackingModel, CheckoutPayload, reviewsApi } from '@/services/api';
 import { useCartStore } from './useCartStore';
+
+export interface OrderRatingData {
+  orderId: string;
+  rating: number;
+  tags: string[];
+  comment: string;
+  createdAt: string;
+}
 
 interface OrderState {
   orders: OrderModel[];
   activeOrder: OrderModel | null;
   activeTracking: TrackingModel | null;
+  orderRatings: Record<string, OrderRatingData>;
   isLoading: boolean;
   isCheckingOut: boolean;
   error: string | null;
@@ -18,6 +27,13 @@ interface OrderState {
   verifyPayment: (data: { orderId: string; paymentId: string; signature: string }) => Promise<any>;
   fetchTracking: (orderId: string) => Promise<TrackingModel | null>;
   setActiveOrder: (order: OrderModel | null) => void;
+  submitOrderRating: (
+    orderId: string,
+    rating: number,
+    tags: string[],
+    comment: string,
+    productId?: string,
+  ) => Promise<boolean>;
 }
 
 export const useOrderStore = create<OrderState>((set, get) => ({
@@ -173,7 +189,56 @@ export const useOrderStore = create<OrderState>((set, get) => ({
   fetchTracking: async (orderId: string) => {
     try {
       const tracking = await ordersApi.trackOrder(orderId);
-      set({ activeTracking: tracking });
+      if (tracking) {
+        const orderModel: OrderModel = {
+          id: tracking.orderId,
+          orderNumber: tracking.orderNumber,
+          customerId: 'usr-1',
+          status: tracking.status,
+          paymentMethod: (tracking.paymentMethod as any) || 'COD',
+          paymentStatus: (tracking.paymentStatus as any) || 'PENDING',
+          itemTotal: tracking.itemTotal || tracking.grandTotal || 0,
+          deliveryFee: tracking.deliveryFee || 0,
+          taxes: tracking.taxes || 0,
+          grandTotal: tracking.grandTotal || 0,
+          etaMinutes: tracking.etaMinutes,
+          isTryAndBuy: tracking.isTryAndBuy,
+          createdAt: new Date().toISOString(),
+          address: tracking.deliveryAddress || { id: 'addr-1', userId: 'usr-1', label: 'Home Sanctuary', line1: 'Apt 4B, Sunrise Heights, 42 Westend Boulevard', locality: 'Indiranagar', city: 'Bengaluru', pincode: '560038', isDefault: true },
+          items: (tracking.items || []).map((it: any) => ({
+            id: it.id || 'oi-1',
+            title: it.title,
+            brand: it.brand || 'Affordz Atelier',
+            size: it.size || 'M',
+            price: it.price,
+            quantity: it.quantity || 1,
+            image: it.image,
+            trialSize: it.trialSize,
+            fulfillmentType: it.fulfillmentType,
+            isTryAndBuy: it.isTryAndBuy,
+          })),
+          driver: tracking.driver,
+        };
+
+        set((state) => {
+          const exists = state.orders.some(
+            (o) => o.id === tracking.orderId || o.orderNumber === tracking.orderNumber,
+          );
+          return {
+            activeTracking: tracking,
+            activeOrder: orderModel,
+            orders: exists
+              ? state.orders.map((o) =>
+                  o.id === tracking.orderId || o.orderNumber === tracking.orderNumber
+                    ? { ...o, ...orderModel }
+                    : o,
+                )
+              : [orderModel, ...state.orders],
+          };
+        });
+      } else {
+        set({ activeTracking: null });
+      }
       return tracking;
     } catch (err: any) {
       console.warn('Error fetching live order tracking:', err);
@@ -182,4 +247,41 @@ export const useOrderStore = create<OrderState>((set, get) => ({
   },
 
   setActiveOrder: (order) => set({ activeOrder: order }),
+
+  orderRatings: {},
+
+  submitOrderRating: async (orderId, rating, tags, comment, productId) => {
+    const ratingData: OrderRatingData = {
+      orderId,
+      rating,
+      tags,
+      comment,
+      createdAt: new Date().toISOString(),
+    };
+
+    set((state) => ({
+      orderRatings: {
+        ...state.orderRatings,
+        [orderId]: ratingData,
+      },
+    }));
+
+    try {
+      const fullComment =
+        tags.length > 0
+          ? `[Tags: ${tags.join(', ')}] ${comment || 'Satisfied with drop.'}`
+          : comment || 'Satisfied with drop.';
+
+      await reviewsApi.createReview({
+        orderId,
+        productId: productId || 'prod-1',
+        rating,
+        comment: fullComment,
+      });
+    } catch (err: any) {
+      console.warn('[Affordz Reviews] Backend review sync:', err?.message || err);
+    }
+
+    return true;
+  },
 }));

@@ -13,6 +13,7 @@ interface ShopViewProps {
   onOpen?: (product: any) => void;
   maxPriceFilter?: number | null;
   onClearPriceFilter?: () => void;
+  isLoading?: boolean;
 }
 
 export const ShopView = React.memo(function ShopView({
@@ -21,6 +22,7 @@ export const ShopView = React.memo(function ShopView({
   onWishlist,
   onBag,
   onOpen,
+  isLoading = false,
 }: ShopViewProps) {
   return (
     <View style={{ flex: 1, backgroundColor: '#FDFBF7' }}>
@@ -31,6 +33,7 @@ export const ShopView = React.memo(function ShopView({
         onWishlist={onWishlist}
         onBag={onBag}
         onOpen={onOpen}
+        isLoading={isLoading}
       />
     </View>
   );

@@ -4,9 +4,9 @@ import {
   Text,
   ScrollView,
   TouchableOpacity,
-  Image,
   StyleSheet,
 } from 'react-native';
+import { LazyImage } from '@/components/common/lazy-image';
 import { TRENDING_STORIES, TrendingStory } from '@/data/mockCollections';
 import { Icon } from '@/components/icon';
 import { EditorialText } from '@/components/common/section-title';
@@ -41,6 +41,9 @@ export function TrendingCollections({ onStoryPress }: TrendingCollectionsProps) 
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
+        nestedScrollEnabled={true}
+        directionalLockEnabled={true}
+        overScrollMode="never"
         contentContainerStyle={styles.scrollContent}
       >
         {TRENDING_STORIES.map((story) => (
@@ -51,10 +54,11 @@ export function TrendingCollections({ onStoryPress }: TrendingCollectionsProps) 
             style={styles.storyCard}
           >
             {/* Background Image */}
-            <Image
-              source={{ uri: story.image }}
+            <LazyImage
+              source={story.image}
               style={styles.storyImage}
-              resizeMode="cover"
+              contentFit="cover"
+              priority="normal"
             />
 
             {/* Gradient Dark Overlay */}

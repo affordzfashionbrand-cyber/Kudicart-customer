@@ -3,10 +3,10 @@ import {
   View,
   Text,
   TouchableOpacity,
-  Image,
   StyleSheet,
   useWindowDimensions,
 } from 'react-native';
+import { LazyImage } from '@/components/common/lazy-image';
 import { QUICK_COLLECTIONS, QuickCollection } from '@/data/mockCollections';
 import { Icon } from '@/components/icon';
 import { EditorialText } from '@/components/common/section-title';
@@ -60,10 +60,11 @@ export function QuickCollectionsGrid({
             ]}
           >
             {/* Background Image */}
-            <Image
-              source={{ uri: item.image }}
+            <LazyImage
+              source={item.image}
               style={styles.tileImage}
-              resizeMode="cover"
+              contentFit="cover"
+              priority="normal"
             />
 
             {/* Dark Scrim Gradient */}

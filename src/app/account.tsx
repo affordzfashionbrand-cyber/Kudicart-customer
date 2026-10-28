@@ -63,6 +63,10 @@ export default function AccountScreen() {
       <ScrollView
         contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
         showsVerticalScrollIndicator={false}
+        removeClippedSubviews={Platform.OS !== 'web'}
+        overScrollMode="never"
+        keyboardShouldPersistTaps="handled"
+        decelerationRate="normal"
       >
         <AccountView
           user={user}
@@ -70,6 +74,7 @@ export default function AccountScreen() {
           onTracking={() => router.push('/tracking')}
           onAddresses={() => setIsAddressModalOpen(true)}
           onSupport={() => router.push('/support')}
+          onWishlist={() => router.push('/wishlist')}
           onAuth={() => setIsAuthModalOpen(true)}
           onLogout={logout}
         />

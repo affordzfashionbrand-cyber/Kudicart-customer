@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { View, Text, ScrollView, Animated } from 'react-native';
+import { View, Text, ScrollView, Animated, Platform } from 'react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { AnimatedPressable } from '@/components/common/animated-pressable';
@@ -19,12 +19,13 @@ export const CategoryBubblesSection = React.memo(function CategoryBubblesSection
   onSelectWear,
 }: CategoryBubblesSectionProps) {
   const wearsFadeAnim = useRef(new Animated.Value(1)).current;
+  const isNative = Platform.OS !== 'web';
 
   const handleGenderPress = (gender: 'All' | 'Men' | 'Women' | 'Kids') => {
     if (gender === selectedGender) return;
     Animated.sequence([
-      Animated.timing(wearsFadeAnim, { toValue: 0.25, duration: 80, easing: bespokeEasing, useNativeDriver: true }),
-      Animated.timing(wearsFadeAnim, { toValue: 1, duration: 220, easing: bespokeEasing, useNativeDriver: true }),
+      Animated.timing(wearsFadeAnim, { toValue: 0.25, duration: 80, easing: bespokeEasing, useNativeDriver: isNative }),
+      Animated.timing(wearsFadeAnim, { toValue: 1, duration: 220, easing: bespokeEasing, useNativeDriver: isNative }),
     ]).start();
     onSelectGender(gender);
   };
@@ -122,6 +123,7 @@ export const CategoryBubblesSection = React.memo(function CategoryBubblesSection
             horizontal
             showsHorizontalScrollIndicator={false}
             nestedScrollEnabled={true}
+            directionalLockEnabled={true}
             overScrollMode="never"
             contentContainerStyle={{ paddingHorizontal: 16, gap: 14, paddingTop: 4, paddingBottom: 4 }}
           >

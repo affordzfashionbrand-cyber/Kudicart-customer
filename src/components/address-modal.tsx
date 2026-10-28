@@ -23,51 +23,15 @@ import {
   Briefcase,
   Pencil,
   Trash2,
+  AlertCircle,
 } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Fonts } from '@/constants/theme';
 import { useAddressStore } from '@/store/useAddressStore';
 import type { AddressModel } from '@/services/api';
+import { AnimatedPressable } from '@/components/common/animated-pressable';
 
 const bespokeEasing = Easing.bezier(0.32, 0.72, 0, 1);
-
-const AnimatedPressable = ({
-  children,
-  style,
-  className,
-  onPress,
-  scaleTo = 0.97,
-}: any) => {
-  const scale = useRef(new Animated.Value(1)).current;
-  const handlePressIn = () =>
-    Animated.timing(scale, {
-      toValue: scaleTo,
-      duration: 250,
-      easing: bespokeEasing,
-      useNativeDriver: true,
-    }).start();
-  const handlePressOut = () =>
-    Animated.timing(scale, {
-      toValue: 1,
-      duration: 250,
-      easing: bespokeEasing,
-      useNativeDriver: true,
-    }).start();
-  return (
-    <Pressable
-      onPressIn={handlePressIn}
-      onPressOut={handlePressOut}
-      onPress={onPress}
-    >
-      <Animated.View
-        style={[style, { transform: [{ scale }] }]}
-        className={className}
-      >
-        {children}
-      </Animated.View>
-    </Pressable>
-  );
-};
 
 interface AddressModalProps {
   visible: boolean;
@@ -89,6 +53,7 @@ export function AddressModal({
   const slideAnim = useRef(new Animated.Value(600)).current;
 
   // New Address Form State
+  const [formError, setFormError] = useState<string | null>(null);
   const [selectedTag, setSelectedTag] = useState<'HOME' | 'WORK' | 'OTHER'>('HOME');
   const [newAddress, setNewAddress] = useState({
     label: 'Home Sanctuary',
@@ -104,12 +69,13 @@ export function AddressModal({
         toValue: 0,
         duration: 450,
         easing: bespokeEasing,
-        useNativeDriver: true,
+        useNativeDriver: Platform.OS !== 'web',
       }).start();
     } else {
       slideAnim.setValue(600);
       setIsAddingNew(false);
       setEditingAddressId(null);
+      setFormError(null);
     }
   }, [visible]);
 
@@ -118,7 +84,7 @@ export function AddressModal({
       toValue: Dimensions.get('window').height,
       duration: 350,
       easing: bespokeEasing,
-      useNativeDriver: true,
+      useNativeDriver: Platform.OS !== 'web',
     }).start(() => {
       onClose();
     });
@@ -136,6 +102,7 @@ export function AddressModal({
     if (addr.label.toLowerCase().includes('home')) setSelectedTag('HOME');
     else if (addr.label.toLowerCase().includes('studio') || addr.label.toLowerCase().includes('work')) setSelectedTag('WORK');
     else setSelectedTag('OTHER');
+    setFormError(null);
     setIsAddingNew(true);
   };
 
@@ -151,16 +118,37 @@ export function AddressModal({
   };
 
   const handleSaveAddress = async () => {
-    if (!newAddress.line1 || !newAddress.city || !newAddress.pincode) return;
+    setFormError(null);
+    if (!newAddress.line1.trim()) {
+      setFormError('Please enter house / flat / apartment details.');
+      return;
+    }
+    if (newAddress.line1.trim().length < 3) {
+      setFormError('House / flat details must be at least 3 characters.');
+      return;
+    }
+    if (!newAddress.locality.trim()) {
+      setFormError('Please enter street or locality (e.g. Indiranagar).');
+      return;
+    }
+    if (!newAddress.city.trim()) {
+      setFormError('Please enter city name.');
+      return;
+    }
+    const cleanPin = newAddress.pincode.replace(/\D/g, '');
+    if (cleanPin.length !== 6) {
+      setFormError('Please enter a valid 6-digit postal PIN code.');
+      return;
+    }
 
     if (editingAddressId) {
-      const updated = await updateAddress(editingAddressId, newAddress);
+      const updated = await updateAddress(editingAddressId, { ...newAddress, pincode: cleanPin });
       setEditingAddressId(null);
       setIsAddingNew(false);
       onSelectAddress(updated);
       handleClose();
     } else {
-      const added = await addAddress({ ...newAddress, isDefault: false });
+      const added = await addAddress({ ...newAddress, pincode: cleanPin, isDefault: false });
       if (added) {
         setIsAddingNew(false);
         onSelectAddress(added);
@@ -346,6 +334,14 @@ export function AddressModal({
               </ScrollView>
 
               {/* Type pill selector */}
+              {formError && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#FFF0EA', borderWidth: 1, borderColor: 'rgba(255, 90, 31, 0.3)', borderRadius: 14, padding: 12, marginBottom: 16 }}>
+                  <AlertCircle size={16} color="#FF5A1F" />
+                  <Text style={{ flex: 1, fontSize: 12, fontWeight: '700', color: '#FF5A1F', lineHeight: 16 }}>
+                    {formError}
+                  </Text>
+                </View>
+              )}
               <Text className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-400 mb-2">
                 ADDRESS TYPE
               </Text>

@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, Image, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { Icon } from '@/components/icon';
 
@@ -30,9 +31,10 @@ export function Header({
           style={styles.logoRow}
         >
           <Image
-            source={require('@/assets/images/splash-icon.png')}
+            source={require('@/assets/images/logo-removebg-preview.png')}
             style={styles.logoImage}
-            resizeMode="cover"
+            contentFit="contain"
+            transition={150}
           />
           <View style={styles.brandTitleRow}>
             <Text style={styles.brandKudi}>Affordz</Text>

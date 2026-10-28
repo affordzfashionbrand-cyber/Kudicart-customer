@@ -12,4 +12,5 @@ export * from './product-ensemble-section';
 export * from './product-reviews-section';
 export * from './product-bottom-bar';
 export * from './product-size-modal';
+export * from './write-review-modal';
 export * from './product-related-catalog';

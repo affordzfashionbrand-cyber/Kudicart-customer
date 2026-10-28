@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -37,15 +37,24 @@ import {
   Info,
   Package,
   AlertCircle,
+  AlertTriangle,
   X,
+  Trash2,
+  Minus,
+  Plus,
 } from 'lucide-react-native';
 
 import { useCartStore } from '@/store/useCartStore';
-import { useAddressStore } from '@/store/useAddressStore';
+import { useAddressStore, checkAddressServiceability } from '@/store/useAddressStore';
+import { LocationOnboardingModal } from '@/components/location/location-onboarding-modal';
 import { useOrderStore } from '@/store/useOrderStore';
 import { useAuthStore } from '@/store/useAuthStore';
 import { AddressModal } from '@/components/address-modal';
 import { AuthModal } from '@/components/auth-modal';
+import { CartTopDeals, DealProduct } from '@/components/cart/cart-top-deals';
+import { CartFlashUrgencyTimer } from '@/components/cart/cart-flash-urgency-timer';
+import { AnimatedPriceTicker } from '@/components/common/animated-price-ticker';
+import { MotionEditorialShowcase } from '@/components/common/motion-editorial-showcase';
 import { AnimatedPressable } from '@/components/common/animated-pressable';
 import { EditorialText } from '@/components/common/section-title';
 import { safeBack } from '@/utils/navigation';
@@ -105,11 +114,16 @@ export default function CheckoutScreen() {
     removeCoupon,
     toggleGiftWrap,
     setDonation,
+    removeItem,
+    updateQuantity,
+    addItem,
+    wishlist,
+    toggleWishlist,
   } = useCartStore();
 
   const { addresses, selectedAddressId, setSelectedAddressId } = useAddressStore();
   const { checkout, isCheckingOut } = useOrderStore();
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, user } = useAuthStore();
 
   // Screen UI State
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
@@ -119,8 +133,89 @@ export default function CheckoutScreen() {
   const [selectedBank, setSelectedBank] = useState<string>('hdfc');
   const [tryAndBuyEnabled, setTryAndBuyEnabled] = useState<boolean>(true);
   const [selectedInstruction, setSelectedInstruction] = useState<string>('call');
-  const [isItemsExpanded, setIsItemsExpanded] = useState<boolean>(false);
+  const [isItemsExpanded, setIsItemsExpanded] = useState<boolean>(true);
   const [isAddressModalOpen, setIsAddressModalOpen] = useState<boolean>(false);
+  const [isLocationModalOpen, setIsLocationModalOpen] = useState<boolean>(false);
+
+  // Dark Store vs Vendor Invariant
+  const hasDarkStoreItems = useMemo(() => {
+    return items.some((it) => it.fulfillmentType === 'DARK_STORE' || it.isTryAndBuy);
+  }, [items]);
+
+  useEffect(() => {
+    if (!hasDarkStoreItems && items.length > 0) {
+      setTryAndBuyEnabled(false);
+    } else if (hasDarkStoreItems) {
+      setTryAndBuyEnabled(true);
+    }
+  }, [hasDarkStoreItems, items.length]);
+
+  // Toast State
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const toastAnim = useRef(new Animated.Value(100)).current;
+
+  const showToast = useCallback((msg: string) => {
+    setToastMessage(msg);
+    Animated.sequence([
+      Animated.timing(toastAnim, { toValue: 0, duration: 250, useNativeDriver: Platform.OS !== 'web' }),
+      Animated.delay(1800),
+      Animated.timing(toastAnim, { toValue: 100, duration: 250, useNativeDriver: Platform.OS !== 'web' }),
+    ]).start(() => setToastMessage(null));
+  }, [toastAnim]);
+
+  // Item Management Handlers
+  const handleRemoveItem = async (itemId: string, title?: string) => {
+    await removeItem(itemId);
+    showToast(title ? `Removed ${title} from bag` : 'Item removed from bag');
+  };
+
+  const handleUpdateItemQty = async (itemId: string, delta: number, title?: string, currentQty?: number) => {
+    if (delta < 0 && (currentQty || 1) <= 1) {
+      await handleRemoveItem(itemId, title);
+      return;
+    }
+    await updateQuantity(itemId, delta);
+    if (delta > 0) {
+      showToast(`Updated quantity to ${(currentQty || 1) + 1}`);
+    } else {
+      showToast(`Updated quantity to ${(currentQty || 1) - 1}`);
+    }
+  };
+
+  // Top Deals & Recommendations Handlers
+  const cartProductIds = useMemo(() => {
+    return items.map((i) => i.productId);
+  }, [items]);
+
+  const handleDealAddToCart = async (deal: DealProduct) => {
+    const productPayload: any = {
+      id: deal.id,
+      brand: deal.brand,
+      title: deal.title,
+      price: deal.price,
+      originalPrice: deal.originalPrice,
+      discount: deal.discountBadge,
+      rating: deal.rating,
+      reviewsCount: deal.reviewsCount,
+      stockQuantity: 15,
+      readyToShip: true,
+      sizes: deal.sizes,
+      image: deal.image,
+      altText: deal.title,
+      galleryImages: [deal.image],
+      category: deal.category,
+      tryAndBuyEligible: true,
+    };
+    await addItem(productPayload, deal.sizes[0] || 'M');
+    showToast(`Added ${deal.brand} to Bag!`);
+  };
+
+  const handleOpenProduct = (productId: string) => {
+    router.push({
+      pathname: '/product/[id]',
+      params: { id: productId },
+    });
+  };
 
   // Card Form State
   const [cardNumber, setCardNumber] = useState<string>('');
@@ -135,6 +230,42 @@ export default function CheckoutScreen() {
   // Order Success State
   const [orderSuccess, setOrderSuccess] = useState<boolean>(false);
   const [confirmedOrderNumber, setConfirmedOrderNumber] = useState<string>('KC-89241');
+  const [confirmedOrder, setConfirmedOrder] = useState<{
+    orderNumber: string;
+    orderId?: string;
+    totalPaid: number;
+    itemTotal: number;
+    deliveryFee: number;
+    taxes: number;
+    discountAmount: number;
+    couponCode?: string | null;
+    isDarkStore: boolean;
+    isTryAndBuy: boolean;
+    deliveryAddress: {
+      label?: string;
+      line1?: string;
+      locality?: string;
+      city?: string;
+      pincode?: string;
+    } | null;
+    recipientName: string;
+    recipientPhone: string;
+    items: Array<{
+      id: string;
+      title: string;
+      brand: string;
+      size: string;
+      trialSize?: string | null;
+      quantity: number;
+      price: number;
+      originalPrice?: number;
+      image: string;
+      fulfillmentType?: string;
+    }>;
+    etaText: string;
+    paymentMethod: string;
+    placedAt: string;
+  } | null>(null);
   const successAnim = useRef(new Animated.Value(0)).current;
 
   // Payment Simulation State (AP-02)
@@ -147,6 +278,10 @@ export default function CheckoutScreen() {
   const selectedAddress = useMemo(() => {
     return addresses.find((a) => a.id === selectedAddressId) || addresses[0];
   }, [addresses, selectedAddressId]);
+
+  const addressServiceability = useMemo(() => {
+    return checkAddressServiceability(selectedAddress);
+  }, [selectedAddress]);
 
   // Pricing calculations
   const totalMrp = useMemo(() => {
@@ -206,22 +341,105 @@ export default function CheckoutScreen() {
       return;
     }
 
+    // Instant Delivery Serviceability Validation (Indiranagar Hub 8.0 km radius)
+    if (hasDarkStoreItems && !addressServiceability.isServiceable) {
+      setPaymentError(
+        `Instant 18-minute delivery is NOT AVAILABLE for ${selectedAddress?.locality || selectedAddress?.city || 'this location'} (${addressServiceability.distanceKm} km from Indiranagar Hub, max radius 8.0 km). Please select an address within 8.0 km or remove dark store items.`
+      );
+      showToast('Location not available for 18-min drop!');
+      setIsLocationModalOpen(true);
+      return;
+    }
+
     setPaymentError(null);
+
+    // Validate UPI payment input
+    if (selectedPaymentCategory === 'UPI' && selectedUpiApp === 'custom') {
+      const trimmed = customUpiId.trim();
+      if (!trimmed || !trimmed.includes('@') || trimmed.length < 5) {
+        setPaymentError('Please enter a valid UPI ID (e.g. mobile@upi or name@okhdfcbank).');
+        return;
+      }
+    }
+
+    // Validate Credit/Debit Card payment input
+    if (selectedPaymentCategory === 'CARD') {
+      const cleanNum = cardNumber.replace(/\D/g, '');
+      if (cleanNum.length !== 16) {
+        setPaymentError('Please enter a valid 16-digit debit or credit card number.');
+        return;
+      }
+      const cleanExp = cardExpiry.replace(/\D/g, '');
+      if (cleanExp.length !== 4) {
+        setPaymentError('Please enter a valid card expiry date (MM/YY).');
+        return;
+      }
+      const month = parseInt(cleanExp.slice(0, 2), 10);
+      if (month < 1 || month > 12) {
+        setPaymentError('Card expiry month must be between 01 and 12.');
+        return;
+      }
+      const cleanCvv = cardCvv.replace(/\D/g, '');
+      if (cleanCvv.length < 3 || cleanCvv.length > 4) {
+        setPaymentError('Please enter a valid 3 or 4-digit CVV code.');
+        return;
+      }
+    }
+
     const isCod = selectedPaymentCategory === 'COD';
+    const effectiveTryAndBuy = hasDarkStoreItems && tryAndBuyEnabled;
+    const isDark = hasDarkStoreItems;
+    const isTry = effectiveTryAndBuy;
+
+    const orderItemsSnapshot = items.map((it) => ({
+      id: it.id,
+      title: it.title,
+      brand: it.brand,
+      size: it.size,
+      trialSize: it.trialSize || null,
+      quantity: it.quantity,
+      price: it.price,
+      originalPrice: it.originalPrice,
+      image: it.image,
+      fulfillmentType: it.fulfillmentType,
+    }));
+
+    const orderSnapshot = {
+      orderNumber: `AF-${Math.floor(10000 + Math.random() * 90000)}`,
+      orderId: '',
+      totalPaid: finalPayable,
+      itemTotal,
+      deliveryFee,
+      taxes,
+      discountAmount,
+      couponCode: couponCode || null,
+      isDarkStore: isDark,
+      isTryAndBuy: isTry,
+      deliveryAddress: selectedAddress
+        ? {
+            label: selectedAddress.label,
+            line1: selectedAddress.line1,
+            locality: selectedAddress.locality,
+            city: selectedAddress.city,
+            pincode: selectedAddress.pincode,
+          }
+        : null,
+      recipientName: user?.name || 'Affordz Customer',
+      recipientPhone: user?.phone || '+91 8124188999',
+      items: orderItemsSnapshot,
+      etaText: isDark
+        ? (isTry ? '⚡ In 18 Minutes • Doorstep Try & Buy Concierge' : '⚡ In 18 Minutes • Express Drop')
+        : '📦 In 2-4 Business Days • Insured Boutique Courier',
+      paymentMethod: isCod ? 'Cash on Delivery (COD)' : 'Prepaid Online (Razorpay Sandbox)',
+      placedAt: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
+    };
+
     const order = await checkout({
       addressId: selectedAddress.id,
       paymentMethod: isCod ? 'COD' : 'RAZORPAY',
       couponCode: couponCode || undefined,
-      isTryAndBuy: tryAndBuyEnabled,
-      items: items.map((it) => ({
-        id: it.id,
-        title: it.title,
-        brand: it.brand,
-        size: it.size,
-        price: it.price,
-        quantity: it.quantity,
-        image: it.image,
-      })),
+      isTryAndBuy: effectiveTryAndBuy,
+      items: orderItemsSnapshot,
       itemTotal,
       deliveryFee,
       taxes,
@@ -229,19 +447,26 @@ export default function CheckoutScreen() {
     });
 
     if (order) {
+      orderSnapshot.orderNumber = order.orderNumber || orderSnapshot.orderNumber;
+      orderSnapshot.orderId = order.id || orderSnapshot.orderId;
+      if (order.grandTotal) {
+        orderSnapshot.totalPaid = order.grandTotal;
+      }
+      setConfirmedOrder(orderSnapshot);
+      setConfirmedOrderNumber(orderSnapshot.orderNumber);
+
       if (isCod) {
         await useCartStore.getState().clearCart();
-        setConfirmedOrderNumber(order.orderNumber || `AF-${Math.floor(100000 + Math.random() * 900000)}`);
         setOrderSuccess(true);
         Animated.timing(successAnim, {
           toValue: 1,
           duration: 500,
           easing: bespokeEasing,
-          useNativeDriver: true,
+          useNativeDriver: Platform.OS !== 'web',
         }).start();
       } else {
         // Deterministic simulated payment flow (AP-02)
-        setPendingPaymentOrder(order);
+        setPendingPaymentOrder({ ...order, snapshot: orderSnapshot });
         setIsPaymentSimModalOpen(true);
       }
     }
@@ -256,20 +481,20 @@ export default function CheckoutScreen() {
         paymentId: `pay_sim_${Date.now()}`,
         signature: 'sig_abc',
       });
+      const snapshot = pendingPaymentOrder.snapshot || confirmedOrder;
+      if (snapshot) {
+        setConfirmedOrder(snapshot);
+        setConfirmedOrderNumber(snapshot.orderNumber);
+      }
       await useCartStore.getState().clearCart();
       setIsPaymentSimModalOpen(false);
-      setConfirmedOrderNumber(
-        pendingPaymentOrder.orderNumber ||
-          pendingPaymentOrder.id ||
-          `AF-${Math.floor(100000 + Math.random() * 900000)}`,
-      );
       setPendingPaymentOrder(null);
       setOrderSuccess(true);
       Animated.timing(successAnim, {
         toValue: 1,
         duration: 500,
         easing: bespokeEasing,
-        useNativeDriver: true,
+        useNativeDriver: Platform.OS !== 'web',
       }).start();
     } catch (err: any) {
       setPaymentError(err?.message || 'Payment verification failed');
@@ -290,144 +515,246 @@ export default function CheckoutScreen() {
   // SUCCESS SCREEN
   // -------------------------------------------------------------
   if (orderSuccess) {
+    const isDark = confirmedOrder?.isDarkStore ?? false;
+    const isTry = confirmedOrder?.isTryAndBuy ?? false;
+    const orderNum = confirmedOrder?.orderNumber || confirmedOrderNumber;
+    const paidAmount = confirmedOrder?.totalPaid ?? finalPayable;
+    const addr = confirmedOrder?.deliveryAddress || selectedAddress;
+    const orderItems = confirmedOrder?.items || [];
+
     return (
-      <View style={{ flex: 1, backgroundColor: '#FAF8F5' }} className="items-center justify-center px-6">
-        <Animated.View
-          style={{
-            opacity: successAnim,
-            transform: [{ scale: successAnim.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1] }) }],
-            width: '100%',
-            maxWidth: 420,
+      <View style={{ flex: 1, backgroundColor: '#FAF8F5' }}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{
+            paddingTop: Math.max(insets.top, 24) + 20,
+            paddingBottom: Math.max(insets.bottom, 24) + 30,
             alignItems: 'center',
+            paddingHorizontal: 20,
           }}
         >
-          {/* Animated Gold/Green Halo Check */}
-          <View
+          <Animated.View
             style={{
-              width: 90,
-              height: 90,
-              borderRadius: 45,
-              backgroundColor: '#111111',
-              justifyContent: 'center',
+              opacity: successAnim,
+              transform: [{ scale: successAnim.interpolate({ inputRange: [0, 1], outputRange: [0.88, 1] }) }],
+              width: '100%',
+              maxWidth: 440,
               alignItems: 'center',
-              marginBottom: 20,
-              shadowColor: '#000',
-              shadowOffset: { width: 0, height: 8 },
-              shadowOpacity: 0.2,
-              shadowRadius: 16,
-              elevation: 8,
             }}
           >
-            <CheckCircle2 size={46} color="#22C55E" />
-          </View>
-
-          <View style={{ backgroundColor: '#F0ECE4', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 20, marginBottom: 8 }}>
-            <Text style={{ fontSize: 10, fontWeight: '900', color: '#111111', letterSpacing: 1.5 }}>
-              ORDER CONFIRMED • {confirmedOrderNumber}
-            </Text>
-          </View>
-
-          <Text style={{ fontSize: 28, fontWeight: '900', color: '#111111', textAlign: 'center', letterSpacing: -0.5, marginBottom: 6 }}>
-            Order Placed Successfully!
-          </Text>
-
-          <Text style={{ fontSize: 13, color: '#6B6667', textAlign: 'center', maxWidth: 300, lineHeight: 19, marginBottom: 24 }}>
-            Your curated atelier capsule has been confirmed and is being packed for express doorstep delivery.
-          </Text>
-
-          {/* Demo Simulated Payment Notice (AP-02) */}
-          {!isProduction && (
+            {/* Animated Halo Check */}
             <View
               style={{
-                width: '100%',
-                backgroundColor: '#EFF6FF',
-                borderRadius: 16,
-                padding: 14,
-                borderWidth: 1,
-                borderColor: '#BFDBFE',
-                marginBottom: 18,
-                flexDirection: 'row',
+                width: 86,
+                height: 86,
+                borderRadius: 43,
+                backgroundColor: '#111111',
+                justifyContent: 'center',
                 alignItems: 'center',
-                gap: 10,
+                marginBottom: 18,
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 8 },
+                shadowOpacity: 0.16,
+                shadowRadius: 16,
+                elevation: 8,
               }}
             >
-              <ShieldCheck size={20} color="#C2410C" />
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 11, fontWeight: '900', color: '#9A3412', letterSpacing: 0.5 }}>
-                  DEMO PAYMENT — NO REAL CHARGE
-                </Text>
-                <Text style={{ fontSize: 10.5, color: '#C2410C', marginTop: 2 }}>
-                  Simulated sandbox transaction verified with Affordz backend ledger.
-                </Text>
-              </View>
+              <CheckCircle2 size={44} color="#22C55E" />
             </View>
-          )}
 
-          {/* Delivery Card */}
-          <View style={{ width: '100%', backgroundColor: '#FFFFFF', borderRadius: 20, padding: 18, borderWidth: 1, borderColor: '#E8E5DF', marginBottom: 24 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, borderBottomWidth: 1, borderBottomColor: '#F4F1EA', paddingBottom: 10 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Zap size={14} color="#15803D" />
-                <Text style={{ fontSize: 12, fontWeight: '900', color: '#15803D' }}>
-                  {tryAndBuyEnabled ? '18-MIN DOORSTEP TRY & BUY' : 'EXPRESS DELIVERY'}
-                </Text>
-              </View>
-              <Text style={{ fontSize: 11, fontWeight: '800', color: '#111111' }}>
-                Paid {formatPrice(finalPayable)}
+            <View style={{ backgroundColor: '#F0ECE4', paddingHorizontal: 12, paddingVertical: 4.5, borderRadius: 20, marginBottom: 8 }}>
+              <Text style={{ fontSize: 10, fontWeight: '900', color: '#111111', letterSpacing: 1.5 }}>
+                ORDER CONFIRMED • {orderNum}
               </Text>
             </View>
 
-            <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10 }}>
-              <MapPin size={16} color="#111111" style={{ marginTop: 2 }} />
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 12.5, fontWeight: '800', color: '#111111' }}>
-                  Delivering to {selectedAddress?.label || 'Home'}
+            <Text style={{ fontSize: 26, fontWeight: '900', color: '#111111', textAlign: 'center', letterSpacing: -0.5, marginBottom: 6 }}>
+              Order Placed Successfully!
+            </Text>
+
+            <Text style={{ fontSize: 12.5, color: '#6B6667', textAlign: 'center', maxWidth: 320, lineHeight: 18, marginBottom: 20 }}>
+              {isDark
+                ? 'Your curated capsule is steam-pressed and being dispatched for 18-minute doorstep delivery.'
+                : 'Your curated atelier pieces have been confirmed and will be dispatched in 2-4 business days via insured boutique courier.'}
+            </Text>
+
+            {/* Demo Simulated Payment Notice (AP-02) */}
+            {!isProduction && (
+              <View
+                style={{
+                  width: '100%',
+                  backgroundColor: '#EFF6FF',
+                  borderRadius: 16,
+                  padding: 13,
+                  borderWidth: 1,
+                  borderColor: '#BFDBFE',
+                  marginBottom: 16,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 10,
+                }}
+              >
+                <ShieldCheck size={20} color="#1D4ED8" />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 10.5, fontWeight: '900', color: '#1D4ED8', letterSpacing: 0.5 }}>
+                    DEMO PAYMENT — NO REAL CHARGE
+                  </Text>
+                  <Text style={{ fontSize: 10.5, color: '#2563EB', marginTop: 1.5 }}>
+                    Simulated sandbox transaction verified with Affordz backend ledger.
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            {/* Delivery & Fulfillment Card */}
+            <View style={{ width: '100%', backgroundColor: '#FFFFFF', borderRadius: 20, padding: 18, borderWidth: 1, borderColor: '#E8E5DF', marginBottom: 16 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, borderBottomWidth: 1, borderBottomColor: '#F4F1EA', paddingBottom: 10 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1, paddingRight: 8 }}>
+                  {isDark ? (
+                    <Zap size={14} color="#15803D" fill="#15803D" />
+                  ) : (
+                    <Package size={14} color="#1D4ED8" />
+                  )}
+                  <Text
+                    style={{
+                      fontSize: 11.5,
+                      fontWeight: '900',
+                      color: isDark ? '#15803D' : '#1D4ED8',
+                      letterSpacing: 0.3,
+                    }}
+                    numberOfLines={1}
+                  >
+                    {isDark
+                      ? (isTry ? '18-MIN DOORSTEP TRY & BUY' : '18-MIN EXPRESS DROP')
+                      : 'BOUTIQUE VENDOR STANDARD SHIPPING'}
+                  </Text>
+                </View>
+                <Text style={{ fontSize: 12, fontWeight: '900', color: '#111111' }}>
+                  Paid {formatPrice(paidAmount)}
                 </Text>
-                <Text style={{ fontSize: 11.5, color: '#6B6667', marginTop: 2 }} numberOfLines={2}>
-                  {selectedAddress ? `${selectedAddress.line1}, ${selectedAddress.city} - ${selectedAddress.pincode}` : ''}
+              </View>
+
+              {/* Address Row */}
+              <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10 }}>
+                <MapPin size={16} color="#FF5A1F" style={{ marginTop: 2 }} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 12.5, fontWeight: '800', color: '#111111' }}>
+                    Delivering to {addr?.label || 'Home'}
+                  </Text>
+                  <Text style={{ fontSize: 11.5, color: '#6B6667', marginTop: 2, lineHeight: 16 }} numberOfLines={2}>
+                    {addr ? `${addr.line1}, ${addr.locality ? addr.locality + ', ' : ''}${addr.city} - ${addr.pincode}` : 'Registered Address'}
+                  </Text>
+                  <Text style={{ fontSize: 11, color: '#71717A', marginTop: 2, fontWeight: '600' }}>
+                    {confirmedOrder?.recipientName || user?.name || 'Affordz Customer'} • {confirmedOrder?.recipientPhone || user?.phone || '+91 8124188999'}
+                  </Text>
+                </View>
+              </View>
+
+              {/* ETA Row */}
+              <View style={{ marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#F4F1EA', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <View style={{ width: 7, height: 7, borderRadius: 3.5, backgroundColor: isDark ? '#22C55E' : '#3B82F6' }} />
+                  <Text style={{ fontSize: 11, fontWeight: '800', color: isDark ? '#15803D' : '#1D4ED8' }}>
+                    {confirmedOrder?.etaText || (isDark ? '⚡ Estimated: In 18 Minutes' : '📦 Estimated: 2-4 Business Days')}
+                  </Text>
+                </View>
+                <Text style={{ fontSize: 10.5, color: '#71717A' }}>
+                  {isDark ? 'Indiranagar Vault' : 'Insured Courier'}
                 </Text>
               </View>
             </View>
-          </View>
 
-          {/* Action Buttons */}
-          <AnimatedPressable
-            style={{
-              width: '100%',
-              backgroundColor: '#111111',
-              borderRadius: 999,
-              paddingVertical: 14,
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 8,
-              marginBottom: 12,
-            }}
-            onPress={() => router.push('/tracking')}
-          >
-            <Text style={{ color: '#FFFFFF', fontSize: 12, fontWeight: '900', letterSpacing: 1.2 }}>
-              TRACK YOUR DROP
-            </Text>
-            <ArrowRight size={15} color="#FFFFFF" />
-          </AnimatedPressable>
+            {/* Ordered Items Preview */}
+            {orderItems.length > 0 && (
+              <View style={{ width: '100%', backgroundColor: '#FFFFFF', borderRadius: 20, padding: 16, borderWidth: 1, borderColor: '#E8E5DF', marginBottom: 20 }}>
+                <Text style={{ fontSize: 10.5, fontWeight: '900', color: '#6B6667', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 12 }}>
+                  ORDERED CAPSULE ({orderItems.reduce((acc, it) => acc + it.quantity, 0)} ITEMS)
+                </Text>
+                <View style={{ gap: 10 }}>
+                  {orderItems.map((item, idx) => (
+                    <View key={`${item.id}-${idx}`} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                      <Image
+                        source={{ uri: item.image }}
+                        style={{ width: 44, height: 54, borderRadius: 8, backgroundColor: '#F0ECE4' }}
+                        contentFit="cover"
+                      />
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 11, fontWeight: '800', color: '#6B6667' }}>
+                          {item.brand}
+                        </Text>
+                        <Text style={{ fontSize: 12, fontWeight: '800', color: '#111111' }} numberOfLines={1}>
+                          {item.title}
+                        </Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 }}>
+                          <Text style={{ fontSize: 10.5, color: '#71717A' }}>
+                            Size: {item.size} • Qty: {item.quantity}
+                          </Text>
+                          {item.trialSize && (
+                            <View style={{ backgroundColor: '#FFF7ED', paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4 }}>
+                              <Text style={{ fontSize: 9, fontWeight: '800', color: '#C2410C' }}>
+                                Trial: {item.trialSize}
+                              </Text>
+                            </View>
+                          )}
+                        </View>
+                      </View>
+                      <Text style={{ fontSize: 12, fontWeight: '900', color: '#111111' }}>
+                        {formatPrice(item.price * item.quantity)}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )}
 
-          <AnimatedPressable
-            style={{
-              width: '100%',
-              backgroundColor: '#FFFFFF',
-              borderWidth: 1,
-              borderColor: '#D9D9D5',
-              borderRadius: 999,
-              paddingVertical: 14,
-              alignItems: 'center',
-            }}
-            onPress={() => router.push('/')}
-          >
-            <Text style={{ color: '#111111', fontSize: 12, fontWeight: '800', letterSpacing: 1 }}>
-              CONTINUE SHOPPING
-            </Text>
-          </AnimatedPressable>
-        </Animated.View>
+            {/* Action Buttons with 100% Full Width */}
+            <View style={{ width: '100%', gap: 10, marginTop: 4 }}>
+              <AnimatedPressable
+                containerStyle={{ width: '100%' }}
+                style={{
+                  width: '100%',
+                  backgroundColor: '#111111',
+                  borderRadius: 999,
+                  paddingVertical: 15,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                }}
+                onPress={() =>
+                  router.push({
+                    pathname: '/tracking',
+                    params: { orderId: confirmedOrder?.orderId || orderNum },
+                  })
+                }
+              >
+                <Text style={{ color: '#FFFFFF', fontSize: 12.5, fontWeight: '900', letterSpacing: 1.2 }}>
+                  TRACK YOUR DROP
+                </Text>
+                <ArrowRight size={15} color="#FFFFFF" />
+              </AnimatedPressable>
+
+              <AnimatedPressable
+                containerStyle={{ width: '100%' }}
+                style={{
+                  width: '100%',
+                  backgroundColor: '#FFFFFF',
+                  borderWidth: 1,
+                  borderColor: '#D9D9D5',
+                  borderRadius: 999,
+                  paddingVertical: 15,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+                onPress={() => router.push('/')}
+              >
+                <Text style={{ color: '#111111', fontSize: 12.5, fontWeight: '800', letterSpacing: 1 }}>
+                  CONTINUE SHOPPING
+                </Text>
+              </AnimatedPressable>
+            </View>
+          </Animated.View>
+        </ScrollView>
       </View>
     );
   }
@@ -453,25 +780,72 @@ export default function CheckoutScreen() {
           </View>
         </View>
 
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 }}>
-          <View style={{ width: 80, height: 80, borderRadius: 40, backgroundColor: '#F0ECE4', justifyContent: 'center', alignItems: 'center', marginBottom: 20 }}>
-            <Package size={36} color="#111111" />
-          </View>
-          <Text style={{ fontSize: 22, fontWeight: '900', color: '#111111', marginBottom: 6 }}>
-            Your bag is empty
-          </Text>
-          <Text style={{ fontSize: 13, color: '#6B6667', textAlign: 'center', maxWidth: 280, lineHeight: 18, marginBottom: 24 }}>
-            Explore our curated collections of artisanal wear and add pieces to proceed with checkout.
-          </Text>
-          <AnimatedPressable
-            style={{ backgroundColor: '#111111', borderRadius: 999, paddingHorizontal: 28, paddingVertical: 14 }}
-            onPress={() => safeBack(router)}
-          >
-            <Text style={{ color: '#FFFFFF', fontSize: 12, fontWeight: '800', letterSpacing: 1.2 }}>
-              EXPLORE ATELIER
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 60 }}>
+          <View style={{ alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, paddingTop: 32, paddingBottom: 24 }}>
+            <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: '#F0ECE4', justifyContent: 'center', alignItems: 'center', marginBottom: 14 }}>
+              <Package size={32} color="#111111" />
+            </View>
+            <Text style={{ fontSize: 20, fontWeight: '900', color: '#111111', marginBottom: 4 }}>
+              Your bag is empty
             </Text>
-          </AnimatedPressable>
-        </View>
+            <Text style={{ fontSize: 12.5, color: '#6B6667', textAlign: 'center', maxWidth: 280, lineHeight: 17, marginBottom: 18 }}>
+              Explore our curated collections of artisanal wear or pick from trending top deals below.
+            </Text>
+            <AnimatedPressable
+              style={{ backgroundColor: '#111111', borderRadius: 999, paddingHorizontal: 24, paddingVertical: 12 }}
+              onPress={() => safeBack(router)}
+            >
+              <Text style={{ color: '#FFFFFF', fontSize: 11.5, fontWeight: '800', letterSpacing: 1.1 }}>
+                EXPLORE ATELIER
+              </Text>
+            </AnimatedPressable>
+          </View>
+
+          {/* Top Deals Curated For You in Empty Bag */}
+          <View style={{ paddingHorizontal: 16 }}>
+            <CartTopDeals
+              onAddToCart={handleDealAddToCart}
+              onOpenProduct={handleOpenProduct}
+              cartProductIds={cartProductIds}
+              wishlist={wishlist}
+              onToggleWishlist={toggleWishlist}
+              title="Top Deals Curated For You"
+              subtitle="EXCLUSIVE ATELIER DISCOUNTS • 18-MIN EXPRESS DROP"
+            />
+
+            <View style={{ marginTop: 24, marginBottom: 12 }}>
+              <MotionEditorialShowcase onSelectProduct={handleOpenProduct} />
+            </View>
+          </View>
+        </ScrollView>
+
+        {/* Floating Action Feedback Toast */}
+        {toastMessage && (
+          <Animated.View
+            style={{
+              position: 'absolute',
+              bottom: 40,
+              alignSelf: 'center',
+              backgroundColor: 'rgba(17, 17, 17, 0.95)',
+              paddingHorizontal: 18,
+              paddingVertical: 10,
+              borderRadius: 20,
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 8,
+              zIndex: 99,
+              transform: [{ translateY: toastAnim }],
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.25,
+              shadowRadius: 8,
+              elevation: 8,
+            }}
+          >
+            <CheckCircle2 size={14} color="#22C55E" />
+            <Text style={{ color: '#FFFFFF', fontSize: 11.5, fontWeight: '800' }}>{toastMessage}</Text>
+          </Animated.View>
+        )}
       </View>
     );
   }
@@ -543,6 +917,10 @@ export default function CheckoutScreen() {
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 150 }}
+        removeClippedSubviews={Platform.OS !== 'web'}
+        overScrollMode="never"
+        keyboardShouldPersistTaps="handled"
+        decelerationRate="normal"
       >
         {/* 2. Top Banner: Total Savings Announcement (Myntra style) */}
         {totalSavings > 0 && (
@@ -585,6 +963,45 @@ export default function CheckoutScreen() {
             </View>
           )}
 
+          {/* Animated 18-Min Express Vault Urgency Progress Bar & Timer */}
+          <View style={{ marginBottom: 12 }}>
+            <CartFlashUrgencyTimer initialMinutes={18} />
+          </View>
+
+          {/* Guest Sign-In Notice if not authenticated */}
+          {!isAuthenticated && (
+            <Pressable
+              onPress={() => setIsAuthModalOpen(true)}
+              style={({ pressed }) => ({
+                backgroundColor: '#111111',
+                borderRadius: 16,
+                padding: 14,
+                marginBottom: 14,
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                borderWidth: 1.5,
+                borderColor: '#FF5A1F',
+                opacity: pressed ? 0.9 : 1,
+              })}
+            >
+              <View style={{ flex: 1, paddingRight: 12 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Lock size={15} color="#FF5A1F" />
+                  <Text style={{ fontSize: 13, fontWeight: '900', color: '#FFFFFF' }}>
+                    Sign In Required to Buy
+                  </Text>
+                </View>
+                <Text style={{ fontSize: 11, color: '#A0A0A0', marginTop: 3, lineHeight: 15 }}>
+                  Verify your phone number with instant OTP to access your saved delivery address and place order.
+                </Text>
+              </View>
+              <View style={{ backgroundColor: '#FF5A1F', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 10 }}>
+                <Text style={{ fontSize: 11, fontWeight: '900', color: '#FFFFFF' }}>SIGN IN</Text>
+              </View>
+            </Pressable>
+          )}
+
           {/* 3. Delivery Address Card (Ajio / Myntra format) */}
           <View style={{ backgroundColor: '#FFFFFF', borderRadius: 18, padding: 16, borderWidth: 1, borderColor: '#E8E5DF', marginBottom: 14 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
@@ -592,16 +1009,16 @@ export default function CheckoutScreen() {
                 <Text style={{ fontSize: 11, fontWeight: '900', color: '#6B6667', letterSpacing: 1, textTransform: 'uppercase' }}>
                   DELIVER TO
                 </Text>
-                <View style={{ backgroundColor: '#111111', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 }}>
+                <View style={{ backgroundColor: isAuthenticated ? '#111111' : '#FF5A1F', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 }}>
                   <Text style={{ fontSize: 8.5, fontWeight: '900', color: '#FFFFFF', textTransform: 'uppercase' }}>
-                    {selectedAddress?.label || 'HOME'}
+                    {isAuthenticated ? selectedAddress?.label || 'HOME' : 'LOGIN REQUIRED'}
                   </Text>
                 </View>
               </View>
 
-              {/* Change Address Action */}
+              {/* Change / Sign In Action */}
               <Pressable
-                onPress={() => setIsAddressModalOpen(true)}
+                onPress={() => (isAuthenticated ? setIsLocationModalOpen(true) : setIsAuthModalOpen(true))}
                 style={({ pressed }) => ({
                   borderWidth: 1,
                   borderColor: '#111111',
@@ -611,7 +1028,9 @@ export default function CheckoutScreen() {
                   backgroundColor: pressed ? '#F4F1EA' : '#FFFFFF',
                 })}
               >
-                <Text style={{ fontSize: 11, fontWeight: '900', color: '#111111' }}>CHANGE</Text>
+                <Text style={{ fontSize: 11, fontWeight: '900', color: '#111111' }}>
+                  {isAuthenticated ? (selectedAddress ? 'CHANGE' : 'ADD ADDRESS') : 'SIGN IN'}
+                </Text>
               </Pressable>
             </View>
 
@@ -621,24 +1040,127 @@ export default function CheckoutScreen() {
                 <MapPin size={16} color="#111111" />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 14, fontWeight: '800', color: '#111111' }}>
-                  Ananya Mathur <Text style={{ fontSize: 12, color: '#71717A', fontWeight: '500' }}>• +91 98765 43210</Text>
-                </Text>
-                <Text style={{ fontSize: 12, color: '#4A4A4A', marginTop: 3, lineHeight: 17 }}>
-                  {selectedAddress ? `${selectedAddress.line1}, ${selectedAddress.locality || ''}, ${selectedAddress.city} - ${selectedAddress.pincode}` : 'Please choose an address'}
-                </Text>
+                {isAuthenticated ? (
+                  <>
+                    <Text style={{ fontSize: 14, fontWeight: '800', color: '#111111' }}>
+                      {user?.name || 'Affordz Customer'}{' '}
+                      <Text style={{ fontSize: 12, color: '#71717A', fontWeight: '500' }}>
+                        • {user?.phone || '+91 8124188999'}
+                      </Text>
+                    </Text>
+                    <Text style={{ fontSize: 12, color: selectedAddress ? '#4A4A4A' : '#DC2626', marginTop: 3, lineHeight: 17, fontWeight: selectedAddress ? '400' : '700' }}>
+                      {selectedAddress
+                        ? `${selectedAddress.line1}, ${selectedAddress.locality || ''}, ${selectedAddress.city} - ${selectedAddress.pincode}`
+                        : 'No delivery address found. Please tap ADD ADDRESS above.'}
+                    </Text>
+                  </>
+                ) : (
+                  <>
+                    <Text style={{ fontSize: 14, fontWeight: '800', color: '#DC2626' }}>
+                      Guest Client • Authentication Required
+                    </Text>
+                    <Text style={{ fontSize: 12, color: '#71717A', marginTop: 3, lineHeight: 17 }}>
+                      Please sign in with your phone OTP to connect your delivery address and receive delivery updates.
+                    </Text>
+                  </>
+                )}
               </View>
             </View>
+
+            {/* Serviceability Radius Banner */}
+            {!addressServiceability.isServiceable ? (
+              <View
+                style={{
+                  marginTop: 12,
+                  backgroundColor: '#FEF2F2',
+                  borderWidth: 1.5,
+                  borderColor: '#FCA5A5',
+                  borderRadius: 14,
+                  padding: 12,
+                }}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <AlertTriangle size={15} color="#DC2626" />
+                    <Text style={{ fontSize: 11, fontWeight: '900', color: '#DC2626', letterSpacing: 0.5 }}>
+                      NOT AVAILABLE FOR THIS PLACE
+                    </Text>
+                  </View>
+                  <View style={{ backgroundColor: '#FFFFFF', paddingHorizontal: 7, paddingVertical: 1.5, borderRadius: 8, borderWidth: 1, borderColor: '#FECACA' }}>
+                    <Text style={{ fontSize: 9.5, fontWeight: '900', color: '#B91C1C' }}>
+                      {addressServiceability.distanceKm} KM (MAX 8.0 KM)
+                    </Text>
+                  </View>
+                </View>
+
+                <Text style={{ fontSize: 11.5, color: '#991B1B', lineHeight: 16 }}>
+                  {hasDarkStoreItems
+                    ? `Our 18-minute quick drop and Try & Buy fleet only operates within 8.0 km of Indiranagar Hub. ${selectedAddress?.locality || selectedAddress?.city || 'Selected address'} is ${addressServiceability.distanceKm} km away.`
+                    : 'Standard boutique delivery will arrive via insured courier in 2-4 business days.'}
+                </Text>
+
+                <Pressable
+                  onPress={() => setIsLocationModalOpen(true)}
+                  style={{
+                    marginTop: 8,
+                    backgroundColor: '#DC2626',
+                    borderRadius: 10,
+                    paddingVertical: 7,
+                    paddingHorizontal: 12,
+                    alignSelf: 'flex-start',
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 6,
+                  }}
+                >
+                  <MapPin size={12} color="#FFFFFF" />
+                  <Text style={{ fontSize: 11, fontWeight: '900', color: '#FFFFFF' }}>
+                    CHANGE TO SERVICEABLE LOCATION
+                  </Text>
+                </Pressable>
+              </View>
+            ) : (
+              <View
+                style={{
+                  marginTop: 10,
+                  backgroundColor: '#F0FDF4',
+                  borderWidth: 1,
+                  borderColor: '#BBF7D0',
+                  borderRadius: 10,
+                  paddingHorizontal: 10,
+                  paddingVertical: 6,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                }}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Zap size={12} color="#15803D" fill="#15803D" />
+                  <Text style={{ fontSize: 11, fontWeight: '800', color: '#15803D' }}>
+                    ⚡ 18-Min Instant Drop Available
+                  </Text>
+                </View>
+                <Text style={{ fontSize: 10, fontWeight: '700', color: '#166534' }}>
+                  {addressServiceability.distanceKm} km from Hub
+                </Text>
+              </View>
+            )}
 
             {/* Delivery ETA Pill */}
             <View style={{ marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#F4F1EA', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#22C55E' }} />
-                <Text style={{ fontSize: 11.5, fontWeight: '800', color: '#15803D' }}>
-                  ⚡ Estimated Delivery: In 18 Minutes
+                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: !addressServiceability.isServiceable && hasDarkStoreItems ? '#DC2626' : (hasDarkStoreItems ? '#22C55E' : '#3B82F6') }} />
+                <Text style={{ fontSize: 11.5, fontWeight: '800', color: !addressServiceability.isServiceable && hasDarkStoreItems ? '#DC2626' : (hasDarkStoreItems ? '#15803D' : '#1D4ED8') }}>
+                  {!addressServiceability.isServiceable && hasDarkStoreItems
+                    ? '⚠️ Instant Drop Not Serviceable at this Address'
+                    : hasDarkStoreItems
+                    ? '⚡ Estimated Delivery: In 18 Minutes'
+                    : '📦 Boutique Dispatch: In 2-4 Business Days'}
                 </Text>
               </View>
-              <Text style={{ fontSize: 10.5, color: '#71717A' }}>Indiranagar Vault</Text>
+              <Text style={{ fontSize: 10.5, color: '#71717A' }}>
+                {hasDarkStoreItems ? 'Indiranagar Vault' : 'Artisan Atelier'}
+              </Text>
             </View>
           </View>
 
@@ -646,34 +1168,53 @@ export default function CheckoutScreen() {
           <View style={{ backgroundColor: '#FFFFFF', borderRadius: 18, padding: 16, borderWidth: 1, borderColor: '#E8E5DF', marginBottom: 14 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
-                <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#FFF7ED', justifyContent: 'center', alignItems: 'center' }}>
-                  <Zap size={18} color="#FF5A1F" fill="#FF5A1F" />
+                <View
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 18,
+                    backgroundColor: hasDarkStoreItems ? '#FFF7ED' : '#F4F4F5',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                  }}
+                >
+                  <Zap size={18} color={hasDarkStoreItems ? '#FF5A1F' : '#A1A1AA'} fill={hasDarkStoreItems ? '#FF5A1F' : '#A1A1AA'} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <Text style={{ fontSize: 13.5, fontWeight: '900', color: '#111111' }}>
+                    <Text style={{ fontSize: 13.5, fontWeight: '900', color: hasDarkStoreItems ? '#111111' : '#71717A' }}>
                       Doorstep Try & Buy
                     </Text>
-                    <View style={{ backgroundColor: '#FF5A1F', paddingHorizontal: 6, paddingVertical: 1.5, borderRadius: 6 }}>
-                      <Text style={{ fontSize: 8, fontWeight: '900', color: '#FFFFFF' }}>FREE TRIAL</Text>
-                    </View>
+                    {hasDarkStoreItems ? (
+                      <View style={{ backgroundColor: '#FF5A1F', paddingHorizontal: 6, paddingVertical: 1.5, borderRadius: 6 }}>
+                        <Text style={{ fontSize: 8, fontWeight: '900', color: '#FFFFFF' }}>FREE TRIAL</Text>
+                      </View>
+                    ) : (
+                      <View style={{ backgroundColor: '#E4E4E7', paddingHorizontal: 6, paddingVertical: 1.5, borderRadius: 6 }}>
+                        <Text style={{ fontSize: 8, fontWeight: '800', color: '#71717A' }}>DARK STORE ONLY</Text>
+                      </View>
+                    )}
                   </View>
                   <Text style={{ fontSize: 11, color: '#6B6667', marginTop: 2, lineHeight: 15 }}>
-                    Rider waits 15 mins while you try sizes. Keep what fits, return the rest on the spot!
+                    {hasDarkStoreItems
+                      ? 'Rider waits 15 mins while you try sizes. Keep what fits, return the rest on the spot!'
+                      : 'Doorstep Try & Buy is exclusive to 18-minute Dark Store items. Boutique vendor orders are delivered via standard shipping with 7-day doorstep returns.'}
                   </Text>
                 </View>
               </View>
 
               {/* Toggle Switch */}
               <Pressable
-                onPress={() => setTryAndBuyEnabled(!tryAndBuyEnabled)}
+                disabled={!hasDarkStoreItems}
+                onPress={() => hasDarkStoreItems && setTryAndBuyEnabled(!tryAndBuyEnabled)}
                 style={{
                   width: 44,
                   height: 24,
                   borderRadius: 12,
-                  backgroundColor: tryAndBuyEnabled ? '#111111' : '#D9D9D5',
+                  backgroundColor: !hasDarkStoreItems ? '#E4E4E7' : tryAndBuyEnabled ? '#111111' : '#D9D9D5',
                   padding: 2,
                   justifyContent: 'center',
+                  opacity: !hasDarkStoreItems ? 0.6 : 1,
                 }}
               >
                 <View
@@ -682,7 +1223,7 @@ export default function CheckoutScreen() {
                     height: 20,
                     borderRadius: 10,
                     backgroundColor: '#FFFFFF',
-                    alignSelf: tryAndBuyEnabled ? 'flex-end' : 'flex-start',
+                    alignSelf: hasDarkStoreItems && tryAndBuyEnabled ? 'flex-end' : 'flex-start',
                   }}
                 />
               </Pressable>
@@ -745,16 +1286,42 @@ export default function CheckoutScreen() {
 
             {/* Collapsed Preview Horizontal Strip */}
             {!isItemsExpanded && (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 16, gap: 10 }}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                nestedScrollEnabled={true}
+                directionalLockEnabled={true}
+                overScrollMode="never"
+                contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 16, gap: 10 }}
+              >
                 {items.map((item) => (
-                  <View key={item.id} style={{ width: 62, height: 78, borderRadius: 10, overflow: 'hidden', borderWidth: 1, borderColor: '#E8E5DF', backgroundColor: '#F4F1EA' }}>
+                  <View key={item.id} style={{ width: 66, height: 82, borderRadius: 10, overflow: 'hidden', borderWidth: 1, borderColor: '#E8E5DF', backgroundColor: '#F4F1EA', position: 'relative' }}>
                     <Image source={{ uri: item.image }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
+                    <Pressable
+                      onPress={() => handleRemoveItem(item.id, item.title)}
+                      hitSlop={6}
+                      style={({ pressed }) => ({
+                        position: 'absolute',
+                        top: 3,
+                        right: 3,
+                        width: 20,
+                        height: 20,
+                        borderRadius: 10,
+                        backgroundColor: pressed ? '#DC2626' : 'rgba(17, 17, 17, 0.85)',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      })}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Remove ${item.title}`}
+                    >
+                      <X size={11} color="#FFFFFF" strokeWidth={3} />
+                    </Pressable>
                   </View>
                 ))}
               </ScrollView>
             )}
 
-            {/* Expanded Item List */}
+            {/* Expanded Item List with Remove & Quantity Stepper */}
             {isItemsExpanded && (
               <View style={{ paddingHorizontal: 16, paddingBottom: 16, borderTopWidth: 1, borderTopColor: '#F4F1EA' }}>
                 {items.map((item, idx) => (
@@ -763,48 +1330,147 @@ export default function CheckoutScreen() {
                     style={{
                       flexDirection: 'row',
                       gap: 12,
-                      paddingVertical: 12,
+                      paddingVertical: 14,
                       borderBottomWidth: idx < items.length - 1 ? 1 : 0,
                       borderBottomColor: '#F4F1EA',
                     }}
                   >
-                    <Image source={{ uri: item.image }} style={{ width: 64, height: 80, borderRadius: 10 }} contentFit="cover" />
-                    <View style={{ flex: 1, justifyContent: 'center' }}>
-                      <Text style={{ fontSize: 10.5, fontWeight: '900', color: '#6B6667', textTransform: 'uppercase' }}>
-                        {item.brand}
-                      </Text>
-                      <Text style={{ fontSize: 12.5, fontWeight: '700', color: '#111111', marginTop: 2 }} numberOfLines={1}>
-                        {item.title}
-                      </Text>
-                      <Text style={{ fontSize: 11, color: '#71717A', marginTop: 2 }}>
-                        Size: <Text style={{ fontWeight: '800', color: '#111111' }}>{item.size || 'M'}</Text> • Qty: <Text style={{ fontWeight: '800', color: '#111111' }}>{item.quantity}</Text>
-                      </Text>
-                      {item.isTryAndBuy || item.trialSize ? (
+                    <Image source={{ uri: item.image }} style={{ width: 68, height: 88, borderRadius: 10 }} contentFit="cover" />
+                    <View style={{ flex: 1, justifyContent: 'space-between' }}>
+                      <View>
+                        {/* Brand & Remove Button Row */}
+                        <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                          <Text style={{ fontSize: 10.5, fontWeight: '900', color: '#6B6667', textTransform: 'uppercase', flex: 1, marginRight: 8 }} numberOfLines={1}>
+                            {item.brand}
+                          </Text>
+
+                          {/* Explicit Remove Item Button */}
+                          <Pressable
+                            onPress={() => handleRemoveItem(item.id, item.title)}
+                            hitSlop={10}
+                            style={({ pressed }) => ({
+                              paddingHorizontal: 8,
+                              paddingVertical: 4,
+                              borderRadius: 8,
+                              backgroundColor: pressed ? '#FEE2E2' : '#F4F1EA',
+                              flexDirection: 'row',
+                              alignItems: 'center',
+                              gap: 4,
+                              marginTop: -2,
+                            })}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Remove ${item.title} from cart`}
+                          >
+                            <Trash2 size={12} color="#EF4444" />
+                            <Text style={{ fontSize: 9.5, fontWeight: '800', color: '#EF4444', letterSpacing: 0.5 }}>
+                              REMOVE
+                            </Text>
+                          </Pressable>
+                        </View>
+
+                        <Text style={{ fontSize: 12.5, fontWeight: '700', color: '#111111', marginTop: 2 }} numberOfLines={1}>
+                          {item.title}
+                        </Text>
+                      </View>
+
+                      {/* Size & Interactive Quantity Stepper Row */}
+                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 }}>
+                        <Text style={{ fontSize: 11, color: '#71717A' }}>
+                          Size: <Text style={{ fontWeight: '800', color: '#111111' }}>{item.size || 'M'}</Text>
+                        </Text>
+
+                        {/* Quantity Stepper with Minus/Trash & Plus */}
+                        <View
+                          style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            borderWidth: 1,
+                            borderColor: '#E5E0D8',
+                            borderRadius: 14,
+                            backgroundColor: '#FAF8F5',
+                            height: 28,
+                            paddingHorizontal: 4,
+                            gap: 6,
+                          }}
+                        >
+                          <Pressable
+                            onPress={() => handleUpdateItemQty(item.id, -1, item.title, item.quantity)}
+                            hitSlop={8}
+                            style={({ pressed }) => ({
+                              width: 22,
+                              height: 22,
+                              borderRadius: 11,
+                              backgroundColor: pressed ? '#E8E5DF' : 'transparent',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                            })}
+                            accessibilityRole="button"
+                            accessibilityLabel="Decrease quantity"
+                          >
+                            {item.quantity === 1 ? (
+                              <Trash2 size={11} color="#EF4444" />
+                            ) : (
+                              <Minus size={11} color="#111111" strokeWidth={2.5} />
+                            )}
+                          </Pressable>
+
+                          <Text style={{ fontSize: 11.5, fontWeight: '900', color: '#111111', minWidth: 18, textAlign: 'center' }}>
+                            {item.quantity}
+                          </Text>
+
+                          <Pressable
+                            onPress={() => handleUpdateItemQty(item.id, 1, item.title, item.quantity)}
+                            hitSlop={8}
+                            style={({ pressed }) => ({
+                              width: 22,
+                              height: 22,
+                              borderRadius: 11,
+                              backgroundColor: pressed ? '#E8E5DF' : 'transparent',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                            })}
+                            accessibilityRole="button"
+                            accessibilityLabel="Increase quantity"
+                          >
+                            <Plus size={11} color="#111111" strokeWidth={2.5} />
+                          </Pressable>
+                        </View>
+                      </View>
+
+                      {/* Try & Buy / Delivery Badge */}
+                      {item.fulfillmentType === 'DARK_STORE' || item.isTryAndBuy ? (
                         <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
                           <View style={{ backgroundColor: '#FFF7ED', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, flexDirection: 'row', alignItems: 'center', gap: 3 }}>
                             <Zap size={9} color="#C2410C" fill="#C2410C" />
                             <Text style={{ fontSize: 9.5, fontWeight: '800', color: '#9A3412' }}>
-                              ⚡ Try & Buy {item.trialSize ? `• Trial: ${item.trialSize}` : ''}
+                              ⚡ 18-MIN DROP • TRY & BUY {item.trialSize ? `• Trial: ${item.trialSize}` : ''}
                             </Text>
                           </View>
                         </View>
                       ) : (
                         <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
-                          <View style={{ backgroundColor: '#F4F1EA', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-                            <Package size={9} color="#78350F" />
-                            <Text style={{ fontSize: 9.5, fontWeight: '700', color: '#78350F' }}>
-                              Boutique Courier (1-3 Days)
+                          <View style={{ backgroundColor: '#EFF6FF', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                            <Package size={9} color="#1D4ED8" />
+                            <Text style={{ fontSize: 9.5, fontWeight: '800', color: '#1D4ED8' }}>
+                              🛍️ BOUTIQUE VENDOR • 2-4 DAYS
                             </Text>
                           </View>
                         </View>
                       )}
+
+                      {/* Price Row */}
                       <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6, marginTop: 4 }}>
                         <Text style={{ fontSize: 13, fontWeight: '900', color: '#111111' }}>
-                          {formatPrice(item.price)}
+                          {formatPrice(item.price * item.quantity)}
                         </Text>
                         {item.originalPrice && item.originalPrice > item.price && (
                           <Text style={{ fontSize: 11, color: '#A0A0A0', textDecorationLine: 'line-through' }}>
-                            {formatPrice(item.originalPrice)}
+                            {formatPrice(item.originalPrice * item.quantity)}
+                          </Text>
+                        )}
+                        {item.quantity > 1 && (
+                          <Text style={{ fontSize: 9.5, color: '#71717A' }}>
+                            ({formatPrice(item.price)} each)
                           </Text>
                         )}
                       </View>
@@ -814,6 +1480,17 @@ export default function CheckoutScreen() {
               </View>
             )}
           </View>
+
+          {/* Top Deals & Style Suggestions (Ajio & Myntra Signature Cross-Sell) */}
+          <CartTopDeals
+            onAddToCart={handleDealAddToCart}
+            onOpenProduct={handleOpenProduct}
+            cartProductIds={cartProductIds}
+            wishlist={wishlist}
+            onToggleWishlist={toggleWishlist}
+            title="Top Deals & Suggestions"
+            subtitle="FREQUENTLY ADDED TOGETHER • 18-MIN EXPRESS DROP"
+          />
 
           {/* 7. Apply Coupons & Bank Offers Section (Ajio / Myntra format) */}
           <View style={{ backgroundColor: '#FFFFFF', borderRadius: 18, padding: 16, borderWidth: 1, borderColor: '#E8E5DF', marginBottom: 14 }}>
@@ -1309,7 +1986,10 @@ export default function CheckoutScreen() {
               {/* Total Amount */}
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', paddingTop: 14, marginTop: 4, borderTopWidth: 1, borderTopColor: '#E8E5DF' }}>
                 <Text style={{ fontSize: 15, fontWeight: '900', color: '#111111' }}>Total Amount</Text>
-                <Text style={{ fontSize: 20, fontWeight: '900', color: '#111111' }}>{formatPrice(finalPayable)}</Text>
+                <AnimatedPriceTicker
+                  value={finalPayable}
+                  style={{ fontSize: 20, fontWeight: '900', color: '#111111' }}
+                />
               </View>
             </View>
           </View>
@@ -1366,17 +2046,20 @@ export default function CheckoutScreen() {
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <View>
             <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
-              <Text style={{ fontSize: 20, fontWeight: '900', color: '#111111' }}>
-                {formatPrice(finalPayable)}
-              </Text>
+              <AnimatedPriceTicker
+                value={finalPayable}
+                style={{ fontSize: 20, fontWeight: '900', color: '#111111' }}
+              />
               {totalMrp > finalPayable && (
                 <Text style={{ fontSize: 12, color: '#A0A0A0', textDecorationLine: 'line-through' }}>
                   {formatPrice(totalMrp)}
                 </Text>
               )}
             </View>
-            <Text style={{ fontSize: 10.5, color: '#15803D', fontWeight: '800' }}>
-              Deliver to: {selectedAddress?.locality || selectedAddress?.city || 'Indiranagar'}
+            <Text style={{ fontSize: 10.5, color: !addressServiceability.isServiceable && hasDarkStoreItems ? '#DC2626' : '#15803D', fontWeight: '800' }}>
+              {!addressServiceability.isServiceable && hasDarkStoreItems
+                ? `⚠️ Outside 8.0 km radius (${addressServiceability.distanceKm} km)`
+                : `Deliver to: ${selectedAddress?.locality || selectedAddress?.city || 'Indiranagar'}`}
             </Text>
           </View>
 
@@ -1385,7 +2068,15 @@ export default function CheckoutScreen() {
             disabled={isCheckingOut}
             onPress={handlePlaceOrder}
             style={{
-              backgroundColor: isCheckingOut ? '#71717A' : '#111111',
+              backgroundColor: isCheckingOut
+                ? '#71717A'
+                : !isAuthenticated
+                ? '#FF5A1F'
+                : !selectedAddress
+                ? '#059669'
+                : hasDarkStoreItems && !addressServiceability.isServiceable
+                ? '#DC2626'
+                : '#111111',
               borderRadius: 999,
               paddingVertical: 13,
               paddingHorizontal: 22,
@@ -1401,7 +2092,17 @@ export default function CheckoutScreen() {
           >
             <Lock size={13} color="#FFFFFF" />
             <Text style={{ color: '#FFFFFF', fontSize: 12.5, fontWeight: '900', letterSpacing: 0.8, textTransform: 'uppercase' }}>
-              {isCheckingOut ? 'PROCESSING...' : selectedPaymentCategory === 'COD' ? 'PLACE ORDER (COD)' : 'PAY & PLACE ORDER'}
+              {isCheckingOut
+                ? 'PROCESSING...'
+                : !isAuthenticated
+                ? 'LOGIN TO PLACE ORDER'
+                : !selectedAddress
+                ? 'ADD DELIVERY ADDRESS'
+                : hasDarkStoreItems && !addressServiceability.isServiceable
+                ? 'NOT AVAILABLE FOR THIS PLACE'
+                : selectedPaymentCategory === 'COD'
+                ? 'PLACE ORDER (COD)'
+                : 'PAY & PLACE ORDER'}
             </Text>
             <ArrowRight size={15} color="#FFFFFF" />
           </AnimatedPressable>
@@ -1524,6 +2225,34 @@ export default function CheckoutScreen() {
           handlePlaceOrder();
         }}
       />
+
+      {/* Floating Action Feedback Toast */}
+      {toastMessage && (
+        <Animated.View
+          style={{
+            position: 'absolute',
+            bottom: 90,
+            alignSelf: 'center',
+            backgroundColor: 'rgba(17, 17, 17, 0.95)',
+            paddingHorizontal: 18,
+            paddingVertical: 10,
+            borderRadius: 20,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 8,
+            zIndex: 99,
+            transform: [{ translateY: toastAnim }],
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.25,
+            shadowRadius: 8,
+            elevation: 8,
+          }}
+        >
+          <CheckCircle2 size={14} color="#22C55E" />
+          <Text style={{ color: '#FFFFFF', fontSize: 11.5, fontWeight: '800' }}>{toastMessage}</Text>
+        </Animated.View>
+      )}
     </View>
   );
 }

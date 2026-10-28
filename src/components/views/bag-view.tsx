@@ -26,6 +26,7 @@ import { useCartStore, LocalCartItem } from '@/store/useCartStore';
 import { useAddressStore } from '@/store/useAddressStore';
 import { AddressModal } from '@/components/address-modal';
 import { formatPrice } from '@/data/homeData';
+import { CartTopDeals } from '@/components/cart/cart-top-deals';
 
 import {
   BagProductItem,
@@ -240,12 +241,44 @@ export const BagView = React.memo(function BagView({
           <View style={{ width: 38 }} />
         </View>
 
-        <EmptyState
-          title="YOUR BAG IS EMPTY"
-          body="Your curated atelier capsule awaits. Discover exclusive garments with instant 18-minute doorstep try & buy."
-          action="EXPLORE ATELIER"
-          onClick={onShop}
-        />
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 60 }}>
+          <EmptyState
+            title="YOUR BAG IS EMPTY"
+            body="Your curated atelier capsule awaits. Discover exclusive garments with instant 18-minute doorstep try & buy."
+            action="EXPLORE ATELIER"
+            onClick={onShop}
+          />
+          <View style={{ paddingHorizontal: 16 }}>
+            <CartTopDeals
+              onAddToCart={(deal) => {
+                const productPayload: any = {
+                  id: deal.id,
+                  brand: deal.brand,
+                  title: deal.title,
+                  price: deal.price,
+                  originalPrice: deal.originalPrice,
+                  discount: deal.discountBadge,
+                  rating: deal.rating,
+                  reviewsCount: deal.reviewsCount,
+                  stockQuantity: 15,
+                  readyToShip: true,
+                  sizes: deal.sizes,
+                  image: deal.image,
+                  altText: deal.title,
+                  galleryImages: [deal.image],
+                  category: deal.category,
+                  tryAndBuyEligible: true,
+                };
+                addItem(productPayload, deal.sizes[0] || 'M');
+              }}
+              onOpenProduct={(id) => onOpenProduct && onOpenProduct(id)}
+              cartProductIds={items.map((i) => i.productId)}
+              wishlist={wishlist}
+              onToggleWishlist={toggleWishlist}
+              title="Top Deals Curated For You"
+            />
+          </View>
+        </ScrollView>
       </View>
     );
   }
@@ -309,6 +342,10 @@ export const BagView = React.memo(function BagView({
 
       <ScrollView
         showsVerticalScrollIndicator={false}
+        removeClippedSubviews={Platform.OS !== 'web'}
+        overScrollMode="never"
+        keyboardShouldPersistTaps="handled"
+        decelerationRate="normal"
         contentContainerStyle={{ paddingBottom: 110 }}
       >
         {/* 1. Header with Selected Delivery Address Bar */}
@@ -452,7 +489,14 @@ export const BagView = React.memo(function BagView({
               </View>
             </View>
 
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10 }}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              nestedScrollEnabled={true}
+              directionalLockEnabled={true}
+              overScrollMode="never"
+              contentContainerStyle={{ gap: 10 }}
+            >
               {VAULT_EXCLUSIVE_DEALS.map((deal) => (
                 <View
                   key={deal.id}
