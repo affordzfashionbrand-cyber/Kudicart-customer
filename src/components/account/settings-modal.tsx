@@ -528,6 +528,34 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <ChevronRight size={16} color="#8A857D" />
                 </Pressable>
 
+                {/* Grievance Redressal & Statutory Officer (Consumer Protection Rules 2020 & DPDP Act 2023) */}
+                <Pressable
+                  onPress={() =>
+                    setLegalModal({
+                      title: 'Grievance Officer & Statutory Details',
+                      content:
+                        'In compliance with Rule 5(9) of the Consumer Protection (E-Commerce) Rules, 2020 & Digital Personal Data Protection Act, 2023:\n\n• Legal Entity: KudiCart E-Commerce Private Limited\n• CIN: U52100KA2026PTC184210\n• Designated Grievance Officer: Rajeshwar Rao (Principal Officer)\n• Email: grievance@kudicart.in\n• Concierge Desk: +91 80 4567 8900\n• Office Address: 100 Feet Road, Indiranagar, Bengaluru, KA 560038\n\nSLA Commitment: Acknowledgement within 48 hours; complete resolution within 30 days from date of receipt.',
+                    })
+                  }
+                  style={({ pressed }) => ({
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    paddingVertical: 10,
+                    borderBottomWidth: 1,
+                    borderBottomColor: '#F4F1EA',
+                    backgroundColor: pressed ? '#FAF8F5' : 'transparent',
+                  })}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Info size={15} color="#111111" />
+                    <Text style={{ fontSize: 13, fontWeight: '800', color: '#111111' }}>
+                      Grievance Redressal (India)
+                    </Text>
+                  </View>
+                  <ChevronRight size={16} color="#8A857D" />
+                </Pressable>
+
                 {/* Google Play Account Deletion Option */}
                 {user && (
                   <Pressable
