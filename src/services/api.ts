@@ -1,11 +1,9 @@
 import { Platform } from 'react-native';
 import { COMPLETE_CATEGORY_HIERARCHY } from '@/data/category-hierarchy-data';
 
-const API_BASE_URL =
+export const API_BASE_URL =
   process.env.EXPO_PUBLIC_API_URL ||
   (Platform.OS === 'android' ? 'http://10.0.2.2:3001' : 'http://localhost:3001');
-
-const isProduction = process.env.EXPO_PUBLIC_APP_ENV === 'production';
 
 export const PRODUCT_ID_MAP: Record<string, string> = {
   '101': 'prod-2',
@@ -149,43 +147,22 @@ export const authApi = {
   },
 
   getProfile: async (): Promise<AuthUser> => {
-    try {
-      return await request<AuthUser>('/api/v1/users/me');
-    } catch {
-      return {
-        id: 'usr-1',
-        phone: '+91 8124188999',
-        name: 'Ananya Sharma',
-        email: 'ananya.sharma@example.com',
-        avatar:
-          'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80',
-        role: 'CUSTOMER',
-      };
-    }
+    return await request<AuthUser>('/api/v1/users/me');
   },
 
   updateProfile: async (data: Partial<AuthUser>): Promise<AuthUser> => {
     const payload: Record<string, any> = {};
-    if (data.name && data.name.trim()) payload.name = data.name.trim();
-    if (data.email && data.email.trim() && data.email.includes('@')) payload.email = data.email.trim();
-    if (data.avatar) payload.avatar = data.avatar;
-
-    try {
-      return await request<AuthUser>('/api/v1/users/me', {
-        method: 'PATCH',
-        body: JSON.stringify(payload),
-      });
-    } catch (err: any) {
-      console.warn('[Affordz Auth] updateProfile remote sync note:', err?.message || err);
-      return {
-        id: data.id || 'usr-1',
-        phone: data.phone || '+91 8124188999',
-        name: data.name?.trim() || 'Affordz Customer',
-        email: data.email?.trim() || 'customer@affordz.in',
-        avatar: data.avatar || null,
-        role: 'CUSTOMER',
-      };
+    if (data.name !== undefined && data.name.trim()) payload.name = data.name.trim();
+    if (data.email !== undefined) {
+      const emailTrim = data.email.trim();
+      payload.email = emailTrim ? emailTrim.toLowerCase() : null;
     }
+    if (data.avatar !== undefined) payload.avatar = data.avatar;
+
+    return await request<AuthUser>('/api/v1/users/me', {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
   },
 };
 
@@ -209,8 +186,18 @@ export interface CategoryItem {
   children?: CategoryItem[];
 }
 
+export interface ProductColor {
+  name: string;
+  hex: string;
+  productId?: string;
+  image?: string;
+}
+
 export interface ApiProduct {
   id: string;
+  colorGroupId?: string;
+  colorName?: string;
+  colorHex?: string;
   brand: string;
   title: string;
   description: string;
@@ -239,6 +226,9 @@ export interface ApiProduct {
     address: string;
     phone: string;
   };
+  colors?: ProductColor[];
+  specifications?: Record<string, string>;
+  certification?: string;
 }
 
 export interface ApiSearchSuggestionItem {
@@ -251,8 +241,8 @@ export interface ApiSearchSuggestionItem {
 export interface ApiSearchSuggestionsResponse {
   query: string;
   suggestions: ApiSearchSuggestionItem[];
-  categories: Array<{ id: string; name: string; count: number }>;
-  brands: Array<{ name: string; count: number }>;
+  categories: { id: string; name: string; count: number }[];
+  brands: { name: string; count: number }[];
   trending: string[];
   recentPicks: ApiProduct[];
 }
@@ -689,115 +679,51 @@ export interface AddressModel {
   id: string;
   userId: string;
   label: string;
+  recipientName?: string;
+  recipientPhone?: string;
   line1: string;
+  line2?: string;
   locality: string;
   city: string;
+  state?: string;
   pincode: string;
+  latitude?: number;
+  longitude?: number;
   isDefault: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 }
-
-const inMemoryAddresses: AddressModel[] = [
-  {
-    id: 'addr-1',
-    userId: 'usr-1',
-    label: 'Home Sanctuary',
-    line1: 'Apt 4B, Sunrise Heights, 42 Westend Boulevard',
-    locality: 'Indiranagar',
-    city: 'Bengaluru',
-    pincode: '560038',
-    isDefault: true,
-  },
-  {
-    id: 'addr-2',
-    userId: 'usr-1',
-    label: 'Design Studio',
-    line1: 'Suite 802, Prestige Tech Cloud, Outer Ring Road',
-    locality: 'Kadubeesanahalli',
-    city: 'Bengaluru',
-    pincode: '560103',
-    isDefault: false,
-  },
-];
 
 export const addressApi = {
   getAddresses: async (): Promise<AddressModel[]> => {
-    try {
-      return await request<AddressModel[]>('/api/v1/addresses');
-    } catch {
-      return [...inMemoryAddresses];
-    }
+    return await request<AddressModel[]>('/api/v1/addresses');
   },
 
   addAddress: async (data: Omit<AddressModel, 'id' | 'userId'>): Promise<AddressModel> => {
-    try {
-      const added = await request<AddressModel>('/api/v1/addresses', {
-        method: 'POST',
-        body: JSON.stringify(data),
-      });
-      inMemoryAddresses.push(added);
-      return added;
-    } catch {
-      const newAddr: AddressModel = {
-        id: `addr-${Date.now()}`,
-        userId: 'usr-1',
-        ...data,
-      };
-      if (newAddr.isDefault) {
-        inMemoryAddresses.forEach((a) => (a.isDefault = false));
-      }
-      inMemoryAddresses.push(newAddr);
-      return newAddr;
-    }
+    return await request<AddressModel>('/api/v1/addresses', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
   },
 
   updateAddress: async (id: string, data: Partial<AddressModel>): Promise<AddressModel> => {
-    try {
-      const updated = await request<AddressModel>(`/api/v1/addresses/${id}`, {
-        method: 'PATCH',
-        body: JSON.stringify(data),
-      });
-      const idx = inMemoryAddresses.findIndex((a) => a.id === id);
-      if (idx !== -1) inMemoryAddresses[idx] = updated;
-      return updated;
-    } catch {
-      const idx = inMemoryAddresses.findIndex((a) => a.id === id);
-      if (idx !== -1) {
-        inMemoryAddresses[idx] = { ...inMemoryAddresses[idx], ...data };
-        return inMemoryAddresses[idx];
-      }
-      throw new Error('Address not found');
-    }
+    return await request<AddressModel>(`/api/v1/addresses/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
   },
 
   deleteAddress: async (id: string): Promise<boolean> => {
-    try {
-      await request<{ success: boolean }>(`/api/v1/addresses/${id}`, {
-        method: 'DELETE',
-      });
-      const idx = inMemoryAddresses.findIndex((a) => a.id === id);
-      if (idx !== -1) inMemoryAddresses.splice(idx, 1);
-      return true;
-    } catch {
-      const idx = inMemoryAddresses.findIndex((a) => a.id === id);
-      if (idx !== -1) {
-        inMemoryAddresses.splice(idx, 1);
-      }
-      return true;
-    }
+    await request<{ success: boolean }>(`/api/v1/addresses/${id}`, {
+      method: 'DELETE',
+    });
+    return true;
   },
 
   setDefault: async (id: string): Promise<AddressModel> => {
-    try {
-      const res = await request<AddressModel>(`/api/v1/addresses/${id}/default`, {
-        method: 'PATCH',
-      });
-      inMemoryAddresses.forEach((a) => (a.isDefault = a.id === id));
-      return res;
-    } catch {
-      inMemoryAddresses.forEach((a) => (a.isDefault = a.id === id));
-      const found = inMemoryAddresses.find((a) => a.id === id);
-      return found || inMemoryAddresses[0];
-    }
+    return await request<AddressModel>(`/api/v1/addresses/${id}/default`, {
+      method: 'PATCH',
+    });
   },
 };
 
@@ -850,6 +776,9 @@ export interface OrderModel {
     vehicle: string;
     photo?: string;
   };
+  razorpayOrderId?: string;
+  razorpayPaymentId?: string;
+  razorpayKeyId?: string;
 }
 
 export interface OrderTrackingMilestone {
@@ -897,6 +826,7 @@ export interface CheckoutPayload {
   paymentMethod: 'RAZORPAY' | 'COD';
   couponCode?: string;
   isTryAndBuy?: boolean;
+  isBuyNow?: boolean;
   items?: OrderItemModel[];
   itemTotal?: number;
   deliveryFee?: number;
@@ -999,97 +929,36 @@ export const ordersApi = {
         ? { addressId: payloadOrAddressId, paymentMethod: paymentMethodArg || 'COD' }
         : payloadOrAddressId;
 
-    try {
-      const order = await request<OrderModel>('/api/v1/orders/checkout', {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
-      inMemoryOrders.unshift(order);
-      return order;
-    } catch {
-      // Find actual selected address from inMemoryAddresses
-      const chosenAddress =
-        inMemoryAddresses.find((a) => a.id === payload.addressId) ||
-        inMemoryAddresses[0] || {
-          id: payload.addressId,
-          userId: 'usr-1',
-          label: 'Delivery Address',
-          line1: '42 Westend Boulevard',
-          locality: 'Indiranagar',
-          city: 'Bengaluru',
-          pincode: '560038',
-          isDefault: true,
-        };
-
-      const fallbackItems: OrderItemModel[] =
-        payload.items && payload.items.length > 0
-          ? payload.items
-          : [
-              {
-                id: 'item-1',
-                title: 'Embroidered Anarkali Kurta Set',
-                brand: 'Avanya Ethnic',
-                size: 'M',
-                price: 1299,
-                quantity: 1,
-                image: 'https://images.unsplash.com/photo-1539109136881-3be0616acf4b?auto=format&fit=crop&w=800&q=85',
-              },
-            ];
-
-      const itemTotal = payload.itemTotal ?? fallbackItems.reduce((acc, i) => acc + i.price * i.quantity, 0);
-      const deliveryFee = payload.deliveryFee ?? (itemTotal >= 999 ? 0 : 40);
-      const taxes = payload.taxes ?? Math.round(itemTotal * 0.05);
-      const discount = payload.couponCode ? 200 : 0;
-      const grandTotal = payload.grandTotal ?? itemTotal + deliveryFee + taxes - discount;
-
-      const mockOrder: OrderModel = {
-        id: `ord-${Date.now()}`,
-        orderNumber: `AF-${Math.floor(100000 + Math.random() * 900000)}`,
-        customerId: 'usr-1',
-        status: 'PLACED',
-        paymentMethod: payload.paymentMethod,
-        paymentStatus: payload.paymentMethod === 'COD' ? 'PENDING' : 'COMPLETED',
-        itemTotal,
-        deliveryFee,
-        taxes,
-        discountAmount: discount,
-        couponCode: payload.couponCode || null,
-        isTryAndBuy: payload.isTryAndBuy || false,
-        grandTotal,
-        etaMinutes: payload.isTryAndBuy ? 18 : 25,
-        createdAt: new Date().toISOString(),
-        address: chosenAddress,
-        items: fallbackItems,
-        driver: {
-          id: 'drv-1',
-          name: 'Rajesh Kumar',
-          phone: '+91 98765 43210',
-          vehicle: 'Ather 450X EV • KA 03 EV 4821',
-        },
-      };
-
-      inMemoryOrders.unshift(mockOrder);
-      return mockOrder;
-    }
+    const order = await request<OrderModel>('/api/v1/orders/checkout', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    inMemoryOrders.unshift(order);
+    return order;
   },
 
   verifyPayment: async (data: {
     orderId: string;
     paymentId: string;
     signature: string;
+    razorpayOrderId?: string;
   }): Promise<any> => {
+    const res = await request<any>('/api/v1/orders/verify-payment', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    const ord = inMemoryOrders.find((o) => o.id === data.orderId);
+    if (ord && res.verified) ord.paymentStatus = 'COMPLETED';
+    return res;
+  },
+
+  getOrderById: async (orderId: string): Promise<OrderModel> => {
     try {
-      const res = await request<any>('/api/v1/orders/verify-payment', {
-        method: 'POST',
-        body: JSON.stringify(data),
-      });
-      const ord = inMemoryOrders.find((o) => o.id === data.orderId);
-      if (ord) ord.paymentStatus = 'COMPLETED';
-      return res;
+      return await request<OrderModel>(`/api/v1/orders/${encodeURIComponent(orderId)}`);
     } catch {
-      const ord = inMemoryOrders.find((o) => o.id === data.orderId);
-      if (ord) ord.paymentStatus = 'COMPLETED';
-      return { verified: true, status: 'PAID', ...data };
+      const ord = inMemoryOrders.find((o) => o.id === orderId || o.orderNumber === orderId);
+      if (ord) return ord;
+      throw new Error(`Order ${orderId} not found`);
     }
   },
 
@@ -1246,18 +1115,7 @@ export const reviewsApi = {
       const mappedId = PRODUCT_ID_MAP[rawId] || rawId;
       return await request<ReviewModel[]>(`/api/v1/reviews/products/${mappedId}`);
     } catch {
-      return [
-        {
-          id: 'rev-1',
-          userId: 'usr-1',
-          productId,
-          orderId: 'ord-89241',
-          rating: 5,
-          comment: 'Truly gorgeous fabric and fits like a dream! Soft chanderi with neat embroidery.',
-          createdAt: new Date().toISOString(),
-          user: { name: 'Ananya Sharma' },
-        },
-      ];
+      return [];
     }
   },
 };
@@ -1317,5 +1175,52 @@ export const supportApi = {
         },
       ];
     }
+  },
+};
+
+export interface RazorpayOrderResponse {
+  success: boolean;
+  razorpayOrderId: string;
+  amountInPaisa: number;
+  amount: number;
+  currency: string;
+  keyId: string;
+  notes?: Record<string, any>;
+}
+
+export interface PaymentStatusResponse {
+  orderId: string;
+  orderNumber: string;
+  paymentStatus: 'PENDING' | 'COMPLETED' | 'FAILED' | string;
+  orderStatus: string;
+  paymentMethod: string;
+  razorpayPaymentId?: string | null;
+  razorpayOrderId?: string | null;
+  grandTotal: number;
+  updatedAt?: string;
+}
+
+export const paymentsApi = {
+  createRazorpayOrder: async (amount: number, orderId?: string): Promise<RazorpayOrderResponse> => {
+    return await request<RazorpayOrderResponse>('/api/v1/payments/razorpay/create-order', {
+      method: 'POST',
+      body: JSON.stringify({ amount, orderId }),
+    });
+  },
+
+  getPaymentStatus: async (orderId: string): Promise<PaymentStatusResponse> => {
+    return await request<PaymentStatusResponse>(`/api/v1/payments/status/${encodeURIComponent(orderId)}`);
+  },
+
+  verifySignature: async (data: {
+    orderId: string;
+    paymentId: string;
+    signature: string;
+    razorpayOrderId?: string;
+  }): Promise<any> => {
+    return await request<any>('/api/v1/payments/razorpay/verify', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
   },
 };

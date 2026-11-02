@@ -5,7 +5,6 @@ import {
   ScrollView,
   Animated,
   Share,
-  ActivityIndicator,
   Pressable,
   NativeSyntheticEvent,
   NativeScrollEvent,
@@ -15,7 +14,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ShoppingBag, ArrowLeft, AlertCircle } from 'lucide-react-native';
+import { ShoppingBag, AlertCircle } from 'lucide-react-native';
 
 import { useCartStore } from '@/store/useCartStore';
 import { useCatalogStore } from '@/store/useCatalogStore';
@@ -118,8 +117,8 @@ export default function ProductDetailScreen() {
         price: fromDefault.price,
         originalPrice: fromDefault.old,
         discount: '40% OFF',
-        rating: Number(fromDefault.rating) || 4.9,
-        reviewsCount: 148,
+        rating: Number(fromDefault.rating) || 0,
+        reviewsCount: (fromDefault as any).reviewsCount ?? 0,
         stockQuantity: 10,
         readyToShip: true,
         sizes: AVAILABLE_SIZES,
@@ -177,7 +176,6 @@ export default function ProductDetailScreen() {
   const sizeSectionLayoutY = useRef<number>(0);
   const scrollViewRef = useRef<ScrollView>(null);
   const [selectedColor, setSelectedColor] = useState('Classic Fabric');
-  const [dualSizeTrial, setDualSizeTrial] = useState(true);
   const [isSizeGuideOpen, setIsSizeGuideOpen] = useState(false);
 
   // Search Suggestions State
@@ -201,6 +199,32 @@ export default function ProductDetailScreen() {
       setSelectedSize(availableProductSizes[0]);
     }
   }, [availableProductSizes, selectedSize]);
+
+  // Ensure default selected color matches product colors if present
+  useEffect(() => {
+    if (product?.colorName) {
+      setSelectedColor(product.colorName);
+    } else if (product?.colors && product.colors.length > 0) {
+      const exists = product.colors.some((c) => c.name === selectedColor);
+      if (!exists) {
+        setSelectedColor(product.colors[0].name);
+      }
+    }
+  }, [product]);
+
+  const handleSelectColor = useCallback(
+    (colorName: string, targetProductId?: string) => {
+      setSelectedColor(colorName);
+      if (
+        targetProductId &&
+        String(targetProductId) !== String(id) &&
+        String(targetProductId) !== String(product?.id)
+      ) {
+        router.push(`/product/${targetProductId}`);
+      }
+    },
+    [id, product?.id, router],
+  );
 
   // Current item in bag for this product & selected size
   const currentCartItem = useMemo(() => {
@@ -307,16 +331,6 @@ export default function ProductDetailScreen() {
     setTimeout(() => setCopiedCoupon(null), 3000);
   };
 
-  // Adjacent Size for Dual-Size Trial
-  const adjacentSize = useMemo(() => {
-    if (!selectedSize) return availableProductSizes[1] || 'L';
-    const idx = availableProductSizes.indexOf(selectedSize);
-    if (idx === -1 || idx === availableProductSizes.length - 1) {
-      return availableProductSizes[0] || 'M';
-    }
-    return availableProductSizes[idx + 1];
-  }, [selectedSize, availableProductSizes]);
-
   // High-Fidelity Skeleton Loading Screen
   if (isLoading && !product) {
     return <ProductDetailSkeleton />;
@@ -383,7 +397,6 @@ export default function ProductDetailScreen() {
     }
 
     const effectiveSize = selectedSize || availableProductSizes[0] || 'M';
-    const trialSizeParam = dualSizeTrial && isDarkStoreProduct ? adjacentSize : undefined;
 
     await addItem(
       {
@@ -394,8 +407,8 @@ export default function ProductDetailScreen() {
         price: product.price,
         originalPrice: productMrp,
         discount: `${discountPct}% OFF`,
-        rating: Number(product.rating) || 4.9,
-        reviewsCount: product.reviewsCount || 148,
+        rating: Number(product.rating) || 0,
+        reviewsCount: product.reviewsCount ?? 0,
         stockQuantity: product.stockQuantity,
         readyToShip: true,
         sizes: availableProductSizes,
@@ -409,57 +422,42 @@ export default function ProductDetailScreen() {
       effectiveSize,
       selectedColor,
       1,
-      trialSizeParam,
     );
 
-    showToast(
-      trialSizeParam
-        ? `Added Size ${effectiveSize} to Bag (Free Fit-Check ${trialSizeParam})`
-        : `Added Size ${effectiveSize} to Bag`,
-    );
+    showToast(`Added Size ${effectiveSize} to Bag`);
   };
 
   const executeBuyNow = async () => {
     if (!product) return;
     const effectiveSize = selectedSize || availableProductSizes[0] || 'M';
-    const trialSizeParam = dualSizeTrial && isDarkStoreProduct ? adjacentSize : undefined;
+    const isDark = (product.fulfillmentType || 'VENDOR') === 'DARK_STORE';
 
-    // Check if this item + size is already in cart
-    const existing = cartItems.find(
-      (item) => item.productId === String(product.id) && item.size === effectiveSize,
-    );
+    // Standalone Buy Now payload representing this exact product exclusively
+    const buyNowPayload = {
+      id: `bn-${Date.now()}`,
+      productId: String(product.id),
+      title: productTitle,
+      brand: product.brand || 'Affordz',
+      price: product.price,
+      originalPrice: productMrp,
+      size: effectiveSize,
+      trialSize: null,
+      isTryAndBuy: isDark && Boolean(product.tryAndBuyEligible),
+      fulfillmentType: product.fulfillmentType || 'VENDOR',
+      darkStoreHub: product.darkStoreHub || null,
+      color: selectedColor || 'Standard',
+      quantity: 1,
+      image: product.image,
+      discountBadge: `${discountPct}% OFF`,
+    };
 
-    if (!existing) {
-      await addItem(
-        {
-          id: String(product.id),
-          brand: product.brand,
-          title: productTitle,
-          description: product.description || '',
-          price: product.price,
-          originalPrice: productMrp,
-          discount: `${discountPct}% OFF`,
-          rating: Number(product.rating) || 4.9,
-          reviewsCount: product.reviewsCount || 148,
-          stockQuantity: product.stockQuantity,
-          readyToShip: true,
-          sizes: availableProductSizes,
-          image: product.image,
-          altText: productTitle,
-          galleryImages: galleryImages,
-          category: product.category || 'Apparel',
-          fulfillmentType: product.fulfillmentType,
-          tryAndBuyEligible: product.tryAndBuyEligible,
-        },
-        effectiveSize,
-        selectedColor,
-        1,
-        trialSizeParam,
-      );
-    }
+    useCartStore.getState().setBuyNowItem(buyNowPayload);
 
-    // Direct, guaranteed progression to checkout
-    router.push('/cart');
+    // Direct, guaranteed progression to checkout for this EXACT product only
+    router.push({
+      pathname: '/cart',
+      params: { mode: 'buyNow' },
+    });
   };
 
   const handleBuyNow = async () => {
@@ -559,13 +557,15 @@ export default function ProductDetailScreen() {
         <ProductDetailsSection
           brand={product.brand}
           title={productTitle}
-          rating={Number(product.rating) || 4.9}
-          reviewsCount={product.reviewsCount || 148}
+          rating={Number(product.rating) || 0}
+          reviewsCount={product.reviewsCount ?? 0}
           price={product.price}
           originalPrice={productMrp}
           savingsAmount={savingsAmount}
           selectedColor={selectedColor}
-          onSelectColor={setSelectedColor}
+          onSelectColor={handleSelectColor}
+          colors={product.colors}
+          certification={product.certification}
         />
 
         {/* 5. Hyper-Local 18-Minute Try & Buy Card & Delivery Checker */}
@@ -601,17 +601,19 @@ export default function ProductDetailScreen() {
             }}
             onOpenSizeGuide={() => setIsSizeGuideOpen(true)}
             isDarkStoreProduct={isDarkStoreProduct}
-            dualSizeTrial={dualSizeTrial}
-            onToggleDualSizeTrial={() => setDualSizeTrial(!dualSizeTrial)}
-            adjacentSize={adjacentSize}
             hasError={sizeError}
           />
         </View>
 
         {/* Specs, Materials & Craftsmanship */}
-        <ProductSpecsSection isDarkStoreProduct={isDarkStoreProduct} />
+        <ProductSpecsSection
+          isDarkStoreProduct={isDarkStoreProduct}
+          specifications={product.specifications}
+          fabric={product.fabric}
+          origin={product.origin}
+        />
 
-        {/* Customer Looks & Styling */}
+        {/* Customer Looks & Real Client Drapes */}
         <ProductCustomerLooks />
 
         {/* Ensemble Recommendations */}
@@ -654,8 +656,8 @@ export default function ProductDetailScreen() {
           productTitle={productTitle}
           productImage={product.image}
           brand={product.brand}
-          rating={Number(product.rating) || 4.9}
-          reviewsCount={product.reviewsCount || 148}
+          rating={Number(product.rating) || 0}
+          reviewsCount={product.reviewsCount ?? 0}
         />
 
         {/* Related Products Catalog */}

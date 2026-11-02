@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   ActivityIndicator,
 } from 'react-native';
+import * as Location from 'expo-location';
 import {
   MapPin,
   Navigation,
@@ -42,6 +43,8 @@ const POPULAR_LOCATIONS: {
   line1: string;
   pincode: string;
   city: string;
+  latitude: number;
+  longitude: number;
 }[] = [
   {
     label: 'Indiranagar 100ft Rd',
@@ -49,6 +52,8 @@ const POPULAR_LOCATIONS: {
     line1: 'Apt 4B, Sunrise Heights, 42 Westend Blvd',
     pincode: '560038',
     city: 'Bengaluru',
+    latitude: 12.9784,
+    longitude: 77.6408,
   },
   {
     label: 'Koramangala 4th Block',
@@ -56,6 +61,8 @@ const POPULAR_LOCATIONS: {
     line1: 'House 14, 80ft Road, 4th Block',
     pincode: '560095',
     city: 'Bengaluru',
+    latitude: 12.9345,
+    longitude: 77.6265,
   },
   {
     label: 'MG Road / CBD',
@@ -63,6 +70,8 @@ const POPULAR_LOCATIONS: {
     line1: 'Prestige Meridian, MG Road',
     pincode: '560001',
     city: 'Bengaluru',
+    latitude: 12.9756,
+    longitude: 77.6066,
   },
   {
     label: 'Domlur / HAL Airport Rd',
@@ -70,6 +79,8 @@ const POPULAR_LOCATIONS: {
     line1: 'Wind Tunnel Road, Embassy Golf Links',
     pincode: '560071',
     city: 'Bengaluru',
+    latitude: 12.9609,
+    longitude: 77.6387,
   },
   {
     label: 'Kadubeesanahalli (Outside Radius)',
@@ -77,6 +88,8 @@ const POPULAR_LOCATIONS: {
     line1: 'Suite 802, Prestige Tech Cloud, Outer Ring Road',
     pincode: '560103',
     city: 'Bengaluru',
+    latitude: 12.9360,
+    longitude: 77.6974,
   },
   {
     label: 'Whitefield (Outside Radius)',
@@ -84,6 +97,8 @@ const POPULAR_LOCATIONS: {
     line1: 'Tower B, ITPL Main Road',
     pincode: '560066',
     city: 'Bengaluru',
+    latitude: 12.9698,
+    longitude: 77.7499,
   },
 ];
 
@@ -103,6 +118,7 @@ export const LocationOnboardingModal: React.FC<LocationOnboardingModalProps> = (
   const [pincodeInput, setPincodeInput] = useState('');
   const [localityInput, setLocalityInput] = useState('');
   const [isDetectingLocation, setIsDetectingLocation] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
   const [customEvalResult, setCustomEvalResult] = useState<any>(null);
 
   const handleSelectLocation = async (item: {
@@ -111,17 +127,19 @@ export const LocationOnboardingModal: React.FC<LocationOnboardingModalProps> = (
     line1: string;
     pincode: string;
     city: string;
+    latitude?: number;
+    longitude?: number;
   }) => {
     // Check if matching address already exists in store
     const existing = addresses.find(
-      (a) => a.pincode === item.pincode || a.locality === item.locality
+      (a) =>
+        (item.latitude && item.longitude && a.latitude === item.latitude && a.longitude === item.longitude) ||
+        (a.pincode === item.pincode && a.locality.toLowerCase() === item.locality.toLowerCase())
     );
 
-    let targetId = existing?.id;
     let targetAddr: AddressModel;
 
     if (existing) {
-      targetId = existing.id;
       targetAddr = existing;
       setSelectedAddressId(existing.id);
     } else {
@@ -131,9 +149,10 @@ export const LocationOnboardingModal: React.FC<LocationOnboardingModalProps> = (
         locality: item.locality,
         city: item.city,
         pincode: item.pincode,
+        latitude: item.latitude,
+        longitude: item.longitude,
         isDefault: true,
       });
-      targetId = created.id;
       targetAddr = created;
     }
 
@@ -142,13 +161,76 @@ export const LocationOnboardingModal: React.FC<LocationOnboardingModalProps> = (
     onClose();
   };
 
-  const handleDetectCurrentLocation = () => {
+  const handleDetectCurrentLocation = async () => {
     setIsDetectingLocation(true);
-    setTimeout(() => {
+    setLocationError(null);
+
+    try {
+      // 1. Request foreground permissions only upon tap
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        setLocationError(
+          'Location permission was denied. Please select an area from the list or enter your 6-digit PIN code below.',
+        );
+        setIsDetectingLocation(false);
+        return;
+      }
+
+      // 2. Check if device location services are enabled
+      const enabled = await Location.hasServicesEnabledAsync();
+      if (!enabled) {
+        setLocationError(
+          'Device GPS / location services are turned off. Please enable GPS on your device or enter your PIN code.',
+        );
+        setIsDetectingLocation(false);
+        return;
+      }
+
+      // 3. Acquire current GPS position
+      const pos = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+
+      const { latitude, longitude } = pos.coords;
+
+      // 4. Reverse geocode once to extract address details
+      let street = 'Current GPS Location';
+      let locality = 'Bengaluru';
+      let city = 'Bengaluru';
+      let postalCode = '560038';
+
+      try {
+        const reverseResults = await Location.reverseGeocodeAsync({ latitude, longitude });
+        if (reverseResults && reverseResults.length > 0) {
+          const rev = reverseResults[0];
+          const parts = [rev.streetNumber, rev.street, rev.name].filter(Boolean);
+          if (parts.length > 0) street = parts.join(', ');
+          locality = rev.district || rev.subregion || rev.city || 'Bengaluru';
+          city = rev.city || rev.region || 'Bengaluru';
+          postalCode = rev.postalCode || '560038';
+        }
+      } catch (revErr) {
+        console.warn('[LocationModal] Reverse geocode fallback:', revErr);
+      }
+
+      await handleSelectLocation({
+        label: 'Current Location',
+        locality,
+        line1: street,
+        pincode: postalCode,
+        city,
+        latitude,
+        longitude,
+      });
+    } catch (err: any) {
+      console.warn('[LocationModal] GPS read error:', err);
+      setLocationError(
+        err?.message ||
+          'Could not detect your current location. Please select an area or enter your PIN code manually.',
+      );
+    } finally {
       setIsDetectingLocation(false);
-      // Auto-select Indiranagar Central Dark Store catchment (Serviceable)
-      handleSelectLocation(POPULAR_LOCATIONS[0]);
-    }, 600);
+    }
   };
 
   const handleCheckCustomPincode = () => {
@@ -290,8 +372,8 @@ export const LocationOnboardingModal: React.FC<LocationOnboardingModalProps> = (
                     <Text style={[FontStyles.sansBold, { fontSize: 13.5, color: '#111111' }]}>
                       Use Current GPS Location
                     </Text>
-                    <Text style={[FontStyles.sansBold, { fontSize: 11, color: '#059669', marginTop: 1 }]}>
-                      ⚡ Indiranagar Central Hub • 18-Min Instant Drop Available
+                    <Text style={[FontStyles.sansRegular, { fontSize: 11, color: '#8A857D', marginTop: 1 }]}>
+                      Tap to acquire GPS and verify 18-min instant availability
                     </Text>
                   </View>
                 </View>
@@ -302,6 +384,27 @@ export const LocationOnboardingModal: React.FC<LocationOnboardingModalProps> = (
                   <ChevronRight size={16} color="#6B6667" />
                 )}
               </Pressable>
+
+              {locationError && (
+                <View
+                  style={{
+                    backgroundColor: '#FEF2F2',
+                    borderWidth: 1,
+                    borderColor: '#FECACA',
+                    borderRadius: 12,
+                    padding: 12,
+                    marginBottom: 16,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 10,
+                  }}
+                >
+                  <AlertTriangle size={18} color="#DC2626" />
+                  <Text style={[FontStyles.sansRegular, { fontSize: 12, color: '#991B1B', flex: 1 }]}>
+                    {locationError}
+                  </Text>
+                </View>
+              )}
 
               {/* 2. Custom Pincode / Radius Verification Bar */}
               <View

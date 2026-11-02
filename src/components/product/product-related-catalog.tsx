@@ -18,7 +18,7 @@ const FILTER_TABS = ['All', 'Women', 'Men', 'Kids', 'Ethnic', 'Western', 'Footwe
 
 type SortType = 'FEATURED' | 'LOW_TO_HIGH' | 'HIGH_TO_LOW';
 
-export const ProductRelatedCatalog = React.memo(function ProductRelatedCatalog({
+export function ProductRelatedCatalog({
   products,
   currentProductId,
   wishlist,
@@ -245,4 +245,4 @@ export const ProductRelatedCatalog = React.memo(function ProductRelatedCatalog({
       )}
     </View>
   );
-});
+}

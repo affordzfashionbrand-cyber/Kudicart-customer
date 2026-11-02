@@ -127,7 +127,7 @@ export const CartBottomBar = React.memo(function CartBottomBar({
               ? 'NOT AVAILABLE FOR THIS PLACE'
               : selectedPaymentCategory === 'COD'
               ? 'PLACE ORDER (COD)'
-              : 'PAY & PLACE ORDER'}
+              : 'PAY SECURELY WITH RAZORPAY'}
           </Text>
           <ArrowRight size={15} color="#FFFFFF" />
         </AnimatedPressable>

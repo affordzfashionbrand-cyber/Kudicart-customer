@@ -147,11 +147,10 @@ export function LiveTrackingMap({
 
   // Open real navigation in Google Maps
   const handleOpenGoogleMaps = () => {
-    const originLat = 12.9716;
-    const originLng = 77.6412;
-    const destLat = 12.9645;
-    const destLng = 77.632;
-    const url = `https://www.google.com/maps/dir/?api=1&origin=${originLat},${originLng}&destination=${destLat},${destLng}&travelmode=driving`;
+    const originLat = driver?.currentLocation?.latitude || 12.9784;
+    const originLng = driver?.currentLocation?.longitude || 77.6408;
+    const dest = encodeURIComponent(destinationAddress || 'Bengaluru');
+    const url = `https://www.google.com/maps/dir/?api=1&origin=${originLat},${originLng}&destination=${dest}&travelmode=driving`;
     Linking.openURL(url).catch(() => {});
   };
 
@@ -282,8 +281,8 @@ export function LiveTrackingMap({
               <Circle r="26" fill="none" stroke="#FF5A1F" strokeWidth="2" opacity={0.4} />
             </G>
 
-            {/* 8. Live Delivery Pilot Marker & Concentric Radar Waves */}
-            {status !== 'DELIVERED' && (
+            {/* 8. Live Delivery Pilot Marker & Concentric Radar Waves (Only when rider is assigned & actively in transit) */}
+            {status !== 'DELIVERED' && driver && ['PICKED_UP', 'OUT_FOR_DELIVERY'].includes(status) && (
               <G transform={`translate(${riderPosition.x}, ${riderPosition.y})`}>
                 <Circle r="34" fill="none" stroke="#FF5A1F" strokeWidth="1.5" opacity={0.35} />
                 <Circle r="24" fill="none" stroke="#FF5A1F" strokeWidth="2" opacity={0.6} />
@@ -338,7 +337,11 @@ export function LiveTrackingMap({
             <Text style={{ fontSize: 9.5, fontWeight: '900', color: '#FFFFFF', letterSpacing: 0.8 }}>
               {status === 'DELIVERED'
                 ? 'DELIVERED AT DOORSTEP'
-                : `LIVE GPS • ${currentStageMeta.label.toUpperCase()}`}
+                : !driver
+                ? 'PREPARING AT HUB • RIDER PENDING'
+                : ['PICKED_UP', 'OUT_FOR_DELIVERY'].includes(status)
+                ? `LIVE GPS • ${driver.name.toUpperCase()} ON ROUTE`
+                : `${driver.name.toUpperCase()} ASSIGNED • PICKUP IN PROGRESS`}
             </Text>
           </View>
 

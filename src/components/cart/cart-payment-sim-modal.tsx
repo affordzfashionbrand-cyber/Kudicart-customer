@@ -1,17 +1,22 @@
-import React from 'react';
-import { View, Text, Modal, Pressable } from 'react-native';
-import { CreditCard, X, CheckCircle2 } from 'lucide-react-native';
+import React, { useState } from 'react';
+import { View, Text, Modal, Pressable, ActivityIndicator } from 'react-native';
+import { CreditCard, X, ShieldCheck, AlertCircle } from 'lucide-react-native';
 import { AnimatedPressable } from '@/components/common/animated-pressable';
+import { launchRazorpayCheckout, RazorpayCheckoutResult } from '@/services/razorpay';
+import { BrandColors, FontStyles } from '@/constants/theme';
 
 export interface CartPaymentSimModalProps {
   visible: boolean;
   onClose: () => void;
   pendingPaymentOrder: any;
   finalPayable: number;
-  isSimulatingPayment: boolean;
-  handleSimulatePaymentSuccess: () => void;
-  handleSimulatePaymentFailure: () => void;
+  isSimulatingPayment?: boolean;
+  handleSimulatePaymentSuccess?: () => void;
+  handleSimulatePaymentFailure?: () => void;
   formatPrice: (price: number) => string;
+  handleRazorpaySuccess?: (result: RazorpayCheckoutResult) => Promise<void>;
+  razorpayKeyId?: string;
+  razorpayOrderId?: string;
 }
 
 export const CartPaymentSimModal = React.memo(function CartPaymentSimModal({
@@ -19,11 +24,67 @@ export const CartPaymentSimModal = React.memo(function CartPaymentSimModal({
   onClose,
   pendingPaymentOrder,
   finalPayable,
-  isSimulatingPayment,
-  handleSimulatePaymentSuccess,
-  handleSimulatePaymentFailure,
+  isSimulatingPayment = false,
   formatPrice,
+  handleRazorpaySuccess,
+  razorpayKeyId,
+  razorpayOrderId,
 }: CartPaymentSimModalProps) {
+  const [isLaunchingRzp, setIsLaunchingRzp] = useState(false);
+  const [rzpError, setRzpError] = useState<string | null>(null);
+
+  // Hard gate: Never render in production builds
+  if (!__DEV__ || process.env.EXPO_PUBLIC_APP_ENV === 'production') {
+    return null;
+  }
+
+  const effectiveKeyId =
+    razorpayKeyId ||
+    pendingPaymentOrder?.razorpayKeyId ||
+    process.env.EXPO_PUBLIC_RAZORPAY_KEY_ID;
+
+  const effectiveRzpOrderId =
+    razorpayOrderId ||
+    pendingPaymentOrder?.razorpayOrderId;
+
+  const payableAmount = pendingPaymentOrder?.grandTotal || finalPayable;
+
+  const handleLaunchRazorpay = async () => {
+    if (!effectiveKeyId || !effectiveRzpOrderId) {
+      setRzpError('Razorpay order or Key ID is missing. Please initiate payment through checkout.');
+      return;
+    }
+
+    setIsLaunchingRzp(true);
+    setRzpError(null);
+    try {
+      const result = await launchRazorpayCheckout({
+        key: effectiveKeyId,
+        amount: Math.round(payableAmount * 100),
+        currency: 'INR',
+        name: 'Affordz Quick Commerce',
+        description: `Order #${pendingPaymentOrder?.orderNumber || pendingPaymentOrder?.id || 'AF-2026'}`,
+        order_id: effectiveRzpOrderId,
+        orderId: pendingPaymentOrder?.id || '',
+        prefill: {
+          name: pendingPaymentOrder?.recipientName || 'Affordz Customer',
+          contact: pendingPaymentOrder?.recipientPhone || '+91 98450 12890',
+        },
+        theme: {
+          color: '#0D9488',
+        },
+      });
+
+      if (handleRazorpaySuccess) {
+        await handleRazorpaySuccess(result);
+      }
+    } catch (err: any) {
+      setRzpError(err.message || 'Payment initiation failed.');
+    } finally {
+      setIsLaunchingRzp(false);
+    }
+  };
+
   return (
     <Modal
       visible={visible}
@@ -34,7 +95,7 @@ export const CartPaymentSimModal = React.memo(function CartPaymentSimModal({
       <View
         style={{
           flex: 1,
-          backgroundColor: 'rgba(0,0,0,0.75)',
+          backgroundColor: 'rgba(0,0,0,0.65)',
           justifyContent: 'center',
           alignItems: 'center',
           padding: 20,
@@ -42,16 +103,13 @@ export const CartPaymentSimModal = React.memo(function CartPaymentSimModal({
       >
         <View
           style={{
-            width: '100%',
-            maxWidth: 420,
             backgroundColor: '#FFFFFF',
-            borderRadius: 24,
+            borderRadius: 20,
             padding: 22,
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 10 },
-            shadowOpacity: 0.25,
-            shadowRadius: 20,
-            elevation: 10,
+            width: '100%',
+            maxWidth: 400,
+            borderWidth: 1,
+            borderColor: '#E8E5DF',
           }}
         >
           {/* Header */}
@@ -60,114 +118,84 @@ export const CartPaymentSimModal = React.memo(function CartPaymentSimModal({
               flexDirection: 'row',
               justifyContent: 'space-between',
               alignItems: 'center',
-              marginBottom: 14,
+              marginBottom: 16,
             }}
           >
-            <View>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <CreditCard size={16} color="#FF5A1F" />
-                <Text
-                  style={{
-                    fontSize: 10,
-                    fontWeight: '900',
-                    color: '#FF5A1F',
-                    letterSpacing: 1,
-                    textTransform: 'uppercase',
-                  }}
-                >
-                  DEMO PAYMENT SIMULATOR
-                </Text>
-              </View>
-              <Text style={{ fontSize: 18, fontWeight: '900', color: '#111111', marginTop: 2 }}>
-                Simulated Payment
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <CreditCard size={18} color="#0D9488" />
+              <Text style={[{ fontSize: 16, color: BrandColors.inkBlack }, FontStyles.sansBold]}>
+                Razorpay Checkout (Dev)
               </Text>
             </View>
-            <Pressable
-              onPress={onClose}
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: 16,
-                backgroundColor: '#F4F1EA',
-                justifyContent: 'center',
-                alignItems: 'center',
-              }}
-            >
-              <X size={16} color="#6B6667" />
+            <Pressable onPress={onClose} hitSlop={10}>
+              <X size={20} color="#6B6667" />
             </Pressable>
           </View>
 
-          {/* Order Summary Strip */}
+          {/* Amount Box */}
           <View
             style={{
-              backgroundColor: '#F7F5F0',
-              borderRadius: 14,
+              backgroundColor: '#FAF8F5',
+              borderRadius: 12,
               padding: 14,
               marginBottom: 16,
-              borderWidth: 1,
-              borderColor: '#E8E5DF',
+              alignItems: 'center',
             }}
           >
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
-              <Text style={{ fontSize: 12, color: '#6B6667' }}>Order Number</Text>
-              <Text style={{ fontSize: 12, fontWeight: '800', color: '#111111' }}>
-                #{pendingPaymentOrder?.orderNumber || pendingPaymentOrder?.id || 'AF-2026'}
-              </Text>
-            </View>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Text style={{ fontSize: 12, color: '#6B6667' }}>Payable Amount</Text>
-              <Text style={{ fontSize: 16, fontWeight: '900', color: '#FF5A1F' }}>
-                {formatPrice(pendingPaymentOrder?.grandTotal || finalPayable)}
-              </Text>
-            </View>
+            <Text style={[{ fontSize: 12, color: '#71717A' }, FontStyles.sansRegular]}>
+              Payable Amount
+            </Text>
+            <Text style={[{ fontSize: 24, color: BrandColors.inkBlack, marginTop: 4 }, FontStyles.sansBold]}>
+              {formatPrice(payableAmount)}
+            </Text>
+            <Text style={[{ fontSize: 11, color: '#0D9488', marginTop: 4 }, FontStyles.sansMedium]}>
+              Order #{pendingPaymentOrder?.orderNumber || pendingPaymentOrder?.id || ''}
+            </Text>
           </View>
 
-          <Text style={{ fontSize: 11.5, color: '#6B6667', lineHeight: 17, marginBottom: 18 }}>
-            Select payment outcome to test QA resilience, order state transition, and payment failure recovery paths:
-          </Text>
-
-          {/* Outcome Buttons */}
-          <View style={{ gap: 10 }}>
-            <AnimatedPressable
+          {rzpError && (
+            <View
               style={{
-                backgroundColor: '#15803D',
-                borderRadius: 14,
-                paddingVertical: 14,
-                alignItems: 'center',
-                justifyContent: 'center',
+                backgroundColor: '#FEF2F2',
+                borderRadius: 10,
+                padding: 10,
+                marginBottom: 14,
                 flexDirection: 'row',
+                alignItems: 'flex-start',
                 gap: 8,
               }}
-              onPress={handleSimulatePaymentSuccess}
-              disabled={isSimulatingPayment}
             >
-              <CheckCircle2 size={16} color="#FFFFFF" />
-              <Text style={{ fontSize: 13, fontWeight: '900', color: '#FFFFFF' }}>
-                {isSimulatingPayment ? 'Verifying...' : 'Simulate Success (Payment Verified)'}
+              <AlertCircle size={15} color="#DC2626" style={{ marginTop: 2 }} />
+              <Text style={[{ fontSize: 11.5, color: '#B91C1C', flex: 1 }, FontStyles.sansRegular]}>
+                {rzpError}
               </Text>
-            </AnimatedPressable>
+            </View>
+          )}
 
-            <AnimatedPressable
-              style={{
-                backgroundColor: '#FFFFFF',
-                borderWidth: 1.5,
-                borderColor: '#DC2626',
-                borderRadius: 14,
-                paddingVertical: 13,
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexDirection: 'row',
-                gap: 8,
-              }}
-              onPress={handleSimulatePaymentFailure}
-              disabled={isSimulatingPayment}
-            >
-              <X size={16} color="#DC2626" />
-              <Text style={{ fontSize: 13, fontWeight: '900', color: '#DC2626' }}>
-                Simulate Failure (Bank Decline / Cancel)
-              </Text>
-            </AnimatedPressable>
-          </View>
+          <AnimatedPressable
+            disabled={isLaunchingRzp || isSimulatingPayment}
+            onPress={handleLaunchRazorpay}
+            style={{
+              backgroundColor: '#0D9488',
+              borderRadius: 12,
+              paddingVertical: 14,
+              alignItems: 'center',
+              flexDirection: 'row',
+              justifyContent: 'center',
+              gap: 8,
+            }}
+          >
+            {isLaunchingRzp ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <>
+                <ShieldCheck size={16} color="#FFFFFF" />
+                <Text style={[{ color: '#FFFFFF', fontSize: 14 }, FontStyles.sansBold]}>
+                  Open Official Razorpay
+                </Text>
+              </>
+            )}
+          </AnimatedPressable>
         </View>
       </View>
     </Modal>

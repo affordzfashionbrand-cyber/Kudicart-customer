@@ -68,8 +68,8 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
         onSuccess?.();
         onClose();
       }, 700);
-    } catch {
-      setValidationError('Failed to update profile. Please try again.');
+    } catch (err: any) {
+      setValidationError(err?.message || 'Failed to update profile. Please try again.');
     }
   };
 

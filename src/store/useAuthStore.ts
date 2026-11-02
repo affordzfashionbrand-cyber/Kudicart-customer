@@ -152,7 +152,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   loadProfile: async () => {
     try {
       const user = await authApi.getProfile();
-      set({ user });
+      if (user) {
+        set({ user });
+        if (get().token) {
+          await saveSession(get().token!, user);
+        }
+      }
     } catch (err) {
       console.warn('Could not load profile from backend:', err);
     }
@@ -160,53 +165,22 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   updateProfile: async (data: Partial<AuthUser>) => {
     set({ isLoading: true, error: null });
-
-    const current = get().user;
-    const baseUser: AuthUser = current || {
-      id: `usr-${Date.now()}`,
-      phone: '+91 8124188999',
-      name: data.name || 'Affordz Customer',
-      email: data.email || 'customer@affordz.in',
-      avatar: null,
-      role: 'CUSTOMER',
-    };
-
-    const trimmedName =
-      data.name !== undefined && data.name.trim() ? data.name.trim() : baseUser.name;
-    const trimmedEmail =
-      data.email !== undefined && data.email.trim() ? data.email.trim() : baseUser.email;
-
-    const updatedUser: AuthUser = {
-      ...baseUser,
-      ...data,
-      name: trimmedName,
-      email: trimmedEmail,
-    };
-
-    const token = get().token || `affordz-token-${Date.now()}`;
-    setAuthToken(token);
-    await saveSession(token, updatedUser);
-    set({ user: updatedUser, token, isAuthenticated: true, isLoading: false });
-
     try {
       const serverUser = await authApi.updateProfile({
-        ...updatedUser,
-        name: trimmedName,
-        email: trimmedEmail || undefined,
+        name: data.name !== undefined ? data.name.trim() : undefined,
+        email: data.email !== undefined ? (data.email.trim() || undefined) : undefined,
         avatar: data.avatar || undefined,
       });
 
-      if (serverUser && serverUser.name) {
-        const finalUser: AuthUser = {
-          ...updatedUser,
-          ...serverUser,
-          name: trimmedName,
-        };
-        await saveSession(token, finalUser);
-        set({ user: finalUser });
+      if (serverUser) {
+        const token = get().token || `affordz-token-${Date.now()}`;
+        await saveSession(token, serverUser);
+        set({ user: serverUser, isLoading: false, error: null });
       }
     } catch (err: any) {
-      console.warn('[Affordz Auth] Backend profile update note:', err?.message || err);
+      const message = err?.message || 'Failed to update profile. Please try again.';
+      set({ isLoading: false, error: message });
+      throw new Error(message);
     }
   },
 

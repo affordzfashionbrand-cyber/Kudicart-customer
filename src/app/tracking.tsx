@@ -67,6 +67,21 @@ export default function TrackingScreen() {
   const [isRatingExpanded, setIsRatingExpanded] = useState(true);
   const [isEditingRating, setIsEditingRating] = useState(false);
 
+  // Target order resolution
+  const currentOrder = useMemo(() => {
+    if (params.orderId) {
+      const match = orders.find((o) => o.id === params.orderId || o.orderNumber === params.orderId);
+      if (match) return match;
+    }
+    if (activeOrder && (!params.orderId || activeOrder.id === params.orderId || activeOrder.orderNumber === params.orderId)) {
+      return activeOrder;
+    }
+    return orders[0] || null;
+  }, [params.orderId, orders, activeOrder]);
+
+  // Authoritative live status from backend tracking / order
+  const activeStatus = (activeTracking?.status || currentOrder?.status || 'PLACED') as OrderStatus;
+
   // Initial and polling fetch for live tracking
   const loadTracking = useCallback(async () => {
     if (effectiveOrderId) {
@@ -76,11 +91,14 @@ export default function TrackingScreen() {
 
   useEffect(() => {
     loadTracking();
+    if (activeStatus === 'DELIVERED' || activeStatus === 'CANCELLED') {
+      return;
+    }
     const interval = setInterval(() => {
       loadTracking();
-    }, 15000); // 15-second live polling
+    }, 15000); // 15-second live polling per DCR-005
     return () => clearInterval(interval);
-  }, [loadTracking]);
+  }, [loadTracking, activeStatus]);
 
   // Android hardware back handler
   useEffect(() => {
@@ -97,21 +115,6 @@ export default function TrackingScreen() {
     await Promise.all([loadTracking(), fetchOrders()]);
     setIsRefreshing(false);
   }, [loadTracking, fetchOrders]);
-
-  // Target order resolution
-  const currentOrder = useMemo(() => {
-    if (params.orderId) {
-      const match = orders.find((o) => o.id === params.orderId || o.orderNumber === params.orderId);
-      if (match) return match;
-    }
-    if (activeOrder && (!params.orderId || activeOrder.id === params.orderId || activeOrder.orderNumber === params.orderId)) {
-      return activeOrder;
-    }
-    return orders[0] || null;
-  }, [params.orderId, orders, activeOrder]);
-
-  // Authoritative live status from backend tracking / order
-  const activeStatus = (activeTracking?.status || currentOrder?.status || 'PLACED') as OrderStatus;
 
   // Instant 18-Min Hyperlocal Drop vs Standard Boutique
   const isDarkStore = useMemo(() => {

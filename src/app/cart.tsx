@@ -7,7 +7,7 @@ import {
   Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import {
   ArrowLeft,
   ShieldCheck,
@@ -22,6 +22,8 @@ import { useOrderStore } from '@/store/useOrderStore';
 import { useAuthStore } from '@/store/useAuthStore';
 import { AddressModal } from '@/components/address-modal';
 import { AuthModal } from '@/components/auth-modal';
+import { paymentsApi } from '@/services/api';
+import { launchRazorpayCheckout } from '@/services/razorpay';
 
 import { CartTopDeals, DealProduct } from '@/components/cart/cart-top-deals';
 import { CartFlashUrgencyTimer } from '@/components/cart/cart-flash-urgency-timer';
@@ -35,7 +37,6 @@ import { CartCouponsSection } from '@/components/cart/cart-coupons-section';
 import { CartPaymentSection } from '@/components/cart/cart-payment-section';
 import { CartBillDetailsSection } from '@/components/cart/cart-bill-details-section';
 import { CartBottomBar } from '@/components/cart/cart-bottom-bar';
-import { CartPaymentSimModal } from '@/components/cart/cart-payment-sim-modal';
 
 import { MotionEditorialShowcase } from '@/components/common/motion-editorial-showcase';
 import { AnimatedPressable } from '@/components/common/animated-pressable';
@@ -70,7 +71,65 @@ export default function CheckoutScreen() {
     addItem,
     wishlist,
     toggleWishlist,
+    buyNowItem,
+    clearBuyNowItem,
+    updateBuyNowQuantity,
   } = useCartStore();
+
+  const { mode } = useLocalSearchParams<{ mode?: string }>();
+  const isBuyNowMode = mode === 'buyNow' && Boolean(buyNowItem);
+
+  // Active items for this checkout session
+  const checkoutItems = useMemo(() => {
+    if (isBuyNowMode && buyNowItem) {
+      return [buyNowItem];
+    }
+    return items;
+  }, [isBuyNowMode, buyNowItem, items]);
+
+  // Pricing calculations: strictly isolated to checkoutItems
+  const activeItemTotal = useMemo(() => {
+    if (isBuyNowMode && buyNowItem) {
+      return buyNowItem.price * buyNowItem.quantity;
+    }
+    return itemTotal;
+  }, [isBuyNowMode, buyNowItem, itemTotal]);
+
+  const activeTaxes = useMemo(() => {
+    if (isBuyNowMode && buyNowItem) {
+      return Math.round(activeItemTotal * 0.05);
+    }
+    return taxes;
+  }, [isBuyNowMode, buyNowItem, activeItemTotal, taxes]);
+
+  const activeDeliveryFee = useMemo(() => {
+    if (isBuyNowMode && buyNowItem) {
+      return activeItemTotal > 0 ? (activeItemTotal >= 1499 ? 0 : 40) : 0;
+    }
+    return deliveryFee;
+  }, [isBuyNowMode, buyNowItem, activeItemTotal, deliveryFee]);
+
+  const activeGiftWrapFee = giftWrap ? 35 : 0;
+
+  const activeGrandTotal = useMemo(() => {
+    if (isBuyNowMode && buyNowItem) {
+      return Math.max(
+        0,
+        activeItemTotal - discountAmount + activeTaxes + activeDeliveryFee + activeGiftWrapFee + donationAmount,
+      );
+    }
+    return grandTotal;
+  }, [
+    isBuyNowMode,
+    buyNowItem,
+    activeItemTotal,
+    discountAmount,
+    activeTaxes,
+    activeDeliveryFee,
+    activeGiftWrapFee,
+    donationAmount,
+    grandTotal,
+  ]);
 
   const { addresses, selectedAddressId, setSelectedAddressId } = useAddressStore();
   const { checkout, isCheckingOut } = useOrderStore();
@@ -78,49 +137,38 @@ export default function CheckoutScreen() {
 
   // Screen UI State
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
-  const [selectedPaymentCategory, setSelectedPaymentCategory] = useState<'UPI' | 'CARD' | 'NET_BANKING' | 'COD'>('UPI');
-  const [selectedUpiApp, setSelectedUpiApp] = useState<string>('gpay');
-  const [customUpiId, setCustomUpiId] = useState<string>('');
-  const [selectedBank, setSelectedBank] = useState<string>('hdfc');
+  const [selectedPaymentCategory, setSelectedPaymentCategory] = useState<'RAZORPAY' | 'COD'>('RAZORPAY');
   const [tryAndBuyEnabled, setTryAndBuyEnabled] = useState<boolean>(true);
   const [selectedInstruction, setSelectedInstruction] = useState<string | null>('call');
   const [isItemsExpanded, setIsItemsExpanded] = useState<boolean>(true);
   const [isAddressModalOpen, setIsAddressModalOpen] = useState<boolean>(false);
   const [isLocationModalOpen, setIsLocationModalOpen] = useState<boolean>(false);
 
-  // Card Form State
-  const [cardNumber, setCardNumber] = useState<string>('');
-  const [cardExpiry, setCardExpiry] = useState<string>('');
-  const [cardCvv, setCardCvv] = useState<string>('');
-  const [cardName, setCardName] = useState<string>('');
-
   // Coupon Input State
   const [couponInput, setCouponInput] = useState<string>('');
   const [couponFeedback, setCouponFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  // Payment Simulation & Order State
+  // Payment & Order State
   const [orderSuccess, setOrderSuccess] = useState<boolean>(false);
   const [confirmedOrderNumber, setConfirmedOrderNumber] = useState<string>('KC-89241');
   const [confirmedOrder, setConfirmedOrder] = useState<any>(null);
   const successAnim = useRef(new Animated.Value(0)).current;
 
-  const [isPaymentSimModalOpen, setIsPaymentSimModalOpen] = useState<boolean>(false);
-  const [pendingPaymentOrder, setPendingPaymentOrder] = useState<any>(null);
   const [paymentError, setPaymentError] = useState<string | null>(null);
-  const [isSimulatingPayment, setIsSimulatingPayment] = useState<boolean>(false);
+  const [isProcessingPayment, setIsProcessingPayment] = useState<boolean>(false);
 
-  // Dark Store vs Vendor Invariant
+  // Dark Store vs Vendor Invariant (Bound strictly to active checkout items)
   const hasDarkStoreItems = useMemo(() => {
-    return items.some((it) => it.fulfillmentType === 'DARK_STORE' || it.isTryAndBuy);
-  }, [items]);
+    return checkoutItems.some((it) => it.fulfillmentType === 'DARK_STORE' || it.isTryAndBuy);
+  }, [checkoutItems]);
 
   useEffect(() => {
-    if (!hasDarkStoreItems && items.length > 0) {
+    if (!hasDarkStoreItems && checkoutItems.length > 0) {
       setTryAndBuyEnabled(false);
     } else if (hasDarkStoreItems) {
       setTryAndBuyEnabled(true);
     }
-  }, [hasDarkStoreItems, items.length]);
+  }, [hasDarkStoreItems, checkoutItems.length]);
 
   // Toast State
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -137,11 +185,30 @@ export default function CheckoutScreen() {
 
   // Handlers
   const handleRemoveItem = useCallback(async (itemId: string, title?: string) => {
+    if (isBuyNowMode) {
+      clearBuyNowItem();
+      showToast(title ? `Cancelled Buy Now for ${title}` : 'Cancelled Buy Now');
+      safeBack(router, '/');
+      return;
+    }
     await removeItem(itemId);
     showToast(title ? `Removed ${title} from bag` : 'Item removed from bag');
-  }, [removeItem, showToast]);
+  }, [isBuyNowMode, clearBuyNowItem, removeItem, showToast, router]);
 
   const handleUpdateItemQty = useCallback(async (itemId: string, delta: number, title?: string, currentQty?: number) => {
+    if (isBuyNowMode) {
+      if (delta < 0 && (currentQty || 1) <= 1) {
+        await handleRemoveItem(itemId, title);
+        return;
+      }
+      updateBuyNowQuantity(delta);
+      if (delta > 0) {
+        showToast(`Updated quantity to ${(currentQty || 1) + 1}`);
+      } else {
+        showToast(`Updated quantity to ${(currentQty || 1) - 1}`);
+      }
+      return;
+    }
     if (delta < 0 && (currentQty || 1) <= 1) {
       await handleRemoveItem(itemId, title);
       return;
@@ -152,11 +219,11 @@ export default function CheckoutScreen() {
     } else {
       showToast(`Updated quantity to ${(currentQty || 1) - 1}`);
     }
-  }, [handleRemoveItem, updateQuantity, showToast]);
+  }, [isBuyNowMode, handleRemoveItem, updateBuyNowQuantity, updateQuantity, showToast]);
 
   const cartProductIds = useMemo(() => {
-    return items.map((i) => i.productId);
-  }, [items]);
+    return checkoutItems.map((i) => i.productId);
+  }, [checkoutItems]);
 
   const handleDealAddToCart = useCallback(async (deal: DealProduct) => {
     const productPayload: any = {
@@ -199,14 +266,14 @@ export default function CheckoutScreen() {
 
   // Pricing calculations
   const totalMrp = useMemo(() => {
-    return items.reduce((acc, item) => {
+    return checkoutItems.reduce((acc, item) => {
       const orig = item.originalPrice && item.originalPrice > item.price ? item.originalPrice : Math.round(item.price * 1.35);
       return acc + orig * item.quantity;
     }, 0);
-  }, [items]);
+  }, [checkoutItems]);
 
-  const discountOnMrp = Math.max(0, totalMrp - itemTotal);
-  const finalPayable = grandTotal;
+  const discountOnMrp = Math.max(0, totalMrp - activeItemTotal);
+  const finalPayable = activeGrandTotal;
 
   // Coupon Handlers
   const handleApplyCouponCode = useCallback(async (codeToApply: string) => {
@@ -226,22 +293,6 @@ export default function CheckoutScreen() {
     setCouponFeedback(null);
   }, [removeCoupon]);
 
-  // Card Formatter Handlers
-  const handleCardNumberChange = useCallback((text: string) => {
-    const cleaned = text.replace(/\D/g, '').slice(0, 16);
-    const formatted = cleaned.match(/.{1,4}/g)?.join(' ') || cleaned;
-    setCardNumber(formatted);
-  }, []);
-
-  const handleExpiryChange = useCallback((text: string) => {
-    const cleaned = text.replace(/\D/g, '').slice(0, 4);
-    if (cleaned.length >= 3) {
-      setCardExpiry(`${cleaned.slice(0, 2)}/${cleaned.slice(2)}`);
-    } else {
-      setCardExpiry(cleaned);
-    }
-  }, []);
-
   // Checkout Placement Handler
   const handlePlaceOrder = async () => {
     if (!isAuthenticated) {
@@ -257,7 +308,7 @@ export default function CheckoutScreen() {
     // Serviceability check for 18-minute Dark Store items
     if (hasDarkStoreItems && !addressServiceability.isServiceable) {
       setPaymentError(
-        `Instant 18-minute delivery is NOT AVAILABLE for ${selectedAddress?.locality || selectedAddress?.city || 'this location'} (${addressServiceability.distanceKm} km from Indiranagar Hub, max radius 8.0 km). Please select an address within 8.0 km or remove dark store items.`
+        `Instant 18-minute delivery is NOT AVAILABLE for ${selectedAddress?.locality || selectedAddress?.city || 'this location'} (${addressServiceability.distanceKm} km from Indiranagar Hub, max radius 8.0 km). Please select an address within 8.0 km or remove dark store items.`,
       );
       showToast('Location not available for 18-min drop!');
       setIsLocationModalOpen(true);
@@ -266,45 +317,12 @@ export default function CheckoutScreen() {
 
     setPaymentError(null);
 
-    // Validate UPI
-    if (selectedPaymentCategory === 'UPI' && selectedUpiApp === 'custom') {
-      const trimmed = customUpiId.trim();
-      if (!trimmed || !trimmed.includes('@') || trimmed.length < 5) {
-        setPaymentError('Please enter a valid UPI ID (e.g. mobile@upi or name@okhdfcbank).');
-        return;
-      }
-    }
-
-    // Validate Card
-    if (selectedPaymentCategory === 'CARD') {
-      const cleanNum = cardNumber.replace(/\D/g, '');
-      if (cleanNum.length !== 16) {
-        setPaymentError('Please enter a valid 16-digit debit or credit card number.');
-        return;
-      }
-      const cleanExp = cardExpiry.replace(/\D/g, '');
-      if (cleanExp.length !== 4) {
-        setPaymentError('Please enter a valid card expiry date (MM/YY).');
-        return;
-      }
-      const month = parseInt(cleanExp.slice(0, 2), 10);
-      if (month < 1 || month > 12) {
-        setPaymentError('Card expiry month must be between 01 and 12.');
-        return;
-      }
-      const cleanCvv = cardCvv.replace(/\D/g, '');
-      if (cleanCvv.length < 3 || cleanCvv.length > 4) {
-        setPaymentError('Please enter a valid 3 or 4-digit CVV code.');
-        return;
-      }
-    }
-
     const isCod = selectedPaymentCategory === 'COD';
     const effectiveTryAndBuy = hasDarkStoreItems && tryAndBuyEnabled;
     const isDark = hasDarkStoreItems;
     const isTry = effectiveTryAndBuy;
 
-    const orderItemsSnapshot = items.map((it) => ({
+    const orderItemsSnapshot = checkoutItems.map((it) => ({
       id: it.id,
       title: it.title,
       brand: it.brand,
@@ -321,9 +339,9 @@ export default function CheckoutScreen() {
       orderNumber: `AF-${Math.floor(10000 + Math.random() * 90000)}`,
       orderId: '',
       totalPaid: finalPayable,
-      itemTotal,
-      deliveryFee,
-      taxes,
+      itemTotal: activeItemTotal,
+      deliveryFee: activeDeliveryFee,
+      taxes: activeTaxes,
       discountAmount,
       couponCode: couponCode || null,
       isDarkStore: isDark,
@@ -343,64 +361,52 @@ export default function CheckoutScreen() {
       etaText: isDark
         ? (isTry ? '⚡ In 18 Minutes • Doorstep Try & Buy Concierge' : '⚡ In 18 Minutes • Express Drop')
         : '📦 In 2-4 Business Days • Insured Boutique Courier',
-      paymentMethod: isCod ? 'Cash on Delivery (COD)' : 'Prepaid Online (Razorpay Sandbox)',
+      paymentMethod: isCod ? 'Cash on Delivery (COD)' : 'Prepaid Online (Razorpay)',
       placedAt: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
     };
 
-    const order = await checkout({
-      addressId: selectedAddress.id,
-      paymentMethod: isCod ? 'COD' : 'RAZORPAY',
-      couponCode: couponCode || undefined,
-      isTryAndBuy: effectiveTryAndBuy,
-      items: orderItemsSnapshot,
-      itemTotal,
-      deliveryFee,
-      taxes,
-      grandTotal: finalPayable,
-    });
-
-    if (order) {
-      orderSnapshot.orderNumber = order.orderNumber || orderSnapshot.orderNumber;
-      orderSnapshot.orderId = order.id || orderSnapshot.orderId;
-      if (order.grandTotal) {
-        orderSnapshot.totalPaid = order.grandTotal;
-      }
-      setConfirmedOrder(orderSnapshot);
-      setConfirmedOrderNumber(orderSnapshot.orderNumber);
-
-      if (isCod) {
-        await useCartStore.getState().clearCart();
-        setOrderSuccess(true);
-        Animated.timing(successAnim, {
-          toValue: 1,
-          duration: 500,
-          easing: bespokeEasing,
-          useNativeDriver: Platform.OS !== 'web',
-        }).start();
-      } else {
-        setPendingPaymentOrder({ ...order, snapshot: orderSnapshot });
-        setIsPaymentSimModalOpen(true);
-      }
-    }
-  };
-
-  const handleSimulatePaymentSuccess = useCallback(async () => {
-    if (!pendingPaymentOrder) return;
-    setIsSimulatingPayment(true);
+    setIsProcessingPayment(true);
+    let order: any = null;
     try {
-      await useOrderStore.getState().verifyPayment({
-        orderId: pendingPaymentOrder.id,
-        paymentId: `pay_sim_${Date.now()}`,
-        signature: 'sig_abc',
+      order = await checkout({
+        addressId: selectedAddress.id,
+        paymentMethod: isCod ? 'COD' : 'RAZORPAY',
+        couponCode: couponCode || undefined,
+        isTryAndBuy: effectiveTryAndBuy,
+        isBuyNow: isBuyNowMode,
+        items: orderItemsSnapshot,
+        itemTotal: activeItemTotal,
+        deliveryFee: activeDeliveryFee,
+        taxes: activeTaxes,
+        grandTotal: finalPayable,
       });
-      const snapshot = pendingPaymentOrder.snapshot || confirmedOrder;
-      if (snapshot) {
-        setConfirmedOrder(snapshot);
-        setConfirmedOrderNumber(snapshot.orderNumber);
+    } catch (err: any) {
+      setIsProcessingPayment(false);
+      setPaymentError(err?.message || 'Failed to place order. Please try again.');
+      return;
+    }
+
+    if (!order) {
+      setIsProcessingPayment(false);
+      setPaymentError('Failed to initialize order with server. Please try again.');
+      return;
+    }
+
+    orderSnapshot.orderNumber = order.orderNumber || orderSnapshot.orderNumber;
+    orderSnapshot.orderId = order.id || orderSnapshot.orderId;
+    if (order.grandTotal) {
+      orderSnapshot.totalPaid = order.grandTotal;
+    }
+    setConfirmedOrder(orderSnapshot);
+    setConfirmedOrderNumber(orderSnapshot.orderNumber);
+
+    if (isCod) {
+      setIsProcessingPayment(false);
+      if (isBuyNowMode) {
+        clearBuyNowItem();
+      } else {
+        await useCartStore.getState().clearCart();
       }
-      await useCartStore.getState().clearCart();
-      setIsPaymentSimModalOpen(false);
-      setPendingPaymentOrder(null);
       setOrderSuccess(true);
       Animated.timing(successAnim, {
         toValue: 1,
@@ -408,20 +414,99 @@ export default function CheckoutScreen() {
         easing: bespokeEasing,
         useNativeDriver: Platform.OS !== 'web',
       }).start();
-    } catch (err: any) {
-      setPaymentError(err?.message || 'Payment verification failed');
-      setIsPaymentSimModalOpen(false);
-    } finally {
-      setIsSimulatingPayment(false);
+      return;
     }
-  }, [pendingPaymentOrder, confirmedOrder, successAnim]);
 
-  const handleSimulatePaymentFailure = useCallback(() => {
-    setIsPaymentSimModalOpen(false);
-    setPaymentError(
-      'Simulated payment failed (Bank declined/cancelled). Your bag items and delivery choices are preserved. You can retry online payment or choose Cash on Delivery (COD).',
-    );
-  }, []);
+    // Razorpay Online Flow
+    try {
+      // 1. Create real Razorpay order on backend
+      const rzpDetails = await paymentsApi.createRazorpayOrder(finalPayable, order.id);
+      if (!rzpDetails || !rzpDetails.razorpayOrderId || !rzpDetails.keyId) {
+        throw new Error('Backend did not return valid Razorpay credentials.');
+      }
+
+      // 2. Launch Razorpay Checkout (Web popup or Native hosted session)
+      const rzpResult = await launchRazorpayCheckout({
+        key: rzpDetails.keyId,
+        amount: rzpDetails.amountInPaisa,
+        currency: rzpDetails.currency || 'INR',
+        name: 'Affordz Quick Commerce',
+        description: `Order #${order.orderNumber || order.id}`,
+        order_id: rzpDetails.razorpayOrderId,
+        orderId: order.id,
+        prefill: {
+          name: user?.name || orderSnapshot.recipientName,
+          email: user?.email || 'customer@affordz.in',
+          contact: user?.phone || orderSnapshot.recipientPhone,
+        },
+        theme: {
+          color: '#0D9488',
+        },
+      });
+
+      if (rzpResult.type === 'cancelled') {
+        setIsProcessingPayment(false);
+        setPaymentError(
+          rzpResult.reason || 'Payment was cancelled. Your bag items are preserved and you can retry safely.',
+        );
+        return;
+      }
+
+      if (rzpResult.type === 'genuine_callback') {
+        // Direct web callback: authoritative verification via HMAC-SHA256 signature
+        const verifyRes = await useOrderStore.getState().verifyPayment({
+          orderId: order.id,
+          paymentId: rzpResult.razorpay_payment_id,
+          signature: rzpResult.razorpay_signature,
+          razorpayOrderId: rzpResult.razorpay_order_id,
+        });
+
+        if (verifyRes?.verified) {
+          if (isBuyNowMode) {
+            clearBuyNowItem();
+          } else {
+            await useCartStore.getState().clearCart();
+          }
+          setOrderSuccess(true);
+          Animated.timing(successAnim, {
+            toValue: 1,
+            duration: 500,
+            easing: bespokeEasing,
+            useNativeDriver: Platform.OS !== 'web',
+          }).start();
+        } else {
+          throw new Error('Payment signature verification failed on server.');
+        }
+      } else if (rzpResult.type === 'hosted_session_completed') {
+        // Native mobile session callback: query authoritative server status
+        const statusRes = await useOrderStore.getState().confirmPaymentStatus(order.id);
+        if (statusRes?.paymentStatus === 'COMPLETED') {
+          if (isBuyNowMode) {
+            clearBuyNowItem();
+          } else {
+            await useCartStore.getState().clearCart();
+          }
+          setOrderSuccess(true);
+          Animated.timing(successAnim, {
+            toValue: 1,
+            duration: 500,
+            easing: bespokeEasing,
+            useNativeDriver: Platform.OS !== 'web',
+          }).start();
+        } else {
+          throw new Error(
+            'Payment could not be verified by server. If amount was deducted, it will be refunded automatically.',
+          );
+        }
+      }
+    } catch (err: any) {
+      setPaymentError(
+        err?.message || 'Payment initiation or verification failed. Your bag items are preserved.',
+      );
+    } finally {
+      setIsProcessingPayment(false);
+    }
+  };
 
   // 1. Order Success Screen
   if (orderSuccess) {
@@ -442,7 +527,7 @@ export default function CheckoutScreen() {
   }
 
   // 2. Empty Cart Screen
-  if (items.length === 0) {
+  if (checkoutItems.length === 0) {
     return (
       <CartEmptyView
         paddingTop={paddingTop}
@@ -479,7 +564,12 @@ export default function CheckoutScreen() {
       >
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
           <AnimatedPressable
-            onPress={() => safeBack(router)}
+            onPress={() => {
+              if (isBuyNowMode) {
+                clearBuyNowItem();
+              }
+              safeBack(router);
+            }}
             style={{
               width: 40,
               height: 40,
@@ -495,7 +585,10 @@ export default function CheckoutScreen() {
           </AnimatedPressable>
           <View>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <EditorialText text="Shopping Bag" style={{ fontSize: 17, color: '#1A1817' }} />
+              <EditorialText
+                text={isBuyNowMode ? 'Buy Now Checkout' : 'Shopping Bag'}
+                style={{ fontSize: 17, color: '#1A1817' }}
+              />
               <View
                 style={{
                   backgroundColor: '#1A1817',
@@ -512,7 +605,7 @@ export default function CheckoutScreen() {
                     fontWeight: '700',
                   }}
                 >
-                  {items.length} {items.length === 1 ? 'ITEM' : 'ITEMS'}
+                  {checkoutItems.length} {checkoutItems.length === 1 ? 'ITEM' : 'ITEMS'}
                 </Text>
               </View>
             </View>
@@ -525,7 +618,9 @@ export default function CheckoutScreen() {
                 marginTop: 2,
               }}
             >
-              STEP 2 OF 2 • SECURE ENCRYPTED CHECKOUT
+              {isBuyNowMode
+                ? 'EXPRESS SINGLE-ITEM DIRECT CHECKOUT'
+                : 'STEP 2 OF 2 • SECURE ENCRYPTED CHECKOUT'}
             </Text>
           </View>
         </View>
@@ -620,7 +715,7 @@ export default function CheckoutScreen() {
 
         {/* 4. Bag Items Accordion */}
         <CartItemsSection
-          items={items}
+          items={checkoutItems}
           isItemsExpanded={isItemsExpanded}
           setIsItemsExpanded={setIsItemsExpanded}
           handleRemoveItem={handleRemoveItem}
@@ -642,26 +737,15 @@ export default function CheckoutScreen() {
         <CartPaymentSection
           selectedPaymentCategory={selectedPaymentCategory}
           setSelectedPaymentCategory={setSelectedPaymentCategory}
-          selectedUpiApp={selectedUpiApp}
-          setSelectedUpiApp={setSelectedUpiApp}
-          customUpiId={customUpiId}
-          setCustomUpiId={setCustomUpiId}
-          cardNumber={cardNumber}
-          handleCardNumberChange={handleCardNumberChange}
-          cardExpiry={cardExpiry}
-          handleExpiryChange={handleExpiryChange}
-          cardCvv={cardCvv}
-          setCardCvv={setCardCvv}
-          cardName={cardName}
-          setCardName={setCardName}
-          selectedBank={selectedBank}
-          setSelectedBank={setSelectedBank}
-          isProduction={isProduction}
+          payableAmount={finalPayable}
+          isProcessingPayment={isProcessingPayment}
+          paymentError={paymentError}
+          onRetryPayment={handlePlaceOrder}
         />
 
         {/* 7. Bill Details Breakdown */}
         <CartBillDetailsSection
-          items={items}
+          items={checkoutItems}
           giftWrap={giftWrap}
           toggleGiftWrap={toggleGiftWrap}
           donationAmount={donationAmount}
@@ -708,17 +792,6 @@ export default function CheckoutScreen() {
       />
 
       {/* Modals */}
-      <CartPaymentSimModal
-        visible={isPaymentSimModalOpen}
-        onClose={() => setIsPaymentSimModalOpen(false)}
-        pendingPaymentOrder={pendingPaymentOrder}
-        finalPayable={finalPayable}
-        isSimulatingPayment={isSimulatingPayment}
-        handleSimulatePaymentSuccess={handleSimulatePaymentSuccess}
-        handleSimulatePaymentFailure={handleSimulatePaymentFailure}
-        formatPrice={formatPrice}
-      />
-
       <AddressModal
         visible={isAddressModalOpen}
         onClose={() => setIsAddressModalOpen(false)}

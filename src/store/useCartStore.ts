@@ -36,6 +36,12 @@ interface CartState {
   donationAmount: number;
   gstin: string | null;
 
+  // Buy Now Standalone State (Exact product direct checkout)
+  buyNowItem: LocalCartItem | null;
+  setBuyNowItem: (item: LocalCartItem | null) => void;
+  clearBuyNowItem: () => void;
+  updateBuyNowQuantity: (delta: number) => void;
+
   fetchCart: () => Promise<void>;
   addItem: (
     product: ApiProduct,
@@ -109,6 +115,25 @@ export const useCartStore = create<CartState>((set, get) => ({
   giftWrap: false,
   donationAmount: 0,
   gstin: null,
+
+  buyNowItem: null,
+  setBuyNowItem: (item) => set({ buyNowItem: item }),
+  clearBuyNowItem: () => set({ buyNowItem: null }),
+  updateBuyNowQuantity: (delta) => {
+    const state = get();
+    if (!state.buyNowItem) return;
+    const newQty = state.buyNowItem.quantity + delta;
+    if (newQty <= 0) {
+      set({ buyNowItem: null });
+    } else {
+      set({
+        buyNowItem: {
+          ...state.buyNowItem,
+          quantity: newQty,
+        },
+      });
+    }
+  },
 
   fetchCart: async () => {
     try {

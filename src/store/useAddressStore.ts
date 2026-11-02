@@ -158,50 +158,37 @@ interface AddressState {
 }
 
 export const useAddressStore = create<AddressState>((set, get) => ({
-  addresses: [
-    {
-      id: 'addr-1',
-      userId: 'usr-1',
-      label: 'Home Sanctuary',
-      line1: 'Apt 4B, Sunrise Heights, 42 Westend Boulevard',
-      locality: 'Indiranagar',
-      city: 'Bengaluru',
-      pincode: '560038',
-      isDefault: true,
-    },
-    {
-      id: 'addr-2',
-      userId: 'usr-1',
-      label: 'Design Studio',
-      line1: 'Suite 802, Prestige Tech Cloud, Outer Ring Road',
-      locality: 'Kadubeesanahalli',
-      city: 'Bengaluru',
-      pincode: '560103',
-      isDefault: false,
-    },
-  ],
-  selectedAddressId: 'addr-1',
+  addresses: [],
+  selectedAddressId: '',
   hasLocationConfirmed: false,
   isLoading: false,
   error: null,
 
   fetchAddresses: async () => {
+    set({ isLoading: true, error: null });
     try {
       const addresses = await addressApi.getAddresses();
       if (addresses && addresses.length > 0) {
         const defaultAddr = addresses.find((a) => a.isDefault) || addresses[0];
-        set({ addresses, selectedAddressId: defaultAddr.id });
+        set({
+          addresses,
+          selectedAddressId: get().selectedAddressId || defaultAddr.id,
+          isLoading: false,
+        });
+      } else {
+        set({ addresses: [], selectedAddressId: '', isLoading: false });
       }
     } catch (err: any) {
-      console.warn('Could not fetch addresses:', err);
+      set({ isLoading: false, error: err?.message || 'Failed to load addresses' });
     }
   },
 
   addAddress: async (data) => {
-    set({ isLoading: true });
+    set({ isLoading: true, error: null });
     try {
       const newAddr = await addressApi.addAddress(data);
-      const updated = [...get().addresses, newAddr];
+      const existing = get().addresses.map((a) => (newAddr.isDefault ? { ...a, isDefault: false } : a));
+      const updated = [...existing, newAddr];
       set({
         addresses: updated,
         selectedAddressId: newAddr.id,
@@ -211,63 +198,57 @@ export const useAddressStore = create<AddressState>((set, get) => ({
       return newAddr;
     } catch (err: any) {
       set({ isLoading: false, error: err?.message || 'Failed to add address' });
-      const fallback: AddressModel = {
-        id: `addr-${Date.now()}`,
-        userId: 'usr-1',
-        ...data,
-      };
-      set({
-        addresses: [...get().addresses, fallback],
-        selectedAddressId: fallback.id,
-        hasLocationConfirmed: true,
-      });
-      return fallback;
+      throw err;
     }
   },
 
   updateAddress: async (id: string, data: Partial<AddressModel>) => {
-    set({ isLoading: true });
+    set({ isLoading: true, error: null });
     try {
       const updatedAddr = await addressApi.updateAddress(id, data);
-      const updatedList = get().addresses.map((a) => (a.id === id ? updatedAddr : a));
+      const updatedList = get().addresses.map((a) => {
+        if (a.id === id) return updatedAddr;
+        if (updatedAddr.isDefault) return { ...a, isDefault: false };
+        return a;
+      });
       set({ addresses: updatedList, isLoading: false });
       return updatedAddr;
     } catch (err: any) {
-      const updatedList = get().addresses.map((a) => (a.id === id ? { ...a, ...data } : a));
-      set({ addresses: updatedList, isLoading: false });
-      const found = updatedList.find((a) => a.id === id);
-      return found || get().addresses[0];
+      set({ isLoading: false, error: err?.message || 'Failed to update address' });
+      throw err;
     }
   },
 
   deleteAddress: async (id: string) => {
-    set({ isLoading: true });
+    set({ isLoading: true, error: null });
     try {
       await addressApi.deleteAddress(id);
-    } catch {
-      // offline fallback
+      const refreshed = await addressApi.getAddresses();
+      const newSelected = refreshed.find((a) => a.isDefault) || refreshed[0];
+      set({
+        addresses: refreshed,
+        selectedAddressId: newSelected ? newSelected.id : '',
+        isLoading: false,
+      });
+    } catch (err: any) {
+      set({ isLoading: false, error: err?.message || 'Failed to delete address' });
+      throw err;
     }
-    const filtered = get().addresses.filter((a) => a.id !== id);
-    const newSelectedId =
-      get().selectedAddressId === id ? filtered[0]?.id || '' : get().selectedAddressId;
-    set({
-      addresses: filtered,
-      selectedAddressId: newSelectedId,
-      isLoading: false,
-    });
   },
 
   setDefaultAddress: async (id: string) => {
+    set({ isLoading: true, error: null });
     try {
       await addressApi.setDefault(id);
-    } catch {
-      // offline
+      const updated = get().addresses.map((a) => ({
+        ...a,
+        isDefault: a.id === id,
+      }));
+      set({ addresses: updated, selectedAddressId: id, isLoading: false });
+    } catch (err: any) {
+      set({ isLoading: false, error: err?.message || 'Failed to set default address' });
+      throw err;
     }
-    const updated = get().addresses.map((a) => ({
-      ...a,
-      isDefault: a.id === id,
-    }));
-    set({ addresses: updated, selectedAddressId: id });
   },
 
   setSelectedAddressId: (id: string) => {

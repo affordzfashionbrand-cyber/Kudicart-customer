@@ -6,6 +6,10 @@ import { EditorialText } from '@/components/common/section-title';
 import { CUSTOMER_LOOKS } from './product-constants';
 
 export function ProductCustomerLooks() {
+  if (!CUSTOMER_LOOKS || CUSTOMER_LOOKS.length === 0) {
+    return null;
+  }
+
   return (
     <View style={{ marginTop: 24, paddingLeft: 16 }}>
       <View style={{ paddingRight: 16, marginBottom: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>

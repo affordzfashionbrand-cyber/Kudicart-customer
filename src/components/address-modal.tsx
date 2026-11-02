@@ -11,7 +11,9 @@ import {
   Platform,
   ScrollView,
   Dimensions,
+  ActivityIndicator,
 } from 'react-native';
+import * as Location from 'expo-location';
 import {
   X,
   ArrowRight,
@@ -47,24 +49,46 @@ export function AddressModal({
   onSelectAddress,
 }: AddressModalProps) {
   const insets = useSafeAreaInsets();
-  const { addresses, addAddress, updateAddress, deleteAddress } = useAddressStore();
+  const { addresses, addAddress, updateAddress, deleteAddress, fetchAddresses } = useAddressStore();
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [editingAddressId, setEditingAddressId] = useState<string | null>(null);
   const slideAnim = useRef(new Animated.Value(600)).current;
 
   // New Address Form State
   const [formError, setFormError] = useState<string | null>(null);
+  const [isLocating, setIsLocating] = useState(false);
   const [selectedTag, setSelectedTag] = useState<'HOME' | 'WORK' | 'OTHER'>('HOME');
-  const [newAddress, setNewAddress] = useState({
+  const [newAddress, setNewAddress] = useState<{
+    label: string;
+    recipientName: string;
+    recipientPhone: string;
+    line1: string;
+    line2: string;
+    locality: string;
+    city: string;
+    state: string;
+    pincode: string;
+    latitude?: number;
+    longitude?: number;
+    isDefault: boolean;
+  }>({
     label: 'Home Sanctuary',
+    recipientName: '',
+    recipientPhone: '',
     line1: '',
+    line2: '',
     locality: '',
     city: 'Bengaluru',
+    state: 'Karnataka',
     pincode: '',
+    latitude: undefined,
+    longitude: undefined,
+    isDefault: false,
   });
 
   useEffect(() => {
     if (visible) {
+      fetchAddresses();
       Animated.timing(slideAnim, {
         toValue: 0,
         duration: 450,
@@ -94,10 +118,17 @@ export function AddressModal({
     setEditingAddressId(addr.id);
     setNewAddress({
       label: addr.label,
+      recipientName: addr.recipientName || '',
+      recipientPhone: addr.recipientPhone || '',
       line1: addr.line1,
+      line2: addr.line2 || '',
       locality: addr.locality,
       city: addr.city,
+      state: addr.state || 'Karnataka',
       pincode: addr.pincode,
+      latitude: addr.latitude,
+      longitude: addr.longitude,
+      isDefault: addr.isDefault || false,
     });
     if (addr.label.toLowerCase().includes('home')) setSelectedTag('HOME');
     else if (addr.label.toLowerCase().includes('studio') || addr.label.toLowerCase().includes('work')) setSelectedTag('WORK');
@@ -106,8 +137,66 @@ export function AddressModal({
     setIsAddingNew(true);
   };
 
+  const handleDetectGPSInModal = async () => {
+    setIsLocating(true);
+    setFormError(null);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        setFormError('Location permission denied. Please enter address manually.');
+        setIsLocating(false);
+        return;
+      }
+      const enabled = await Location.hasServicesEnabledAsync();
+      if (!enabled) {
+        setFormError('Device GPS is turned off. Please enable GPS.');
+        setIsLocating(false);
+        return;
+      }
+      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+      const { latitude, longitude } = pos.coords;
+
+      let line1 = 'Current Location';
+      let locality = 'Indiranagar';
+      let city = 'Bengaluru';
+      let pincode = '560038';
+
+      try {
+        const rev = await Location.reverseGeocodeAsync({ latitude, longitude });
+        if (rev && rev.length > 0) {
+          const r = rev[0];
+          const parts = [r.streetNumber, r.street, r.name].filter(Boolean);
+          if (parts.length > 0) line1 = parts.join(', ');
+          locality = r.district || r.subregion || r.city || locality;
+          city = r.city || r.region || city;
+          pincode = r.postalCode || pincode;
+        }
+      } catch (e) {
+        console.warn('Reverse geocode fallback:', e);
+      }
+
+      setNewAddress((prev) => ({
+        ...prev,
+        line1,
+        locality,
+        city,
+        pincode,
+        latitude,
+        longitude,
+      }));
+    } catch (err: any) {
+      setFormError(err?.message || 'Could not acquire GPS location.');
+    } finally {
+      setIsLocating(false);
+    }
+  };
+
   const handleDelete = async (addrId: string) => {
-    await deleteAddress(addrId);
+    try {
+      await deleteAddress(addrId);
+    } catch (err: any) {
+      setFormError(err?.message || 'Failed to delete address.');
+    }
   };
 
   const handleTagChange = (tag: 'HOME' | 'WORK' | 'OTHER') => {
@@ -141,19 +230,38 @@ export function AddressModal({
       return;
     }
 
-    if (editingAddressId) {
-      const updated = await updateAddress(editingAddressId, { ...newAddress, pincode: cleanPin });
-      setEditingAddressId(null);
-      setIsAddingNew(false);
-      onSelectAddress(updated);
-      handleClose();
-    } else {
-      const added = await addAddress({ ...newAddress, pincode: cleanPin, isDefault: false });
-      if (added) {
+    const payload = {
+      label: newAddress.label.trim(),
+      recipientName: newAddress.recipientName.trim() || undefined,
+      recipientPhone: newAddress.recipientPhone.trim() || undefined,
+      line1: newAddress.line1.trim(),
+      line2: newAddress.line2.trim() || undefined,
+      locality: newAddress.locality.trim(),
+      city: newAddress.city.trim(),
+      state: newAddress.state.trim() || undefined,
+      pincode: cleanPin,
+      latitude: newAddress.latitude,
+      longitude: newAddress.longitude,
+      isDefault: newAddress.isDefault,
+    };
+
+    try {
+      if (editingAddressId) {
+        const updated = await updateAddress(editingAddressId, payload);
+        setEditingAddressId(null);
         setIsAddingNew(false);
-        onSelectAddress(added);
+        onSelectAddress(updated);
         handleClose();
+      } else {
+        const added = await addAddress(payload);
+        if (added) {
+          setIsAddingNew(false);
+          onSelectAddress(added);
+          handleClose();
+        }
       }
+    } catch (err: any) {
+      setFormError(err?.message || 'Failed to save address. Please try again.');
     }
   };
 
@@ -257,15 +365,8 @@ export function AddressModal({
             <ScrollView showsVerticalScrollIndicator={false} className="mb-2">
               {/* GPS Auto-Detect Button */}
               <Pressable
-                onPress={() => {
-                  setNewAddress({
-                    label: selectedTag === 'HOME' ? 'Home Sanctuary' : selectedTag === 'WORK' ? 'Studio HQ' : 'Other Hub',
-                    line1: 'Near 12th Main, 100ft Road',
-                    locality: 'Indiranagar',
-                    city: 'Bengaluru',
-                    pincode: '560038',
-                  });
-                }}
+                onPress={handleDetectGPSInModal}
+                disabled={isLocating}
                 style={{
                   backgroundColor: '#F0F9FF',
                   borderWidth: 1,
@@ -285,12 +386,18 @@ export function AddressModal({
                     Use Current GPS Location
                   </Text>
                   <Text style={{ fontSize: 10, color: '#C2410C', marginTop: 1 }}>
-                    Indiranagar, Bengaluru (18-Min Express Hub in Range)
+                    {isLocating
+                      ? 'Acquiring GPS coordinates from device...'
+                      : 'Acquire real coordinates to verify instant serviceability'}
                   </Text>
                 </View>
-                <View style={{ backgroundColor: '#C2410C', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 }}>
-                  <Text style={{ fontSize: 9, fontWeight: '900', color: '#FFFFFF' }}>DETECT</Text>
-                </View>
+                {isLocating ? (
+                  <ActivityIndicator size="small" color="#C2410C" />
+                ) : (
+                  <View style={{ backgroundColor: '#C2410C', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 }}>
+                    <Text style={{ fontSize: 9, fontWeight: '900', color: '#FFFFFF' }}>DETECT</Text>
+                  </View>
+                )}
               </Pressable>
 
               {/* Quick Google Places Autocomplete Suggestions */}
@@ -381,8 +488,36 @@ export function AddressModal({
                 onChangeText={(t) => setNewAddress({ ...newAddress, label: t })}
               />
 
+              <View className="flex-row gap-3 mb-4">
+                <View className="flex-1">
+                  <Text className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-400 mb-1.5">
+                    RECIPIENT NAME (OPTIONAL)
+                  </Text>
+                  <TextInput
+                    className="h-[48px] bg-zinc-50 border border-zinc-200 rounded-[14px] px-4 text-[14px] text-zinc-900"
+                    placeholder="e.g. Ananya Sharma"
+                    placeholderTextColor="#A1A1AA"
+                    value={newAddress.recipientName}
+                    onChangeText={(t) => setNewAddress({ ...newAddress, recipientName: t })}
+                  />
+                </View>
+                <View className="flex-1">
+                  <Text className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-400 mb-1.5">
+                    CONTACT PHONE (OPTIONAL)
+                  </Text>
+                  <TextInput
+                    className="h-[48px] bg-zinc-50 border border-zinc-200 rounded-[14px] px-4 text-[14px] text-zinc-900"
+                    placeholder="+91 98450 12890"
+                    placeholderTextColor="#A1A1AA"
+                    keyboardType="phone-pad"
+                    value={newAddress.recipientPhone}
+                    onChangeText={(t) => setNewAddress({ ...newAddress, recipientPhone: t })}
+                  />
+                </View>
+              </View>
+
               <Text className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-400 mb-1.5">
-                HOUSE / FLAT / BUILDING
+                HOUSE / FLAT / BUILDING (LINE 1)
               </Text>
               <TextInput
                 className="h-[48px] bg-zinc-50 border border-zinc-200 rounded-[14px] px-4 text-[14px] text-zinc-900 mb-4"
@@ -390,6 +525,17 @@ export function AddressModal({
                 placeholderTextColor="#A1A1AA"
                 value={newAddress.line1}
                 onChangeText={(t) => setNewAddress({ ...newAddress, line1: t })}
+              />
+
+              <Text className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-400 mb-1.5">
+                APARTMENT / SUITE / LANDMARK (OPTIONAL)
+              </Text>
+              <TextInput
+                className="h-[48px] bg-zinc-50 border border-zinc-200 rounded-[14px] px-4 text-[14px] text-zinc-900 mb-4"
+                placeholder="e.g. Near Indiranagar Metro Station"
+                placeholderTextColor="#A1A1AA"
+                value={newAddress.line2}
+                onChangeText={(t) => setNewAddress({ ...newAddress, line2: t })}
               />
 
               <Text className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-400 mb-1.5">
@@ -403,7 +549,7 @@ export function AddressModal({
                 onChangeText={(t) => setNewAddress({ ...newAddress, locality: t })}
               />
 
-              <View className="flex-row gap-3 mb-5">
+              <View className="flex-row gap-2 mb-4">
                 <View className="flex-1">
                   <Text className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-400 mb-1.5">
                     CITY
@@ -414,6 +560,18 @@ export function AddressModal({
                     placeholderTextColor="#A1A1AA"
                     value={newAddress.city}
                     onChangeText={(t) => setNewAddress({ ...newAddress, city: t })}
+                  />
+                </View>
+                <View className="flex-1">
+                  <Text className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-400 mb-1.5">
+                    STATE
+                  </Text>
+                  <TextInput
+                    className="h-[48px] bg-zinc-50 border border-zinc-200 rounded-[14px] px-4 text-[14px] text-zinc-900"
+                    placeholder="Karnataka"
+                    placeholderTextColor="#A1A1AA"
+                    value={newAddress.state}
+                    onChangeText={(t) => setNewAddress({ ...newAddress, state: t })}
                   />
                 </View>
                 <View className="flex-1">
@@ -431,6 +589,29 @@ export function AddressModal({
                   />
                 </View>
               </View>
+
+              <Pressable
+                onPress={() => setNewAddress({ ...newAddress, isDefault: !newAddress.isDefault })}
+                className="flex-row items-center gap-3 mb-5 px-1 py-2"
+              >
+                <View
+                  style={{
+                    width: 20,
+                    height: 20,
+                    borderRadius: 6,
+                    borderWidth: 1.5,
+                    borderColor: newAddress.isDefault ? '#111111' : '#D1D5DB',
+                    backgroundColor: newAddress.isDefault ? '#111111' : '#FFFFFF',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  {newAddress.isDefault && <Check size={13} color="#FFFFFF" strokeWidth={3} />}
+                </View>
+                <Text className="text-[13px] font-bold text-zinc-800">
+                  Set as default delivery address
+                </Text>
+              </Pressable>
 
               <AnimatedPressable
                 className="flex-row items-center bg-black rounded-full pl-6 pr-2 py-2 justify-between mt-2 active:opacity-90"
@@ -533,12 +714,18 @@ export function AddressModal({
 
                         {/* Address detail lines */}
                         <View style={{ paddingLeft: 50 }}>
+                          {addr.recipientName ? (
+                            <Text className="text-[12px] font-bold text-[#111111] mb-0.5">
+                              {addr.recipientName} {addr.recipientPhone ? `(${addr.recipientPhone})` : ''}
+                            </Text>
+                          ) : null}
                           <Text className="text-[13px] text-[#111111] leading-[19px]">
                             {addr.line1}
+                            {addr.line2 ? `, ${addr.line2}` : ''}
                             {addr.locality ? `, ${addr.locality}` : ''}
                           </Text>
                           <Text className="text-[12px] text-[#6B6667] mt-0.5 font-medium">
-                            {addr.city} • {addr.pincode}
+                            {addr.city}{addr.state ? `, ${addr.state}` : ''} • {addr.pincode}
                           </Text>
                           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
                             {addr.pincode.startsWith('560') ? (

@@ -88,8 +88,13 @@ export default function Page() {
     hasLocationConfirmed,
     getServiceability,
     getSelectedAddress,
+    fetchAddresses,
   } = useAddressStore();
   const { isDarkStoreModalOpen, openDarkStoreModal, closeDarkStoreModal } = useDarkStore();
+
+  useEffect(() => {
+    fetchAddresses();
+  }, []);
 
   // Screen Tabs & Active Filters
   const [tab, setTab] = useState('HOME');

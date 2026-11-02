@@ -1,5 +1,13 @@
 import { create } from 'zustand';
-import { ordersApi, OrderModel, TrackingModel, CheckoutPayload, reviewsApi } from '@/services/api';
+import {
+  ordersApi,
+  paymentsApi,
+  OrderModel,
+  TrackingModel,
+  CheckoutPayload,
+  reviewsApi,
+  PaymentStatusResponse,
+} from '@/services/api';
 import { useCartStore } from './useCartStore';
 
 export interface OrderRatingData {
@@ -24,7 +32,13 @@ interface OrderState {
     payloadOrAddressId: string | CheckoutPayload,
     paymentMethodArg?: 'RAZORPAY' | 'COD',
   ) => Promise<OrderModel | null>;
-  verifyPayment: (data: { orderId: string; paymentId: string; signature: string }) => Promise<any>;
+  verifyPayment: (data: {
+    orderId: string;
+    paymentId: string;
+    signature: string;
+    razorpayOrderId?: string;
+  }) => Promise<any>;
+  confirmPaymentStatus: (orderId: string) => Promise<PaymentStatusResponse | null>;
   fetchTracking: (orderId: string) => Promise<TrackingModel | null>;
   setActiveOrder: (order: OrderModel | null) => void;
   submitOrderRating: (
@@ -182,6 +196,22 @@ export const useOrderStore = create<OrderState>((set, get) => ({
       return res;
     } catch (err: any) {
       console.warn('Payment verification error:', err);
+      throw err;
+    }
+  },
+
+  confirmPaymentStatus: async (orderId: string) => {
+    try {
+      const statusRes = await paymentsApi.getPaymentStatus(orderId);
+      if (statusRes.paymentStatus === 'COMPLETED') {
+        // Clear cart upon authoritative completion
+        await useCartStore.getState().clearCart();
+        get().fetchOrders();
+        get().fetchTracking(orderId);
+      }
+      return statusRes;
+    } catch (err: any) {
+      console.warn('Payment status query error:', err);
       throw err;
     }
   },

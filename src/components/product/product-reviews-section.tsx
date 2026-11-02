@@ -1,12 +1,11 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, Pressable, Animated } from 'react-native';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { View, Text, Pressable } from 'react-native';
 import {
   Star,
   CheckCircle2,
   Edit3,
   ThumbsUp,
   Sparkles,
-  ChevronRight,
 } from 'lucide-react-native';
 import { EditorialText } from '@/components/common/section-title';
 import { WriteReviewModal } from './write-review-modal';
@@ -34,59 +33,19 @@ export interface ProductReviewsSectionProps {
   reviewsCount?: number;
 }
 
-const DEFAULT_REVIEWS: ReviewItem[] = [
-  {
-    id: 'rev-seed-1',
-    userName: 'Ananya Mathur',
-    userLocation: 'Indiranagar 12th Main • 18-min drop',
-    rating: 5,
-    comment:
-      'Fabric is unimaginably light with that genuine crisp handloom rustle. The concierge rider waited outside patiently while I slipped it on. Retained Size S and he took M back effortlessly. Game-changing luxury.',
-    tags: ['True to Size', 'Crisp Handloom Texture', '18-Min Quick Drop'],
-    createdAt: '2 days ago',
-    verified: true,
-  },
-  {
-    id: 'rev-seed-2',
-    userName: 'Radhika Varma',
-    userLocation: 'Koramangala 4th Block',
-    rating: 5,
-    comment:
-      'The golden zari border has such an understated, authentic sheen—not garish at all. Wore it for an evening reception and received countless compliments.',
-    tags: ['Rich Golden Zari', 'Flattering Drape'],
-    createdAt: '4 days ago',
-    verified: true,
-  },
-  {
-    id: 'rev-seed-3',
-    userName: 'Priya Sengupta',
-    userLocation: 'MG Road Atelier Hub',
-    rating: 5,
-    comment:
-      'Ordered at 3:15 PM and it reached my doorstep in Indiranagar in 16 minutes! The Try & Buy concierge service is unbeatable.',
-    tags: ['18-Min Quick Drop', 'Breathable Fabric'],
-    createdAt: '1 week ago',
-    verified: true,
-  },
-];
-
 export function ProductReviewsSection({
   productId = '101',
   productTitle = 'Handloom Cotton Saree with Zari',
   productImage,
   brand = 'Varanasi Looms',
-  rating = 4.9,
-  reviewsCount = 148,
+  rating: initialRating = 0,
+  reviewsCount: initialReviewsCount = 0,
 }: ProductReviewsSectionProps) {
-  const [reviews, setReviews] = useState<ReviewItem[]>(DEFAULT_REVIEWS);
+  const [reviews, setReviews] = useState<ReviewItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(Boolean(productId));
   const [isWriteModalOpen, setIsWriteModalOpen] = useState(false);
   const [selectedFilter, setSelectedFilter] = useState<'ALL' | '5_STAR' | 'VERIFIED'>('ALL');
-  const [helpfulCounts, setHelpfulCounts] = useState<Record<string, number>>({
-    'rev-seed-1': 14,
-    'rev-seed-2': 9,
-    'rev-seed-3': 6,
-  });
+  const [helpfulCounts, setHelpfulCounts] = useState<Record<string, number>>({});
   const [votedReviews, setVotedReviews] = useState<Record<string, boolean>>({});
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -96,28 +55,34 @@ export function ProductReviewsSection({
     async function loadReviews() {
       try {
         if (productId) {
+          setIsLoading(true);
           const apiReviews = await reviewsApi.getProductReviews(productId);
-          if (isMounted && apiReviews && apiReviews.length > 0) {
-            const mapped: ReviewItem[] = apiReviews.map((r: any) => ({
-              id: r.id,
-              userName: r.author?.name || r.user?.name || 'Verified Customer',
-              userLocation: 'Verified Delivery',
-              rating: r.rating,
-              comment: r.comment,
-              tags: ['Verified Purchase', 'Atelier Craft'],
-              createdAt: 'Recent',
-              verified: true,
-            }));
-            // Merge with default seed without duplicates
-            setReviews((prev) => {
-              const existingIds = new Set(mapped.map((m) => m.id));
-              const filteredPrev = prev.filter((p) => !existingIds.has(p.id));
-              return [...mapped, ...filteredPrev];
-            });
+          if (isMounted) {
+            if (apiReviews && apiReviews.length > 0) {
+              const mapped: ReviewItem[] = apiReviews.map((r: any) => ({
+                id: r.id,
+                userName: r.author?.name || r.user?.name || 'Verified Customer',
+                userLocation: 'Verified Delivery',
+                rating: Number(r.rating) || 5,
+                comment: r.comment || '',
+                tags: ['Verified Purchase', 'Atelier Craft'],
+                createdAt: r.createdAt
+                  ? new Date(r.createdAt).toLocaleDateString('en-IN', {
+                      day: 'numeric',
+                      month: 'short',
+                      year: 'numeric',
+                    })
+                  : 'Recent',
+                verified: true,
+              }));
+              setReviews(mapped);
+            } else {
+              setReviews([]);
+            }
           }
         }
       } catch {
-        // Fallback to local default reviews
+        if (isMounted) setReviews([]);
       } finally {
         if (isMounted) setIsLoading(false);
       }
@@ -128,39 +93,45 @@ export function ProductReviewsSection({
     };
   }, [productId]);
 
-  const handleReviewSubmitted = (newReview: {
-    id: string;
-    userName: string;
-    rating: number;
-    comment: string;
-    tags: string[];
-    createdAt: string;
-    verified: boolean;
-  }) => {
-    const item: ReviewItem = {
-      id: newReview.id,
-      userName: newReview.userName,
-      userLocation: 'Indiranagar Hub • Just Now',
-      rating: newReview.rating,
-      comment: newReview.comment,
-      tags: newReview.tags,
-      createdAt: 'Just now',
-      verified: true,
-    };
+  const handleReviewSubmitted = useCallback(
+    (newReview: {
+      id: string;
+      userName: string;
+      rating: number;
+      comment: string;
+      tags: string[];
+      createdAt: string;
+      verified: boolean;
+    }) => {
+      const item: ReviewItem = {
+        id: newReview.id,
+        userName: newReview.userName,
+        userLocation: 'Indiranagar Hub • Just Now',
+        rating: newReview.rating,
+        comment: newReview.comment,
+        tags: newReview.tags,
+        createdAt: 'Just now',
+        verified: true,
+      };
 
-    setReviews([item, ...reviews]);
-    setToastMessage('Thank you! Your verified review has been published.');
-    setTimeout(() => setToastMessage(null), 3000);
-  };
+      setReviews((prev) => [item, ...prev]);
+      setToastMessage('Thank you! Your verified review has been published.');
+      setTimeout(() => setToastMessage(null), 3000);
+    },
+    [],
+  );
 
-  const toggleHelpful = (id: string) => {
-    if (votedReviews[id]) return;
-    setHelpfulCounts((prev) => ({
-      ...prev,
-      [id]: (prev[id] || 0) + 1,
-    }));
-    setVotedReviews((prev) => ({ ...prev, [id]: true }));
-  };
+  const toggleHelpful = useCallback(
+    (id: string) => {
+      if (votedReviews[id]) return;
+      setHelpfulCounts((prev) => ({
+        ...prev,
+        [id]: (prev[id] || 0) + 1,
+      }));
+      setVotedReviews((prev) => ({ ...prev, [id]: true }));
+    },
+    [votedReviews],
+  );
 
   const filteredReviews = useMemo(() => {
     if (selectedFilter === '5_STAR') {
@@ -172,7 +143,19 @@ export function ProductReviewsSection({
     return reviews;
   }, [reviews, selectedFilter]);
 
-  const totalCount = reviewsCount + (reviews.length - DEFAULT_REVIEWS.length);
+  const totalCount = reviews.length;
+
+  const averageRating = useMemo(() => {
+    if (reviews.length === 0) return initialRating || 0;
+    const sum = reviews.reduce((acc, r) => acc + (r.rating || 0), 0);
+    return Number((sum / reviews.length).toFixed(1));
+  }, [reviews, initialRating]);
+
+  const positivePercentage = useMemo(() => {
+    if (reviews.length === 0) return 0;
+    const positive = reviews.filter((r) => r.rating >= 4).length;
+    return Math.round((positive / reviews.length) * 100);
+  }, [reviews]);
 
   if (isLoading && reviews.length === 0) {
     return <ReviewSectionSkeleton />;
@@ -191,9 +174,11 @@ export function ProductReviewsSection({
       >
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           <EditorialText first="Atelier trial" second="stories." fontSize={17} lineHeight={20} singleLine withDot />
-          <View style={{ backgroundColor: '#F0ECE4', paddingHorizontal: 7, paddingVertical: 2.5, borderRadius: 8 }}>
-            <Text style={[FontStyles.sansBold, { fontSize: 10, color: '#111111' }]}>{totalCount}</Text>
-          </View>
+          {totalCount > 0 && (
+            <View style={{ backgroundColor: '#F0ECE4', paddingHorizontal: 7, paddingVertical: 2.5, borderRadius: 8 }}>
+              <Text style={[FontStyles.sansBold, { fontSize: 10, color: '#111111' }]}>{totalCount}</Text>
+            </View>
+          )}
         </View>
 
         {/* Primary CTA: Write a Review */}
@@ -208,10 +193,6 @@ export function ProductReviewsSection({
             alignItems: 'center',
             gap: 5,
             opacity: pressed ? 0.85 : 1,
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.12,
-            shadowRadius: 3,
             elevation: 2,
           })}
         >
@@ -254,226 +235,302 @@ export function ProductReviewsSection({
           borderWidth: 1,
           borderColor: '#E8E5DF',
           marginBottom: 14,
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.04,
-          shadowRadius: 6,
           elevation: 2,
         }}
       >
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-          <View>
-            <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
-              <Text style={[FontStyles.sansBold, { fontSize: 28, color: '#111111' }]}>
-                {rating.toFixed(1)}
-              </Text>
-              <View style={{ flexDirection: 'row', gap: 2 }}>
-                {[1, 2, 3, 4, 5].map((s) => (
-                  <Star key={s} size={14} color="#D4AF37" fill="#D4AF37" />
-                ))}
-              </View>
-            </View>
-            <Text style={[FontStyles.sansBold, { fontSize: 11, color: '#15803D', marginTop: 2 }]}>
-              96% of verified buyers recommend this piece
-            </Text>
-            <Text style={[FontStyles.sansRegular, { fontSize: 10.5, color: '#71717A', marginTop: 1 }]}>
-              Based on {totalCount} trial orders
-            </Text>
-          </View>
-
-          {/* Quick Rate Trigger */}
-          <Pressable
-            onPress={() => setIsWriteModalOpen(true)}
-            style={{
-              backgroundColor: '#FFF7ED',
-              borderWidth: 1,
-              borderColor: '#FFD8C2',
-              borderRadius: 14,
-              paddingHorizontal: 12,
-              paddingVertical: 10,
-              alignItems: 'center',
-            }}
-          >
-            <Text style={[FontStyles.sansBold, { fontSize: 9.5, color: '#FF5A1F', letterSpacing: 0.8, textTransform: 'uppercase' }]}>
-              RATE THIS PIECE
-            </Text>
-            <View style={{ flexDirection: 'row', gap: 3, marginTop: 4 }}>
-              {[1, 2, 3, 4, 5].map((s) => (
-                <Star key={s} size={13} color="#FF5A1F" fill="none" />
-              ))}
-            </View>
-          </Pressable>
-        </View>
-
-        {/* Filter Chips */}
-        <View style={{ flexDirection: 'row', gap: 6, marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#F4F1EA' }}>
-          {[
-            { id: 'ALL', label: `All (${reviews.length})` },
-            { id: '5_STAR', label: '5 Stars Only' },
-            { id: 'VERIFIED', label: 'Verified Purchases' },
-          ].map((tab) => {
-            const isSelected = selectedFilter === tab.id;
-            return (
-              <Pressable
-                key={tab.id}
-                onPress={() => setSelectedFilter(tab.id as any)}
-                style={{
-                  paddingHorizontal: 10,
-                  paddingVertical: 4.5,
-                  borderRadius: 10,
-                  backgroundColor: isSelected ? '#111111' : '#FAF8F5',
-                  borderWidth: 1,
-                  borderColor: isSelected ? '#111111' : '#E8E5DF',
-                }}
-              >
-                <Text
-                  style={[
-                    isSelected ? FontStyles.sansBold : FontStyles.sansMedium,
-                    {
-                      fontSize: 10,
-                      color: isSelected ? '#FFFFFF' : '#6B6667',
-                    },
-                  ]}
-                >
-                  {tab.label}
+        {totalCount > 0 ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <View>
+              <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
+                <Text style={[FontStyles.sansBold, { fontSize: 28, color: '#111111' }]}>
+                  {averageRating.toFixed(1)}
                 </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      </View>
-
-      {/* Customer Reviews Cards */}
-      <View style={{ gap: 12 }}>
-        {filteredReviews.map((rev) => {
-          const initials = rev.userName
-            .split(' ')
-            .map((n) => n[0])
-            .join('')
-            .slice(0, 2)
-            .toUpperCase() || 'AM';
-
-          const isVoted = votedReviews[rev.id];
-          const count = helpfulCounts[rev.id] || 0;
-
-          return (
-            <View
-              key={rev.id}
-              style={{
-                backgroundColor: '#FFFFFF',
-                borderRadius: 18,
-                padding: 16,
-                borderWidth: 1,
-                borderColor: '#E8E5DF',
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 1 },
-                shadowOpacity: 0.03,
-                shadowRadius: 4,
-                elevation: 1,
-              }}
-            >
-              {/* Review Header: User Info & Stars */}
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                  <View
-                    style={{
-                      width: 34,
-                      height: 34,
-                      borderRadius: 17,
-                      backgroundColor: '#FFF0EA',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      borderWidth: 1,
-                      borderColor: '#FFD8C2',
-                    }}
-                  >
-                    <Text style={[FontStyles.sansBold, { fontSize: 11.5, color: '#FF5A1F' }]}>
-                      {initials}
-                    </Text>
-                  </View>
-                  <View>
-                    <Text style={[FontStyles.sansBold, { fontSize: 12.5, color: '#111111' }]}>
-                      {rev.userName}
-                    </Text>
-                    <Text style={[FontStyles.sansRegular, { fontSize: 9.5, color: '#71717A' }]}>
-                      {rev.userLocation || 'Indiranagar Hub'} • {rev.createdAt}
-                    </Text>
-                  </View>
-                </View>
-
-                {/* Stars */}
-                <View style={{ flexDirection: 'row', gap: 1.5 }}>
+                <View style={{ flexDirection: 'row', gap: 2 }}>
                   {[1, 2, 3, 4, 5].map((s) => (
                     <Star
                       key={s}
-                      size={12}
-                      color={s <= rev.rating ? '#D4AF37' : '#D1D5DB'}
-                      fill={s <= rev.rating ? '#D4AF37' : 'none'}
+                      size={14}
+                      color={s <= Math.round(averageRating) ? '#D4AF37' : '#E5E7EB'}
+                      fill={s <= Math.round(averageRating) ? '#D4AF37' : 'none'}
                     />
                   ))}
                 </View>
               </View>
-
-              {/* Review Body */}
-              <Text style={[FontStyles.sansRegular, { fontSize: 12, color: '#374151', lineHeight: 18, marginTop: 2 }]}>
-                &ldquo;{rev.comment}&rdquo;
+              <Text style={[FontStyles.sansBold, { fontSize: 11, color: '#15803D', marginTop: 2 }]}>
+                {positivePercentage}% of verified buyers recommend this piece
               </Text>
+              <Text style={[FontStyles.sansRegular, { fontSize: 10.5, color: '#71717A', marginTop: 1 }]}>
+                Based on {totalCount} {totalCount === 1 ? 'verified review' : 'verified reviews'}
+              </Text>
+            </View>
 
-              {/* Praise Tags */}
-              {rev.tags && rev.tags.length > 0 && (
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginTop: 8 }}>
-                  {rev.tags.map((tag, i) => (
-                    <View
-                      key={i}
-                      style={{
-                        backgroundColor: '#FAF8F5',
-                        borderWidth: 1,
-                        borderColor: '#E8E5DF',
-                        borderRadius: 8,
-                        paddingHorizontal: 7,
-                        paddingVertical: 2.5,
-                      }}
-                    >
-                      <Text style={[FontStyles.sansMedium, { fontSize: 9, color: '#6B6667' }]}>
-                        {tag}
-                      </Text>
-                    </View>
-                  ))}
-                </View>
-              )}
+            {/* Quick Rate Trigger */}
+            <Pressable
+              onPress={() => setIsWriteModalOpen(true)}
+              style={{
+                backgroundColor: '#FFF7ED',
+                borderWidth: 1,
+                borderColor: '#FFD8C2',
+                borderRadius: 14,
+                paddingHorizontal: 12,
+                paddingVertical: 10,
+                alignItems: 'center',
+              }}
+            >
+              <Text style={[FontStyles.sansBold, { fontSize: 9.5, color: '#FF5A1F', letterSpacing: 0.8, textTransform: 'uppercase' }]}>
+                RATE THIS PIECE
+              </Text>
+              <View style={{ flexDirection: 'row', gap: 3, marginTop: 4 }}>
+                {[1, 2, 3, 4, 5].map((s) => (
+                  <Star key={s} size={13} color="#FF5A1F" fill="none" />
+                ))}
+              </View>
+            </Pressable>
+          </View>
+        ) : (
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <View style={{ flex: 1, paddingRight: 12 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Sparkles size={16} color="#FF5A1F" />
+                <Text style={[FontStyles.sansBold, { fontSize: 15, color: '#111111' }]}>
+                  No Reviews Yet
+                </Text>
+              </View>
+              <Text style={[FontStyles.sansRegular, { fontSize: 11.5, color: '#71717A', marginTop: 3 }]}>
+                Be the first verified customer to share your fitting experience with this piece.
+              </Text>
+            </View>
 
-              {/* Footer: Verified Badge & Helpful Button */}
-              <View
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  marginTop: 10,
-                  paddingTop: 8,
-                  borderTopWidth: 1,
-                  borderTopColor: '#F4F1EA',
-                }}
-              >
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                  <CheckCircle2 size={11} color="#15803D" />
-                  <Text style={[FontStyles.sansBold, { fontSize: 9.5, color: '#15803D', textTransform: 'uppercase' }]}>
-                    Verified Affordz Try & Buy Order
-                  </Text>
-                </View>
+            {/* Quick Rate Trigger */}
+            <Pressable
+              onPress={() => setIsWriteModalOpen(true)}
+              style={{
+                backgroundColor: '#FFF7ED',
+                borderWidth: 1,
+                borderColor: '#FFD8C2',
+                borderRadius: 14,
+                paddingHorizontal: 12,
+                paddingVertical: 10,
+                alignItems: 'center',
+              }}
+            >
+              <Text style={[FontStyles.sansBold, { fontSize: 9.5, color: '#FF5A1F', letterSpacing: 0.8, textTransform: 'uppercase' }]}>
+                RATE THIS PIECE
+              </Text>
+              <View style={{ flexDirection: 'row', gap: 3, marginTop: 4 }}>
+                {[1, 2, 3, 4, 5].map((s) => (
+                  <Star key={s} size={13} color="#FF5A1F" fill="none" />
+                ))}
+              </View>
+            </Pressable>
+          </View>
+        )}
 
+        {/* Filter Chips (Only shown when there are reviews to filter) */}
+        {totalCount > 0 && (
+          <View style={{ flexDirection: 'row', gap: 6, marginTop: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#F4F1EA' }}>
+            {[
+              { id: 'ALL', label: `All (${reviews.length})` },
+              { id: '5_STAR', label: '5 Stars Only' },
+              { id: 'VERIFIED', label: 'Verified Purchases' },
+            ].map((tab) => {
+              const isSelected = selectedFilter === tab.id;
+              return (
                 <Pressable
-                  onPress={() => toggleHelpful(rev.id)}
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 2, paddingHorizontal: 4 }}
+                  key={tab.id}
+                  onPress={() => setSelectedFilter(tab.id as any)}
+                  style={{
+                    paddingHorizontal: 10,
+                    paddingVertical: 4.5,
+                    borderRadius: 10,
+                    backgroundColor: isSelected ? '#111111' : '#FAF8F5',
+                    borderWidth: 1,
+                    borderColor: isSelected ? '#111111' : '#E8E5DF',
+                  }}
                 >
-                  <ThumbsUp size={11} color={isVoted ? '#FF5A1F' : '#71717A'} />
-                  <Text style={{ fontSize: 9.5, fontWeight: '700', color: isVoted ? '#FF5A1F' : '#71717A' }}>
-                    {count > 0 ? `Helpful (${count})` : 'Helpful'}
+                  <Text
+                    style={[
+                      isSelected ? FontStyles.sansBold : FontStyles.sansMedium,
+                      {
+                        fontSize: 10,
+                        color: isSelected ? '#FFFFFF' : '#6B6667',
+                      },
+                    ]}
+                  >
+                    {tab.label}
                   </Text>
                 </Pressable>
+              );
+            })}
+          </View>
+        )}
+      </View>
+
+      {/* Customer Reviews Cards or Empty State */}
+      <View style={{ gap: 12 }}>
+        {totalCount === 0 ? (
+          <View
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: 18,
+              padding: 24,
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderWidth: 1,
+              borderColor: '#E8E5DF',
+            }}
+          >
+            <Text style={[FontStyles.sansBold, { fontSize: 13, color: '#111111', marginBottom: 4 }]}>
+              No verified trial stories yet
+            </Text>
+            <Text style={[FontStyles.sansRegular, { fontSize: 11.5, color: '#71717A', textAlign: 'center', maxWidth: 280, lineHeight: 16 }]}>
+              Ordered or tried this garment? Write a review to help other collectors understand the textile feel, fit, and silhouette.
+            </Text>
+          </View>
+        ) : filteredReviews.length === 0 ? (
+          <View
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: 18,
+              padding: 20,
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderWidth: 1,
+              borderColor: '#E8E5DF',
+            }}
+          >
+            <Text style={[FontStyles.sansMedium, { fontSize: 12, color: '#71717A' }]}>
+              No reviews found matching this filter.
+            </Text>
+          </View>
+        ) : (
+          filteredReviews.map((rev) => {
+            const initials =
+              rev.userName
+                .split(' ')
+                .map((n) => n[0])
+                .join('')
+                .slice(0, 2)
+                .toUpperCase() || 'VC';
+
+            const isVoted = votedReviews[rev.id];
+            const count = helpfulCounts[rev.id] || 0;
+
+            return (
+              <View
+                key={rev.id}
+                style={{
+                  backgroundColor: '#FFFFFF',
+                  borderRadius: 18,
+                  padding: 16,
+                  borderWidth: 1,
+                  borderColor: '#E8E5DF',
+                  elevation: 1,
+                }}
+              >
+                {/* Review Header: User Info & Stars */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    <View
+                      style={{
+                        width: 34,
+                        height: 34,
+                        borderRadius: 17,
+                        backgroundColor: '#FFF0EA',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        borderWidth: 1,
+                        borderColor: '#FFD8C2',
+                      }}
+                    >
+                      <Text style={[FontStyles.sansBold, { fontSize: 11.5, color: '#FF5A1F' }]}>
+                        {initials}
+                      </Text>
+                    </View>
+                    <View>
+                      <Text style={[FontStyles.sansBold, { fontSize: 12.5, color: '#111111' }]}>
+                        {rev.userName}
+                      </Text>
+                      <Text style={[FontStyles.sansRegular, { fontSize: 9.5, color: '#71717A' }]}>
+                        {rev.userLocation || 'Indiranagar Hub'} • {rev.createdAt}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Stars */}
+                  <View style={{ flexDirection: 'row', gap: 1.5 }}>
+                    {[1, 2, 3, 4, 5].map((s) => (
+                      <Star
+                        key={s}
+                        size={12}
+                        color={s <= rev.rating ? '#D4AF37' : '#D1D5DB'}
+                        fill={s <= rev.rating ? '#D4AF37' : 'none'}
+                      />
+                    ))}
+                  </View>
+                </View>
+
+                {/* Review Body */}
+                <Text style={[FontStyles.sansRegular, { fontSize: 12, color: '#374151', lineHeight: 18, marginTop: 2 }]}>
+                  &ldquo;{rev.comment}&rdquo;
+                </Text>
+
+                {/* Praise Tags */}
+                {rev.tags && rev.tags.length > 0 && (
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginTop: 8 }}>
+                    {rev.tags.map((tag, i) => (
+                      <View
+                        key={i}
+                        style={{
+                          backgroundColor: '#FAF8F5',
+                          borderWidth: 1,
+                          borderColor: '#E8E5DF',
+                          borderRadius: 8,
+                          paddingHorizontal: 7,
+                          paddingVertical: 2.5,
+                        }}
+                      >
+                        <Text style={[FontStyles.sansMedium, { fontSize: 9, color: '#6B6667' }]}>
+                          {tag}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+
+                {/* Footer: Verified Badge & Helpful Button */}
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    marginTop: 10,
+                    paddingTop: 8,
+                    borderTopWidth: 1,
+                    borderTopColor: '#F4F1EA',
+                  }}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <CheckCircle2 size={11} color="#15803D" />
+                    <Text style={[FontStyles.sansBold, { fontSize: 9.5, color: '#15803D', textTransform: 'uppercase' }]}>
+                      Verified Try & Buy Order
+                    </Text>
+                  </View>
+
+                  <Pressable
+                    onPress={() => toggleHelpful(rev.id)}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 2, paddingHorizontal: 4 }}
+                  >
+                    <ThumbsUp size={11} color={isVoted ? '#FF5A1F' : '#71717A'} />
+                    <Text style={[FontStyles.sansBold, { fontSize: 9.5, color: isVoted ? '#FF5A1F' : '#71717A' }]}>
+                      {count > 0 ? `Helpful (${count})` : 'Helpful'}
+                    </Text>
+                  </Pressable>
+                </View>
               </View>
-            </View>
-          );
-        })}
+            );
+          })
+        )}
       </View>
 
       {/* Bottom Write Review Prompt Button */}
@@ -494,7 +551,7 @@ export function ProductReviewsSection({
         })}
       >
         <Edit3 size={13} color="#111111" />
-        <Text style={{ fontSize: 11.5, fontWeight: '900', color: '#111111', letterSpacing: 0.8 }}>
+        <Text style={[FontStyles.sansBold, { fontSize: 11.5, color: '#111111', letterSpacing: 0.8 }]}>
           HAVE YOU TRIED THIS PIECE? WRITE A REVIEW
         </Text>
       </Pressable>

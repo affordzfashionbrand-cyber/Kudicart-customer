@@ -58,38 +58,16 @@ export const PRODUCT_SPECIFICATIONS = [
   { label: 'Care Protocol', value: 'Dry Clean Recommended' },
 ];
 
-export const CUSTOMER_LOOKS = [
-  {
-    id: 'look-1',
-    author: 'Pooja Kashyap',
-    locality: 'Indiranagar, Bangalore',
-    height: "5'7\"",
-    size: 'S',
-    rating: 5,
-    image: 'https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=500&q=80',
-    comment: 'The Chanderi drape is unimaginably light. Concierge rider waited 10 mins; kept size S with zero drama.',
-  },
-  {
-    id: 'look-2',
-    author: 'Meera Raghavan',
-    locality: 'Koramangala, Bangalore',
-    height: "5'5\"",
-    size: 'M',
-    rating: 5,
-    image: 'https://images.unsplash.com/photo-1584917865442-de89df76afd3?auto=format&fit=crop&w=500&q=80',
-    comment: 'Genuine zari sheen without feeling gaudy. Arrived fresh on a wooden hanger inside a dust bag!',
-  },
-  {
-    id: 'look-3',
-    author: 'Aparna Sengupta',
-    locality: 'Lavelle Road, Bangalore',
-    height: "5'8\"",
-    size: 'S',
-    rating: 5,
-    image: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=500&q=80',
-    comment: 'Pure mulmul cotton lining makes it completely breathable in humid weather. A true atelier piece.',
-  },
-];
+export const CUSTOMER_LOOKS: {
+  id: string;
+  author: string;
+  locality: string;
+  height: string;
+  size: string;
+  rating: number;
+  image: string;
+  comment: string;
+}[] = [];
 
 export const TRUST_PILLARS = [
   {

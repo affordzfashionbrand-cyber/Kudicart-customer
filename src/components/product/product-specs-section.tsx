@@ -12,12 +12,35 @@ import { TRUST_PILLARS, PRODUCT_SPECIFICATIONS } from './product-constants';
 
 interface ProductSpecsSectionProps {
   isDarkStoreProduct: boolean;
+  specifications?: Record<string, string>;
+  fabric?: string | null;
+  origin?: string | null;
 }
 
-export function ProductSpecsSection({ isDarkStoreProduct }: ProductSpecsSectionProps) {
+export function ProductSpecsSection({
+  isDarkStoreProduct,
+  specifications,
+  fabric,
+  origin,
+}: ProductSpecsSectionProps) {
   const [specsOpen, setSpecsOpen] = useState(false);
   const [provenanceOpen, setProvenanceOpen] = useState(false);
   const [tryOnProtocolOpen, setTryOnProtocolOpen] = useState(false);
+
+  const dynamicSpecs = React.useMemo(() => {
+    if (specifications && Object.keys(specifications).length > 0) {
+      return Object.entries(specifications).map(([label, value]) => ({
+        label,
+        value: String(value),
+      }));
+    }
+    return PRODUCT_SPECIFICATIONS.map((spec) => {
+      if (spec.label === 'Fabric Composition' && fabric) {
+        return { label: spec.label, value: fabric };
+      }
+      return spec;
+    });
+  }, [specifications, fabric]);
 
   return (
     <>
@@ -91,7 +114,7 @@ export function ProductSpecsSection({ isDarkStoreProduct }: ProductSpecsSectionP
           </View>
 
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-            {PRODUCT_SPECIFICATIONS.map((spec, sidx) => (
+            {dynamicSpecs.map((spec, sidx) => (
               <View
                 key={sidx}
                 style={{

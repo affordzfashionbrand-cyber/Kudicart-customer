@@ -1,498 +1,378 @@
 import React from 'react';
-import { View, Text, Pressable, TextInput } from 'react-native';
-import { Image } from 'expo-image';
-import { CreditCard, ShieldCheck, Info, Smartphone, Building2, Banknote } from 'lucide-react-native';
-
-export const POPULAR_UPI_APPS = [
-  { id: 'gpay', name: 'Google Pay', icon: 'https://cdn-icons-png.flaticon.com/128/6124/6124998.png' },
-  { id: 'phonepe', name: 'PhonePe', icon: 'https://cdn-icons-png.flaticon.com/128/825/825454.png' },
-  { id: 'paytm', name: 'Paytm', icon: 'https://cdn-icons-png.flaticon.com/128/825/825484.png' },
-  { id: 'cred', name: 'CRED UPI', icon: 'https://cdn-icons-png.flaticon.com/128/1177/1177577.png' },
-];
-
-export const POPULAR_BANKS = [
-  { id: 'hdfc', name: 'HDFC Bank', code: 'HDFC' },
-  { id: 'icici', name: 'ICICI Bank', code: 'ICICI' },
-  { id: 'sbi', name: 'SBI', code: 'SBI' },
-  { id: 'axis', name: 'Axis Bank', code: 'AXIS' },
-  { id: 'kotak', name: 'Kotak', code: 'KOTAK' },
-];
+import { View, Text, Pressable, ActivityIndicator } from 'react-native';
+import {
+  CreditCard,
+  ShieldCheck,
+  Lock,
+  Banknote,
+  AlertCircle,
+  RotateCcw,
+  Sparkles,
+  CheckCircle2,
+} from 'lucide-react-native';
+import { BrandColors, FontStyles } from '@/constants/theme';
+import { formatPrice } from '@/data/homeData';
 
 export interface CartPaymentSectionProps {
-  selectedPaymentCategory: 'UPI' | 'CARD' | 'NET_BANKING' | 'COD';
-  setSelectedPaymentCategory: (cat: 'UPI' | 'CARD' | 'NET_BANKING' | 'COD') => void;
-  selectedUpiApp: string;
-  setSelectedUpiApp: (app: string) => void;
-  customUpiId: string;
-  setCustomUpiId: (val: string) => void;
-  cardNumber: string;
-  handleCardNumberChange: (text: string) => void;
-  cardExpiry: string;
-  handleExpiryChange: (text: string) => void;
-  cardCvv: string;
-  setCardCvv: (text: string) => void;
-  cardName: string;
-  setCardName: (text: string) => void;
-  selectedBank: string;
-  setSelectedBank: (bank: string) => void;
-  isProduction: boolean;
+  selectedPaymentCategory: 'RAZORPAY' | 'COD' | string;
+  setSelectedPaymentCategory: (cat: any) => void;
+  payableAmount?: number;
+  isProcessingPayment?: boolean;
+  paymentError?: string | null;
+  onRetryPayment?: () => void;
+  // Backward compatibility placeholders (ignored safely)
+  [key: string]: any;
 }
 
 export const CartPaymentSection = React.memo(function CartPaymentSection({
   selectedPaymentCategory,
   setSelectedPaymentCategory,
-  selectedUpiApp,
-  setSelectedUpiApp,
-  customUpiId,
-  setCustomUpiId,
-  cardNumber,
-  handleCardNumberChange,
-  cardExpiry,
-  handleExpiryChange,
-  cardCvv,
-  setCardCvv,
-  cardName,
-  setCardName,
-  selectedBank,
-  setSelectedBank,
-  isProduction,
+  payableAmount,
+  isProcessingPayment = false,
+  paymentError = null,
+  onRetryPayment,
 }: CartPaymentSectionProps) {
+  const isRazorpay = selectedPaymentCategory !== 'COD';
+  const isCod = selectedPaymentCategory === 'COD';
+
   return (
     <View
       style={{
         backgroundColor: '#FFFFFF',
-        borderRadius: 18,
-        padding: 16,
+        borderRadius: 20,
+        padding: 18,
         borderWidth: 1,
         borderColor: '#E8E5DF',
-        marginBottom: 14,
+        marginBottom: 16,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.04,
+        shadowRadius: 8,
+        elevation: 2,
       }}
     >
+      {/* Header */}
       <View
         style={{
           flexDirection: 'row',
           alignItems: 'center',
           justifyContent: 'space-between',
-          marginBottom: 14,
+          marginBottom: 16,
         }}
       >
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <CreditCard size={18} color="#111111" />
-          <Text style={{ fontSize: 14, fontWeight: '900', color: '#111111' }}>
-            Select Payment Option
-          </Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9 }}>
+          <View
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: 16,
+              backgroundColor: '#FAF8F5',
+              borderWidth: 1,
+              borderColor: '#E8E5DF',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <CreditCard size={17} color={BrandColors.inkBlack} />
+          </View>
+          <View>
+            <Text style={[{ fontSize: 15, color: BrandColors.inkBlack }, FontStyles.sansBold]}>
+              Payment Method
+            </Text>
+            <Text style={[{ fontSize: 11, color: '#71717A' }, FontStyles.sansRegular]}>
+              Secure 256-bit encrypted checkout
+            </Text>
+          </View>
         </View>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-          <ShieldCheck size={14} color="#15803D" />
-          <Text style={{ fontSize: 10, fontWeight: '800', color: '#15803D' }}>100% SECURE</Text>
+
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 5,
+            backgroundColor: '#F0FDF4',
+            paddingHorizontal: 9,
+            paddingVertical: 4,
+            borderRadius: 999,
+            borderWidth: 1,
+            borderColor: '#BBF7D0',
+          }}
+        >
+          <ShieldCheck size={13} color="#15803D" />
+          <Text style={[{ fontSize: 10, color: '#15803D', letterSpacing: 0.4 }, FontStyles.sansBold]}>
+            100% SECURE
+          </Text>
         </View>
       </View>
 
-      {!isProduction && (
+      {/* Payment Error / Cancellation Banner with Retry */}
+      {paymentError && (
         <View
           style={{
-            backgroundColor: '#F0F9FF',
+            backgroundColor: '#FEF2F2',
             borderWidth: 1,
-            borderColor: '#FFEDD5',
-            paddingHorizontal: 12,
-            paddingVertical: 8,
-            borderRadius: 10,
-            marginBottom: 12,
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 8,
+            borderColor: '#FECACA',
+            borderRadius: 14,
+            padding: 14,
+            marginBottom: 16,
           }}
         >
-          <Info size={14} color="#C2410C" />
-          <Text style={{ fontSize: 11, fontWeight: '700', color: '#9A3412', flex: 1 }}>
-            DEMO MODE: Simulated test payments active — no real funds charged.
-          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10 }}>
+            <AlertCircle size={18} color="#DC2626" style={{ marginTop: 2 }} />
+            <View style={{ flex: 1 }}>
+              <Text style={[{ fontSize: 13, color: '#991B1B', marginBottom: 2 }, FontStyles.sansBold]}>
+                Payment Incomplete
+              </Text>
+              <Text style={[{ fontSize: 12, color: '#B91C1C', lineHeight: 18 }, FontStyles.sansRegular]}>
+                {paymentError}
+              </Text>
+              {onRetryPayment && (
+                <Pressable
+                  onPress={onRetryPayment}
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 6,
+                    marginTop: 10,
+                    alignSelf: 'flex-start',
+                    backgroundColor: '#FFFFFF',
+                    borderWidth: 1,
+                    borderColor: '#FECACA',
+                    paddingHorizontal: 12,
+                    paddingVertical: 6,
+                    borderRadius: 8,
+                  }}
+                >
+                  <RotateCcw size={13} color="#DC2626" />
+                  <Text style={[{ fontSize: 12, color: '#DC2626' }, FontStyles.sansBold]}>
+                    Retry Payment
+                  </Text>
+                </Pressable>
+              )}
+            </View>
+          </View>
         </View>
       )}
 
-      {/* Category 1: UPI (Recommended) */}
-      <View
+      {/* Option 1: Razorpay Secure Gateway (Recommended) */}
+      <Pressable
+        onPress={() => setSelectedPaymentCategory('RAZORPAY')}
         style={{
+          borderRadius: 16,
+          borderWidth: 1.5,
+          borderColor: isRazorpay ? BrandColors.inkBlack : '#E8E5DF',
+          backgroundColor: isRazorpay ? '#FAF8F5' : '#FFFFFF',
+          padding: 16,
           marginBottom: 12,
-          borderRadius: 14,
-          borderWidth: 1,
-          borderColor: selectedPaymentCategory === 'UPI' ? '#111111' : '#E8E5DF',
-          overflow: 'hidden',
         }}
       >
-        <Pressable
-          onPress={() => setSelectedPaymentCategory('UPI')}
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: 14,
-            backgroundColor: selectedPaymentCategory === 'UPI' ? '#FAF8F5' : '#FFFFFF',
-          }}
-        >
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+          <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12, flex: 1 }}>
+            {/* Radio Circle */}
             <View
               style={{
-                width: 20,
-                height: 20,
-                borderRadius: 10,
+                width: 22,
+                height: 22,
+                borderRadius: 11,
                 borderWidth: 2,
-                borderColor: selectedPaymentCategory === 'UPI' ? '#111111' : '#D9D9D5',
-                justifyContent: 'center',
+                borderColor: isRazorpay ? BrandColors.inkBlack : '#D9D9D5',
                 alignItems: 'center',
+                justifyContent: 'center',
+                marginTop: 2,
               }}
             >
-              {selectedPaymentCategory === 'UPI' && (
-                <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: '#111111' }} />
+              {isRazorpay && (
+                <View
+                  style={{
+                    width: 12,
+                    height: 12,
+                    borderRadius: 6,
+                    backgroundColor: BrandColors.inkBlack,
+                  }}
+                />
               )}
             </View>
-            <Smartphone size={18} color="#111111" />
-            <View>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Text style={{ fontSize: 13, fontWeight: '900', color: '#111111' }}>
-                  UPI (Instant & Free)
+
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <Text style={[{ fontSize: 14, color: BrandColors.inkBlack }, FontStyles.sansBold]}>
+                  Online Payment
                 </Text>
-                <View style={{ backgroundColor: '#22C55E', paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4 }}>
-                  <Text style={{ fontSize: 8, fontWeight: '900', color: '#FFFFFF' }}>RECOMMENDED</Text>
+                <View
+                  style={{
+                    backgroundColor: '#0D9488',
+                    paddingHorizontal: 7,
+                    paddingVertical: 2,
+                    borderRadius: 6,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 4,
+                  }}
+                >
+                  <Sparkles size={10} color="#FFFFFF" />
+                  <Text style={[{ fontSize: 9, color: '#FFFFFF', letterSpacing: 0.5 }, FontStyles.sansBold]}>
+                    RECOMMENDED
+                  </Text>
                 </View>
               </View>
-              <Text style={{ fontSize: 10.5, color: '#71717A' }}>Google Pay, PhonePe, Paytm, CRED</Text>
+
+              <Text style={[{ fontSize: 12, color: '#6B6667', marginTop: 3 }, FontStyles.sansRegular]}>
+                Powered by Razorpay • UPI, Credit/Debit Cards, NetBanking & Wallets
+              </Text>
+
+              {/* Supported Methods Badge Strip */}
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
+                {['UPI (GPay / PhonePe / Paytm)', 'Cards (Visa, MC, RuPay)', 'NetBanking', 'Wallets'].map((tag) => (
+                  <View
+                    key={tag}
+                    style={{
+                      backgroundColor: '#FFFFFF',
+                      borderWidth: 1,
+                      borderColor: '#E8E5DF',
+                      paddingHorizontal: 8,
+                      paddingVertical: 4,
+                      borderRadius: 6,
+                    }}
+                  >
+                    <Text style={[{ fontSize: 10, color: '#4A4A4A' }, FontStyles.sansMedium]}>
+                      {tag}
+                    </Text>
+                  </View>
+                ))}
+              </View>
             </View>
           </View>
-          <Text style={{ fontSize: 11, fontWeight: '800', color: '#15803D' }}>FASTEST</Text>
-        </Pressable>
 
-        {/* Sub-options for UPI */}
-        {selectedPaymentCategory === 'UPI' && (
-          <View style={{ padding: 14, borderTopWidth: 1, borderTopColor: '#E8E5DF', backgroundColor: '#FFFFFF' }}>
-            <Text style={{ fontSize: 11, fontWeight: '800', color: '#6B6667', marginBottom: 10 }}>
-              SELECT UPI APP:
+          {payableAmount ? (
+            <Text style={[{ fontSize: 14, color: BrandColors.inkBlack }, FontStyles.sansBold]}>
+              {formatPrice(payableAmount)}
             </Text>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 14 }}>
-              {POPULAR_UPI_APPS.map((app) => {
-                const isChosen = selectedUpiApp === app.id;
-                return (
-                  <Pressable
-                    key={app.id}
-                    onPress={() => setSelectedUpiApp(app.id)}
-                    style={{
-                      alignItems: 'center',
-                      width: '23%',
-                      paddingVertical: 10,
-                      borderRadius: 12,
-                      borderWidth: 1.5,
-                      borderColor: isChosen ? '#111111' : '#E8E5DF',
-                      backgroundColor: isChosen ? '#F4F1EA' : '#FFFFFF',
-                    }}
-                  >
-                    <Image source={{ uri: app.icon }} style={{ width: 28, height: 28 }} contentFit="contain" />
-                    <Text style={{ fontSize: 10, fontWeight: isChosen ? '800' : '600', color: '#111111', marginTop: 4 }}>
-                      {app.name}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+          ) : null}
+        </View>
 
-            {/* Custom UPI ID Input */}
-            <View style={{ borderTopWidth: 1, borderTopColor: '#F4F1EA', paddingTop: 12 }}>
-              <Text style={{ fontSize: 11, fontWeight: '700', color: '#4A4A4A', marginBottom: 6 }}>
-                Or Pay using UPI ID / VPA
+        {/* Selected Online Detail Drawer */}
+        {isRazorpay && (
+          <View
+            style={{
+              marginTop: 14,
+              paddingTop: 12,
+              borderTopWidth: 1,
+              borderTopColor: '#E8E5DF',
+            }}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+              <Lock size={12} color="#0D9488" />
+              <Text style={[{ fontSize: 11, color: '#0F766E' }, FontStyles.sansSemiBold]}>
+                Zero-risk checkout: Card & UPI details handled directly by Razorpay
               </Text>
-              <View
-                style={{
-                  height: 40,
-                  borderWidth: 1,
-                  borderColor: '#D9D9D5',
-                  borderRadius: 10,
-                  paddingHorizontal: 12,
-                  justifyContent: 'center',
-                }}
-              >
-                <TextInput
-                  placeholder="e.g. mobile@okhdfcbank"
-                  placeholderTextColor="#A0A0A0"
-                  value={customUpiId}
-                  onChangeText={setCustomUpiId}
-                  style={{ fontSize: 12, color: '#111111' }}
-                />
-              </View>
             </View>
+            <Text style={[{ fontSize: 11, color: '#71717A', lineHeight: 16 }, FontStyles.sansRegular]}>
+              You will complete your transaction inside Razorpay’s certified secure portal. KudiCart never stores or transmits sensitive payment credentials.
+            </Text>
           </View>
         )}
-      </View>
+      </Pressable>
 
-      {/* Category 2: Credit / Debit Cards (Visa, MasterCard, RuPay) */}
-      <View
+      {/* Option 2: Cash on Delivery (COD) */}
+      <Pressable
+        onPress={() => setSelectedPaymentCategory('COD')}
         style={{
-          marginBottom: 12,
-          borderRadius: 14,
-          borderWidth: 1,
-          borderColor: selectedPaymentCategory === 'CARD' ? '#111111' : '#E8E5DF',
-          overflow: 'hidden',
+          borderRadius: 16,
+          borderWidth: 1.5,
+          borderColor: isCod ? BrandColors.inkBlack : '#E8E5DF',
+          backgroundColor: isCod ? '#FAF8F5' : '#FFFFFF',
+          padding: 16,
         }}
       >
-        <Pressable
-          onPress={() => setSelectedPaymentCategory('CARD')}
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: 14,
-            backgroundColor: selectedPaymentCategory === 'CARD' ? '#FAF8F5' : '#FFFFFF',
-          }}
-        >
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+          <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12, flex: 1 }}>
+            {/* Radio Circle */}
             <View
               style={{
-                width: 20,
-                height: 20,
-                borderRadius: 10,
+                width: 22,
+                height: 22,
+                borderRadius: 11,
                 borderWidth: 2,
-                borderColor: selectedPaymentCategory === 'CARD' ? '#111111' : '#D9D9D5',
-                justifyContent: 'center',
+                borderColor: isCod ? BrandColors.inkBlack : '#D9D9D5',
                 alignItems: 'center',
+                justifyContent: 'center',
+                marginTop: 2,
               }}
             >
-              {selectedPaymentCategory === 'CARD' && (
-                <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: '#111111' }} />
-              )}
-            </View>
-            <CreditCard size={18} color="#111111" />
-            <View>
-              <Text style={{ fontSize: 13, fontWeight: '900', color: '#111111' }}>Credit / Debit Cards</Text>
-              <Text style={{ fontSize: 10.5, color: '#71717A' }}>Visa, MasterCard, RuPay, Amex</Text>
-            </View>
-          </View>
-        </Pressable>
-
-        {/* Sub-options for Card Form */}
-        {selectedPaymentCategory === 'CARD' && (
-          <View style={{ padding: 14, borderTopWidth: 1, borderTopColor: '#E8E5DF', backgroundColor: '#FFFFFF', gap: 10 }}>
-            <View>
-              <Text style={{ fontSize: 11, fontWeight: '700', color: '#4A4A4A', marginBottom: 4 }}>CARD NUMBER</Text>
-              <View
-                style={{
-                  height: 40,
-                  borderWidth: 1,
-                  borderColor: '#D9D9D5',
-                  borderRadius: 10,
-                  paddingHorizontal: 12,
-                  justifyContent: 'center',
-                }}
-              >
-                <TextInput
-                  placeholder="XXXX XXXX XXXX XXXX"
-                  placeholderTextColor="#A0A0A0"
-                  keyboardType="numeric"
-                  value={cardNumber}
-                  onChangeText={handleCardNumberChange}
-                  style={{ fontSize: 12.5, fontWeight: '700', color: '#111111' }}
-                />
-              </View>
-            </View>
-
-            <View style={{ flexDirection: 'row', gap: 10 }}>
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 11, fontWeight: '700', color: '#4A4A4A', marginBottom: 4 }}>VALID THRU</Text>
+              {isCod && (
                 <View
                   style={{
-                    height: 40,
-                    borderWidth: 1,
-                    borderColor: '#D9D9D5',
-                    borderRadius: 10,
-                    paddingHorizontal: 12,
-                    justifyContent: 'center',
+                    width: 12,
+                    height: 12,
+                    borderRadius: 6,
+                    backgroundColor: BrandColors.inkBlack,
                   }}
-                >
-                  <TextInput
-                    placeholder="MM/YY"
-                    placeholderTextColor="#A0A0A0"
-                    keyboardType="numeric"
-                    value={cardExpiry}
-                    onChangeText={handleExpiryChange}
-                    style={{ fontSize: 12.5, fontWeight: '700', color: '#111111' }}
-                  />
-                </View>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 11, fontWeight: '700', color: '#4A4A4A', marginBottom: 4 }}>CVV</Text>
-                <View
-                  style={{
-                    height: 40,
-                    borderWidth: 1,
-                    borderColor: '#D9D9D5',
-                    borderRadius: 10,
-                    paddingHorizontal: 12,
-                    justifyContent: 'center',
-                  }}
-                >
-                  <TextInput
-                    placeholder="•••"
-                    placeholderTextColor="#A0A0A0"
-                    keyboardType="numeric"
-                    maxLength={4}
-                    secureTextEntry
-                    value={cardCvv}
-                    onChangeText={setCardCvv}
-                    style={{ fontSize: 12.5, fontWeight: '700', color: '#111111' }}
-                  />
-                </View>
-              </View>
-            </View>
-
-            <View>
-              <Text style={{ fontSize: 11, fontWeight: '700', color: '#4A4A4A', marginBottom: 4 }}>NAME ON CARD</Text>
-              <View
-                style={{
-                  height: 40,
-                  borderWidth: 1,
-                  borderColor: '#D9D9D5',
-                  borderRadius: 10,
-                  paddingHorizontal: 12,
-                  justifyContent: 'center',
-                }}
-              >
-                <TextInput
-                  placeholder="Name as on card"
-                  placeholderTextColor="#A0A0A0"
-                  value={cardName}
-                  onChangeText={setCardName}
-                  style={{ fontSize: 12, fontWeight: '600', color: '#111111' }}
                 />
+              )}
+            </View>
+
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Text style={[{ fontSize: 14, color: BrandColors.inkBlack }, FontStyles.sansBold]}>
+                  Cash on Delivery (COD)
+                </Text>
+                <Banknote size={15} color="#15803D" />
               </View>
+
+              <Text style={[{ fontSize: 12, color: '#6B6667', marginTop: 3 }, FontStyles.sansRegular]}>
+                Pay via Cash or QR scan at doorstep upon delivery
+              </Text>
             </View>
           </View>
-        )}
-      </View>
 
-      {/* Category 3: Net Banking */}
-      <View
-        style={{
-          marginBottom: 12,
-          borderRadius: 14,
-          borderWidth: 1,
-          borderColor: selectedPaymentCategory === 'NET_BANKING' ? '#111111' : '#E8E5DF',
-          overflow: 'hidden',
-        }}
-      >
-        <Pressable
-          onPress={() => setSelectedPaymentCategory('NET_BANKING')}
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: 14,
-            backgroundColor: selectedPaymentCategory === 'NET_BANKING' ? '#FAF8F5' : '#FFFFFF',
-          }}
-        >
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-            <View
-              style={{
-                width: 20,
-                height: 20,
-                borderRadius: 10,
-                borderWidth: 2,
-                borderColor: selectedPaymentCategory === 'NET_BANKING' ? '#111111' : '#D9D9D5',
-                justifyContent: 'center',
-                alignItems: 'center',
-              }}
-            >
-              {selectedPaymentCategory === 'NET_BANKING' && (
-                <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: '#111111' }} />
-              )}
-            </View>
-            <Building2 size={18} color="#111111" />
-            <View>
-              <Text style={{ fontSize: 13, fontWeight: '900', color: '#111111' }}>Net Banking</Text>
-              <Text style={{ fontSize: 10.5, color: '#71717A' }}>All major Indian banks supported</Text>
-            </View>
-          </View>
-        </Pressable>
+          {payableAmount ? (
+            <Text style={[{ fontSize: 14, color: BrandColors.inkBlack }, FontStyles.sansBold]}>
+              {formatPrice(payableAmount)}
+            </Text>
+          ) : null}
+        </View>
 
-        {/* Sub-options for Net Banking */}
-        {selectedPaymentCategory === 'NET_BANKING' && (
-          <View style={{ padding: 14, borderTopWidth: 1, borderTopColor: '#E8E5DF', backgroundColor: '#FFFFFF' }}>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-              {POPULAR_BANKS.map((b) => {
-                const isChosen = selectedBank === b.id;
-                return (
-                  <Pressable
-                    key={b.id}
-                    onPress={() => setSelectedBank(b.id)}
-                    style={{
-                      paddingHorizontal: 14,
-                      paddingVertical: 8,
-                      borderRadius: 10,
-                      borderWidth: 1.5,
-                      borderColor: isChosen ? '#111111' : '#E8E5DF',
-                      backgroundColor: isChosen ? '#F4F1EA' : '#FFFFFF',
-                    }}
-                  >
-                    <Text style={{ fontSize: 11, fontWeight: isChosen ? '900' : '600', color: '#111111' }}>
-                      {b.name}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </View>
-        )}
-      </View>
-
-      {/* Category 4: Cash on Delivery (COD) */}
-      <View
-        style={{
-          borderRadius: 14,
-          borderWidth: 1,
-          borderColor: selectedPaymentCategory === 'COD' ? '#111111' : '#E8E5DF',
-          overflow: 'hidden',
-        }}
-      >
-        <Pressable
-          onPress={() => setSelectedPaymentCategory('COD')}
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: 14,
-            backgroundColor: selectedPaymentCategory === 'COD' ? '#FAF8F5' : '#FFFFFF',
-          }}
-        >
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-            <View
-              style={{
-                width: 20,
-                height: 20,
-                borderRadius: 10,
-                borderWidth: 2,
-                borderColor: selectedPaymentCategory === 'COD' ? '#111111' : '#D9D9D5',
-                justifyContent: 'center',
-                alignItems: 'center',
-              }}
-            >
-              {selectedPaymentCategory === 'COD' && (
-                <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: '#111111' }} />
-              )}
-            </View>
-            <Banknote size={18} color="#111111" />
-            <View>
-              <Text style={{ fontSize: 13, fontWeight: '900', color: '#111111' }}>Cash on Delivery (COD)</Text>
-              <Text style={{ fontSize: 10.5, color: '#71717A' }}>Pay cash or scan QR on arrival</Text>
-            </View>
-          </View>
-        </Pressable>
-
-        {selectedPaymentCategory === 'COD' && (
-          <View style={{ padding: 14, borderTopWidth: 1, borderTopColor: '#E8E5DF', backgroundColor: '#FFFFFF' }}>
-            <View style={{ backgroundColor: '#F0ECE4', padding: 10, borderRadius: 10 }}>
-              <Text style={{ fontSize: 11, color: '#4A4A4A', lineHeight: 16 }}>
-                ℹ️ You can pay via Cash or UPI QR Code directly to the delivery concierge. Doorstep Try & Buy is fully supported!
+        {isCod && (
+          <View
+            style={{
+              marginTop: 14,
+              paddingTop: 12,
+              borderTopWidth: 1,
+              borderTopColor: '#E8E5DF',
+            }}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <CheckCircle2 size={12} color="#15803D" />
+              <Text style={[{ fontSize: 11, color: '#15803D' }, FontStyles.sansSemiBold]}>
+                Doorstep verification available. Exact cash or UPI scan accepted.
               </Text>
             </View>
           </View>
         )}
-      </View>
+      </Pressable>
+
+      {/* Processing State Indicator */}
+      {isProcessingPayment && (
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 10,
+            marginTop: 14,
+            paddingVertical: 10,
+            backgroundColor: '#FAF8F5',
+            borderRadius: 12,
+            borderWidth: 1,
+            borderColor: '#E8E5DF',
+          }}
+        >
+          <ActivityIndicator size="small" color="#0D9488" />
+          <Text style={[{ fontSize: 12, color: '#0F766E' }, FontStyles.sansSemiBold]}>
+            Connecting to Razorpay secure gateway...
+          </Text>
+        </View>
+      )}
     </View>
   );
 });

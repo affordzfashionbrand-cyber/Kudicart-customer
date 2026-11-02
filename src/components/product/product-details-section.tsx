@@ -15,7 +15,9 @@ interface ProductDetailsSectionProps {
   originalPrice: number;
   savingsAmount: number;
   selectedColor: string;
-  onSelectColor: (colorName: string) => void;
+  onSelectColor: (colorName: string, targetProductId?: string) => void;
+  colors?: { name: string; hex: string; productId?: string; image?: string }[];
+  certification?: string;
 }
 
 export function ProductDetailsSection({
@@ -28,7 +30,10 @@ export function ProductDetailsSection({
   savingsAmount,
   selectedColor,
   onSelectColor,
+  colors,
+  certification = 'Silk Mark Certified',
 }: ProductDetailsSectionProps) {
+  const activeColorVariants = colors && colors.length > 0 ? colors : COLOR_VARIANTS;
   return (
     <View style={{ paddingHorizontal: 16, paddingTop: 16 }}>
       {/* Brand & Edition Row */}
@@ -63,9 +68,17 @@ export function ProductDetailsSection({
       {/* Ratings & Authenticity Trust */}
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-          <Star size={13} color="#D4AF37" fill="#D4AF37" />
-          <Text style={[FontStyles.sansBold, { fontSize: 12, color: '#111111' }]}>{rating.toFixed(1)}</Text>
-          <Text style={[FontStyles.sansRegular, { fontSize: 11, color: '#71717A' }]}>({reviewsCount} verified reviews)</Text>
+          {reviewsCount > 0 ? (
+            <>
+              <Star size={13} color="#D4AF37" fill="#D4AF37" />
+              <Text style={[FontStyles.sansBold, { fontSize: 12, color: '#111111' }]}>{rating.toFixed(1)}</Text>
+              <Text style={[FontStyles.sansRegular, { fontSize: 11, color: '#71717A' }]}>
+                ({reviewsCount} {reviewsCount === 1 ? 'verified review' : 'verified reviews'})
+              </Text>
+            </>
+          ) : (
+            <Text style={[FontStyles.sansRegular, { fontSize: 11, color: '#71717A' }]}>No reviews yet</Text>
+          )}
         </View>
 
         <View style={{ width: 3, height: 3, borderRadius: 1.5, backgroundColor: '#D9D9D5' }} />
@@ -73,7 +86,7 @@ export function ProductDetailsSection({
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
           <ShieldCheck size={13} color="#10B981" />
           <Text style={[FontStyles.sansBold, { fontSize: 10.5, color: '#10B981' }]}>
-            Silk Mark Certified
+            {certification}
           </Text>
         </View>
       </View>
@@ -112,15 +125,17 @@ export function ProductDetailsSection({
           <Text style={[FontStyles.sansBold, { fontSize: 11.5, color: '#111111' }]}>
             Atelier Shade: <Text style={{ color: '#FF5A1F' }}>{selectedColor}</Text>
           </Text>
-          <Text style={[FontStyles.sansMedium, { fontSize: 9.5, color: '#71717A' }]}>3 Colorways</Text>
+          <Text style={[FontStyles.sansMedium, { fontSize: 9.5, color: '#71717A' }]}>
+            {activeColorVariants.length} {activeColorVariants.length === 1 ? 'Colorway' : 'Colorways'}
+          </Text>
         </View>
-        <View style={{ flexDirection: 'row', gap: 8 }}>
-          {COLOR_VARIANTS.map((c) => {
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+          {activeColorVariants.map((c: any) => {
             const isSelected = selectedColor === c.name;
             return (
               <Pressable
                 key={c.name}
-                onPress={() => onSelectColor(c.name)}
+                onPress={() => onSelectColor(c.name, c.productId)}
                 style={{
                   flexDirection: 'row',
                   alignItems: 'center',
