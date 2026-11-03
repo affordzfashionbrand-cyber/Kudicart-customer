@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import { authApi, AuthUser, setAuthToken } from '@/services/api';
+import { customerNotificationService } from '@/services/notificationService';
 
 const TOKEN_KEY = 'affordz_token';
 const USER_KEY = 'affordz_user';
@@ -73,22 +74,26 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         storedUserStr = window.localStorage.getItem(USER_KEY);
       }
 
-      if (storedUserStr) {
+      if (storedToken && storedUserStr) {
         const user: AuthUser = JSON.parse(storedUserStr);
-        const token = storedToken || `affordz-token-${Date.now()}`;
-        setAuthToken(token);
+        setAuthToken(storedToken);
         set({
-          token,
+          token: storedToken,
           user,
           isAuthenticated: true,
           isInitialized: true,
         });
+        customerNotificationService.registerDeviceToken().catch(() => {});
         return;
+      } else if (storedUserStr || storedToken) {
+        // Clear invalid partial session
+        await clearSession();
+        setAuthToken(null);
       }
     } catch (e) {
       console.warn('Error reading stored session:', e);
     }
-    set({ isInitialized: true });
+    set({ isInitialized: true, isAuthenticated: false, token: null, user: null });
   },
 
   sendOtp: async (phone: string) => {
@@ -116,6 +121,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           isAuthenticated: true,
           isLoading: false,
         });
+        customerNotificationService.registerDeviceToken().catch(() => {});
         return true;
       }
       set({ isLoading: false, error: 'Verification failed' });
@@ -139,6 +145,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           isAuthenticated: true,
           isLoading: false,
         });
+        customerNotificationService.registerDeviceToken().catch(() => {});
         return true;
       }
       set({ isLoading: false, error: 'Firebase authentication failed' });
@@ -173,8 +180,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       });
 
       if (serverUser) {
-        const token = get().token || `affordz-token-${Date.now()}`;
-        await saveSession(token, serverUser);
+        const token = get().token;
+        if (token) {
+          await saveSession(token, serverUser);
+        }
         set({ user: serverUser, isLoading: false, error: null });
       }
     } catch (err: any) {
@@ -185,6 +194,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   logout: async () => {
+    await customerNotificationService.unregisterDeviceToken().catch(() => {});
     await clearSession();
     setAuthToken(null);
     set({ user: null, token: null, isAuthenticated: false });

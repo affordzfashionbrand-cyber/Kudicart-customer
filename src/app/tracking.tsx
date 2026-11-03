@@ -148,17 +148,23 @@ export default function TrackingScreen() {
   // Authoritative Driver Details
   const driver = useMemo(() => {
     const rawDriver: any = activeTracking?.driver || currentOrder?.driver;
+    if (!rawDriver) {
+      return {
+        id: '',
+        name: 'Assigning delivery partner...',
+        phone: '',
+        vehicle: '',
+        rating: null,
+        currentLocation: null,
+      };
+    }
     return {
-      id: rawDriver?.id || 'drv-1',
-      name: rawDriver?.name || 'Rajesh Kumar',
-      phone: rawDriver?.phone || '+91 98765 43210',
-      vehicle: rawDriver?.vehicle || 'Ather 450X EV • KA 03 EV 4821',
-      rating: typeof rawDriver?.rating === 'number' ? rawDriver.rating : 4.9,
-      currentLocation: rawDriver?.currentLocation || {
-        latitude: 12.9716,
-        longitude: 77.5946,
-        heading: 45,
-      },
+      id: rawDriver.id || '',
+      name: rawDriver.name || rawDriver.fullName || 'Delivery Partner',
+      phone: rawDriver.phone || '',
+      vehicle: rawDriver.vehicle || rawDriver.vehicleModel || '',
+      rating: typeof rawDriver.rating === 'number' ? rawDriver.rating : null,
+      currentLocation: rawDriver.currentLocation || null,
     };
   }, [activeTracking, currentOrder]);
 

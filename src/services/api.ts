@@ -44,7 +44,7 @@ export const setAuthToken = (token: string | null) => {
 export const getAuthToken = () => authToken;
 
 // Generic request helper with timeout and offline-resilience
-async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+export async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`;
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -600,13 +600,13 @@ export const cartApi = {
       return await request<CartModel>('/api/v1/cart');
     } catch {
       return {
-        id: 'cart-usr-1',
-        userId: 'usr-1',
+        id: '',
+        userId: '',
         items: [],
         itemTotal: 0,
-        deliveryFee: 40,
+        deliveryFee: 0,
         taxes: 0,
-        grandTotal: 40,
+        grandTotal: 0,
       };
     }
   },
@@ -834,90 +834,7 @@ export interface CheckoutPayload {
   grandTotal?: number;
 }
 
-const inMemoryOrders: OrderModel[] = [
-  {
-    id: 'ord-89241',
-    orderNumber: 'AF-89241',
-    customerId: 'usr-1',
-    status: 'OUT_FOR_DELIVERY',
-    paymentMethod: 'RAZORPAY',
-    paymentStatus: 'COMPLETED',
-    itemTotal: 1299,
-    deliveryFee: 40,
-    taxes: 65,
-    grandTotal: 1404,
-    etaMinutes: 18,
-    createdAt: new Date(Date.now() - 25 * 60 * 1000).toISOString(),
-    address: {
-      id: 'addr-1',
-      userId: 'usr-1',
-      label: 'Home Sanctuary',
-      line1: 'Apt 4B, Sunrise Heights, 42 Westend Boulevard',
-      locality: 'Indiranagar',
-      city: 'Bengaluru',
-      pincode: '560038',
-      isDefault: true,
-    },
-    items: [
-      {
-        id: 'oi-1',
-        title: 'Embroidered Anarkali Kurta Set',
-        brand: 'Avanya Ethnic',
-        size: 'M (38 in)',
-        price: 1299,
-        quantity: 1,
-        image: 'https://images.unsplash.com/photo-1539109136881-3be0616acf4b?auto=format&fit=crop&w=800&q=85',
-      },
-    ],
-    driver: {
-      id: 'drv-1',
-      name: 'Rajesh Kumar',
-      phone: '+91 98765 43210',
-      vehicle: 'KA 03 EV 4821',
-    },
-  },
-  {
-    id: 'ord-72019',
-    orderNumber: 'AF-72019',
-    customerId: 'usr-1',
-    status: 'DELIVERED',
-    paymentMethod: 'COD',
-    paymentStatus: 'COMPLETED',
-    itemTotal: 1899,
-    deliveryFee: 0,
-    taxes: 95,
-    grandTotal: 1994,
-    etaMinutes: 0,
-    createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-    address: {
-      id: 'addr-1',
-      userId: 'usr-1',
-      label: 'Home Sanctuary',
-      line1: 'Apt 4B, Sunrise Heights, 42 Westend Boulevard',
-      locality: 'Indiranagar',
-      city: 'Bengaluru',
-      pincode: '560038',
-      isDefault: true,
-    },
-    items: [
-      {
-        id: 'oi-2',
-        title: 'Heritage Handwoven Chanderi Kurta',
-        brand: 'Affordz Atelier',
-        size: 'L (40 in)',
-        price: 1899,
-        quantity: 1,
-        image: 'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?auto=format&fit=crop&w=800&q=85',
-      },
-    ],
-    driver: {
-      id: 'drv-2',
-      name: 'Suresh Gowda',
-      phone: '+91 98765 99887',
-      vehicle: 'KA 01 EK 9102',
-    },
-  },
-];
+const inMemoryOrders: OrderModel[] = [];
 
 export const ordersApi = {
   checkout: async (
@@ -987,9 +904,11 @@ export const ordersApi = {
   trackOrder: async (orderId: string): Promise<TrackingModel> => {
     try {
       return await request<TrackingModel>(`/api/v1/orders/${orderId}/track`);
-    } catch {
-      const targetOrder =
-        inMemoryOrders.find((o) => o.id === orderId || o.orderNumber === orderId) || inMemoryOrders[0];
+    } catch (err: any) {
+      const targetOrder = inMemoryOrders.find((o) => o.id === orderId || o.orderNumber === orderId);
+      if (!targetOrder) {
+        throw new Error(err?.message || `Order ${orderId} tracking unavailable`);
+      }
 
       const isCod = targetOrder.paymentMethod === 'COD';
       const locality = targetOrder.address?.locality || 'your destination';

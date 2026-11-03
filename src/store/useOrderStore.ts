@@ -51,94 +51,10 @@ interface OrderState {
 }
 
 export const useOrderStore = create<OrderState>((set, get) => ({
-  orders: [
-    {
-      id: 'ord-89241',
-      orderNumber: 'AF-89241',
-      customerId: 'usr-1',
-      status: 'OUT_FOR_DELIVERY',
-      paymentMethod: 'RAZORPAY',
-      paymentStatus: 'COMPLETED',
-      itemTotal: 1299,
-      deliveryFee: 40,
-      taxes: 65,
-      grandTotal: 1404,
-      etaMinutes: 18,
-      createdAt: new Date(Date.now() - 25 * 60 * 1000).toISOString(),
-      address: {
-        id: 'addr-1',
-        userId: 'usr-1',
-        label: 'Home Sanctuary',
-        line1: 'Apt 4B, Sunrise Heights, 42 Westend Boulevard',
-        locality: 'Indiranagar',
-        city: 'Bengaluru',
-        pincode: '560038',
-        isDefault: true,
-      },
-      items: [
-        {
-          id: 'oi-1',
-          title: 'Embroidered Anarkali Kurta Set',
-          brand: 'Avanya Ethnic',
-          size: 'M (38 in)',
-          price: 1299,
-          quantity: 1,
-          image:
-            'https://images.unsplash.com/photo-1539109136881-3be0616acf4b?auto=format&fit=crop&w=800&q=85',
-        },
-      ],
-      driver: {
-        id: 'drv-1',
-        name: 'Rajesh Kumar',
-        phone: '+91 98765 43210',
-        vehicle: 'KA 03 EV 4821',
-      },
-    },
-    {
-      id: 'ord-72019',
-      orderNumber: 'AF-72019',
-      customerId: 'usr-1',
-      status: 'DELIVERED',
-      paymentMethod: 'COD',
-      paymentStatus: 'COMPLETED',
-      itemTotal: 1899,
-      deliveryFee: 0,
-      taxes: 95,
-      grandTotal: 1994,
-      etaMinutes: 0,
-      createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-      address: {
-        id: 'addr-1',
-        userId: 'usr-1',
-        label: 'Home Sanctuary',
-        line1: 'Apt 4B, Sunrise Heights, 42 Westend Boulevard',
-        locality: 'Indiranagar',
-        city: 'Bengaluru',
-        pincode: '560038',
-        isDefault: true,
-      },
-      items: [
-        {
-          id: 'oi-2',
-          title: 'Heritage Handwoven Chanderi Kurta',
-          brand: 'Affordz Atelier',
-          size: 'L (40 in)',
-          price: 1899,
-          quantity: 1,
-          image:
-            'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?auto=format&fit=crop&w=800&q=85',
-        },
-      ],
-      driver: {
-        id: 'drv-2',
-        name: 'Suresh Gowda',
-        phone: '+91 98765 99887',
-        vehicle: 'KA 01 EK 9102',
-      },
-    },
-  ],
+  orders: [],
   activeOrder: null,
   activeTracking: null,
+  orderRatings: {},
   isLoading: false,
   isCheckingOut: false,
   error: null,
@@ -277,8 +193,6 @@ export const useOrderStore = create<OrderState>((set, get) => ({
   },
 
   setActiveOrder: (order) => set({ activeOrder: order }),
-
-  orderRatings: {},
 
   submitOrderRating: async (orderId, rating, tags, comment, productId) => {
     const ratingData: OrderRatingData = {

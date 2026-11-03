@@ -83,32 +83,14 @@ const calculateTotals = (
 };
 
 export const useCartStore = create<CartState>((set, get) => ({
-  items: [
-    {
-      id: 'cart-1',
-      productId: 'prod-1',
-      brand: 'Avanya Ethnic',
-      title: 'Embroidered Anarkali Kurta Set',
-      size: 'M (38 in)',
-      trialSize: 'L (40 in)',
-      isTryAndBuy: true,
-      fulfillmentType: 'DARK_STORE',
-      color: 'Berry Crimson',
-      price: 1299,
-      originalPrice: 2499,
-      discountBadge: '48% OFF',
-      quantity: 1,
-      image:
-        'https://images.unsplash.com/photo-1539109136881-3be0616acf4b?auto=format&fit=crop&w=800&q=85',
-    },
-  ],
-  itemTotal: 1299,
-  deliveryFee: 40,
-  taxes: 65,
-  grandTotal: 1404,
+  items: [],
+  itemTotal: 0,
+  deliveryFee: 0,
+  taxes: 0,
+  grandTotal: 0,
   isLoading: false,
   error: null,
-  wishlist: ['1', '102', 'prod-2'],
+  wishlist: [],
 
   couponCode: null,
   discountAmount: 0,
