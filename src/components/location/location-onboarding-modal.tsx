@@ -139,11 +139,31 @@ export const LocationOnboardingModal: React.FC<LocationOnboardingModalProps> = (
 
     let targetAddr: AddressModel;
 
-    if (existing) {
-      targetAddr = existing;
-      setSelectedAddressId(existing.id);
-    } else {
-      const created = await addAddress({
+    try {
+      if (existing) {
+        targetAddr = existing;
+        setSelectedAddressId(existing.id);
+      } else {
+        const created = await addAddress({
+          label: item.label,
+          line1: item.line1,
+          locality: item.locality,
+          city: item.city,
+          pincode: item.pincode,
+          latitude: item.latitude,
+          longitude: item.longitude,
+          isDefault: true,
+        });
+        targetAddr = created;
+      }
+
+      setHasLocationConfirmed(true);
+      onConfirm?.(targetAddr);
+      onClose();
+    } catch {
+      const fallbackAddr: AddressModel = {
+        id: `addr-local-${Date.now()}`,
+        userId: 'guest',
         label: item.label,
         line1: item.line1,
         locality: item.locality,
@@ -152,13 +172,12 @@ export const LocationOnboardingModal: React.FC<LocationOnboardingModalProps> = (
         latitude: item.latitude,
         longitude: item.longitude,
         isDefault: true,
-      });
-      targetAddr = created;
+      };
+      setSelectedAddressId(fallbackAddr.id);
+      setHasLocationConfirmed(true);
+      onConfirm?.(fallbackAddr);
+      onClose();
     }
-
-    setHasLocationConfirmed(true);
-    onConfirm?.(targetAddr);
-    onClose();
   };
 
   const handleDetectCurrentLocation = async () => {

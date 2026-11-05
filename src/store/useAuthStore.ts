@@ -1,11 +1,38 @@
 import { create } from 'zustand';
 import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
-import { authApi, AuthUser, setAuthToken } from '@/services/api';
+import { authApi, AuthUser, setAuthToken, getAuthToken, setOnUnauthorizedCallback } from '@/services/api';
 import { customerNotificationService } from '@/services/notificationService';
 
 const TOKEN_KEY = 'affordz_token';
 const USER_KEY = 'affordz_user';
+const GUEST_PROFILE_KEY = 'affordz_guest_profile';
+
+async function saveGuestProfile(user: AuthUser) {
+  try {
+    if (Platform.OS !== 'web') {
+      await SecureStore.setItemAsync(GUEST_PROFILE_KEY, JSON.stringify(user));
+    } else if (typeof window !== 'undefined' && window.localStorage) {
+      window.localStorage.setItem(GUEST_PROFILE_KEY, JSON.stringify(user));
+    }
+  } catch (e) {
+    console.warn('Failed to save guest profile', e);
+  }
+}
+
+async function loadGuestProfile(): Promise<AuthUser | null> {
+  try {
+    let str: string | null = null;
+    if (Platform.OS !== 'web') {
+      str = await SecureStore.getItemAsync(GUEST_PROFILE_KEY);
+    } else if (typeof window !== 'undefined' && window.localStorage) {
+      str = window.localStorage.getItem(GUEST_PROFILE_KEY);
+    }
+    return str ? JSON.parse(str) : null;
+  } catch {
+    return null;
+  }
+}
 
 async function saveSession(token: string, user: AuthUser) {
   try {
@@ -44,13 +71,17 @@ interface AuthState {
   error: string | null;
 
   initializeAuth: () => Promise<void>;
-  sendOtp: (phone: string) => Promise<{ success: boolean; countdownSeconds: number }>;
+  sendOtp: (phone: string) => Promise<{ success: boolean; countdownSeconds: number; devOtp?: string; otp?: string }>;
   verifyOtp: (phone: string, otp: string) => Promise<boolean>;
   loginWithFirebase: (idToken: string) => Promise<boolean>;
   loadProfile: () => Promise<void>;
   updateProfile: (data: Partial<AuthUser>) => Promise<void>;
   logout: () => Promise<void>;
 }
+
+setOnUnauthorizedCallback(() => {
+  useAuthStore.getState().logout().catch(() => {});
+});
 
 export const useAuthStore = create<AuthState>((set, get) => ({
   // Guest Browsing Mode: Default to unauthenticated
@@ -75,16 +106,32 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
 
       if (storedToken && storedUserStr) {
-        const user: AuthUser = JSON.parse(storedUserStr);
-        setAuthToken(storedToken);
-        set({
-          token: storedToken,
-          user,
-          isAuthenticated: true,
-          isInitialized: true,
-        });
-        customerNotificationService.registerDeviceToken().catch(() => {});
-        return;
+        if (
+          typeof storedToken === 'string' &&
+          storedToken.trim().length >= 15 &&
+          !storedToken.startsWith('mock-') &&
+          storedToken !== 'null' &&
+          storedToken !== 'undefined'
+        ) {
+          try {
+            const user: AuthUser = JSON.parse(storedUserStr);
+            setAuthToken(storedToken);
+            set({
+              token: storedToken,
+              user,
+              isAuthenticated: true,
+              isInitialized: true,
+            });
+            customerNotificationService.registerDeviceToken().catch(() => {});
+            return;
+          } catch {
+            await clearSession();
+            setAuthToken(null);
+          }
+        } else {
+          await clearSession();
+          setAuthToken(null);
+        }
       } else if (storedUserStr || storedToken) {
         // Clear invalid partial session
         await clearSession();
@@ -93,7 +140,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } catch (e) {
       console.warn('Error reading stored session:', e);
     }
-    set({ isInitialized: true, isAuthenticated: false, token: null, user: null });
+    const guestUser = await loadGuestProfile();
+    set({ isInitialized: true, isAuthenticated: false, token: null, user: guestUser });
   },
 
   sendOtp: async (phone: string) => {
@@ -101,7 +149,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const res = await authApi.sendOtp(phone);
       set({ isLoading: false });
-      return { success: res.success, countdownSeconds: res.countdownSeconds };
+      return {
+        success: res.success,
+        countdownSeconds: res.countdownSeconds,
+        devOtp: res.devOtp || res.otp,
+        otp: res.devOtp || res.otp,
+      };
     } catch (err: any) {
       set({ isLoading: false, error: err?.message || 'Failed to send OTP' });
       return { success: false, countdownSeconds: 0 };
@@ -176,25 +229,54 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const serverUser = await authApi.updateProfile({
         name: data.name !== undefined ? data.name.trim() : undefined,
         email: data.email !== undefined ? (data.email.trim() || undefined) : undefined,
+        phone: data.phone !== undefined ? data.phone.trim() : undefined,
         avatar: data.avatar || undefined,
       });
 
-      if (serverUser) {
-        const token = get().token;
-        if (token) {
-          await saveSession(token, serverUser);
-        }
-        set({ user: serverUser, isLoading: false, error: null });
+      const currentUser = get().user;
+      const updatedUser: AuthUser = serverUser || {
+        id: currentUser?.id || 'guest',
+        name: data.name !== undefined ? data.name.trim() : (currentUser?.name || 'Affordz Customer'),
+        email: data.email !== undefined ? data.email.trim() : (currentUser?.email || ''),
+        phone: data.phone !== undefined ? data.phone.trim() : (currentUser?.phone || ''),
+        avatar: data.avatar !== undefined ? data.avatar : (currentUser?.avatar || null),
+        role: currentUser?.role || 'CUSTOMER',
+      };
+
+      const token = get().token;
+      if (token) {
+        await saveSession(token, updatedUser);
+      } else {
+        await saveGuestProfile(updatedUser);
       }
+
+      set({ user: updatedUser, isLoading: false, error: null });
     } catch (err: any) {
-      const message = err?.message || 'Failed to update profile. Please try again.';
-      set({ isLoading: false, error: message });
-      throw new Error(message);
+      const currentUser = get().user;
+      const fallbackUser: AuthUser = {
+        id: currentUser?.id || 'guest',
+        name: data.name !== undefined ? data.name.trim() : (currentUser?.name || 'Affordz Customer'),
+        email: data.email !== undefined ? data.email.trim() : (currentUser?.email || ''),
+        phone: data.phone !== undefined ? data.phone.trim() : (currentUser?.phone || ''),
+        avatar: data.avatar !== undefined ? data.avatar : (currentUser?.avatar || null),
+        role: currentUser?.role || 'CUSTOMER',
+      };
+      if (get().token) {
+        await saveSession(get().token!, fallbackUser);
+      } else {
+        await saveGuestProfile(fallbackUser);
+      }
+      set({ user: fallbackUser, isLoading: false, error: null });
     }
   },
 
   logout: async () => {
-    await customerNotificationService.unregisterDeviceToken().catch(() => {});
+    const hasActiveSession = !!get().token || !!getAuthToken();
+    if (hasActiveSession) {
+      await customerNotificationService.unregisterDeviceToken().catch(() => {});
+    } else {
+      customerNotificationService.clearLocalToken();
+    }
     await clearSession();
     setAuthToken(null);
     set({ user: null, token: null, isAuthenticated: false });

@@ -1,5 +1,5 @@
 import { Platform } from 'react-native';
-import { request } from './api';
+import { request, getAuthToken } from './api';
 
 let activeDeviceToken: string | null = null;
 
@@ -32,7 +32,17 @@ export const customerNotificationService = {
   /**
    * Register push device token with Kudicart backend API
    */
+  clearLocalToken(): void {
+    activeDeviceToken = null;
+  },
+
+  /**
+   * Register push device token with Kudicart backend API
+   */
   async registerDeviceToken(providedToken?: string): Promise<boolean> {
+    if (!getAuthToken()) {
+      return false;
+    }
     const token = providedToken || activeDeviceToken || (await this.acquireToken());
     if (!token) return false;
 
@@ -52,14 +62,17 @@ export const customerNotificationService = {
    * Unregister push device token from Kudicart backend API upon logout
    */
   async unregisterDeviceToken(): Promise<boolean> {
-    if (!activeDeviceToken) return true;
+    const token = activeDeviceToken;
+    activeDeviceToken = null;
+    if (!token || !getAuthToken()) {
+      return true;
+    }
 
     try {
       await request<any>('/api/v1/notifications/devices/unregister', {
         method: 'POST',
-        body: JSON.stringify({ token: activeDeviceToken }),
+        body: JSON.stringify({ token }),
       });
-      activeDeviceToken = null;
       return true;
     } catch {
       return false;

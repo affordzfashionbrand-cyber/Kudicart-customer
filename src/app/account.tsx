@@ -4,6 +4,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { ArrowLeft } from 'lucide-react-native';
 import { useAuthStore } from '@/store/useAuthStore';
+import { useOrderStore } from '@/store/useOrderStore';
+import { useAddressStore } from '@/store/useAddressStore';
 import { AccountView } from '@/components/views/account-view';
 import { AddressModal } from '@/components/address-modal';
 import { AuthModal } from '@/components/auth-modal';
@@ -20,6 +22,11 @@ export default function AccountScreen() {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
   React.useEffect(() => {
+    useOrderStore.getState().fetchOrders().catch(() => {});
+    useAddressStore.getState().fetchAddresses().catch(() => {});
+    if (useAuthStore.getState().isAuthenticated) {
+      useAuthStore.getState().loadProfile().catch(() => {});
+    }
     const onBackPress = () => {
       safeBack(router, '/');
       return true;

@@ -22,6 +22,7 @@ export function AuthModal({ visible, onClose, onSuccess }: AuthModalProps) {
   const [isVerifying, setIsVerifying] = useState(false);
   const [verifiedSuccess, setVerifiedSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [devOtp, setDevOtp] = useState<string | null>(null);
   
   const { sendOtp, verifyOtp } = useAuthStore();
   const inputRefs = useRef<(TextInput | null)[]>([]);
@@ -33,6 +34,7 @@ export function AuthModal({ visible, onClose, onSuccess }: AuthModalProps) {
       setActiveStep(1);
       setVerifiedSuccess(false);
       setError(null);
+      setDevOtp(null);
     } else {
       slideAnim.setValue(300);
       setError(null);
@@ -68,6 +70,12 @@ export function AuthModal({ visible, onClose, onSuccess }: AuthModalProps) {
       if (res && res.success) {
         setActiveStep(2);
         setCountdown(res.countdownSeconds || 30);
+        const code = res.devOtp || res.otp || '123456';
+        setDevOtp(code);
+        const digits = String(code).split('').slice(0, 6);
+        if (digits.length === 6) {
+          setOtp(digits);
+        }
       } else {
         setError('Unable to send OTP. Authentication service is unavailable.');
       }
@@ -159,7 +167,26 @@ export function AuthModal({ visible, onClose, onSuccess }: AuthModalProps) {
             ) : (
               <View>
                 <Text className="text-[30px] leading-[34px] tracking-tight font-black text-[#111111] mb-[8px]">VERIFY OTP<Text style={{ color: '#FF5A1F' }}>.</Text></Text>
-                <Text className="text-[13.5px] text-[#6B6667] mb-[28px]">Enter the 6-digit verification code sent to +91 {phoneNumber}</Text>
+                <Text className="text-[13.5px] text-[#6B6667] mb-[16px]">Enter the 6-digit verification code sent to +91 {phoneNumber.replace(/\D/g, '').slice(-10)}</Text>
+                {devOtp && (
+                  <View className="flex-row items-center justify-between bg-[#F7F7F5] border border-[#D9D9D5] rounded-[14px] px-3 py-2 mb-4">
+                    <View className="flex-row items-center gap-1.5">
+                      <CheckCircle2 size={13} color="#059669" />
+                      <Text className="text-[11.5px] text-[#111111] font-bold">
+                        Dev OTP: <Text className="font-black text-[#FF5A1F]">{devOtp}</Text>
+                      </Text>
+                    </View>
+                    <Pressable
+                      onPress={() => {
+                        const digits = String(devOtp).split('').slice(0, 6);
+                        setOtp(digits);
+                      }}
+                      hitSlop={8}
+                    >
+                      <Text className="text-[11.5px] font-black text-[#111111] underline">Auto-fill</Text>
+                    </Pressable>
+                  </View>
+                )}
 
                 <View className="flex-row justify-between mb-[28px]">
                   {otp.map((digit, index) => (

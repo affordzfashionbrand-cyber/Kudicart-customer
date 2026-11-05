@@ -13,12 +13,15 @@ import {
   Headphones,
   User,
   Zap,
+  Mail,
 } from 'lucide-react-native';
 import { SectionTitle } from '@/components/common/section-title';
 import { AnimatedPressable } from '@/components/common/animated-pressable';
 import { useOrderStore } from '@/store/useOrderStore';
 import { useCartStore } from '@/store/useCartStore';
 import { useAddressStore } from '@/store/useAddressStore';
+import { useAuthStore } from '@/store/useAuthStore';
+import { FontStyles } from '@/constants/theme';
 import { EditProfileModal } from '@/components/account/edit-profile-modal';
 import { SettingsModal } from '@/components/account/settings-modal';
 
@@ -33,8 +36,8 @@ interface AccountViewProps {
   onLogout?: () => void;
 }
 
-export const AccountView = React.memo(function AccountView({
-  user,
+export function AccountView({
+  user: propUser,
   onOrders,
   onAddresses,
   onTracking,
@@ -43,24 +46,35 @@ export const AccountView = React.memo(function AccountView({
   onWishlist,
   onLogout,
 }: AccountViewProps) {
-  const { orders } = useOrderStore();
+  const { user: storeUser, isAuthenticated, loadProfile } = useAuthStore();
+  const user = storeUser || propUser;
+  const { orders, fetchOrders } = useOrderStore();
   const { wishlist } = useCartStore();
-  const { addresses } = useAddressStore();
+  const { addresses, fetchAddresses } = useAddressStore();
 
   const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isSignOutModalOpen, setIsSignOutModalOpen] = useState(false);
 
-  const displayName = user?.name || 'Affordz Customer';
-  const displayPhone = user?.phone || '+91 8124188999';
+  React.useEffect(() => {
+    fetchOrders().catch(() => {});
+    fetchAddresses().catch(() => {});
+    if (isAuthenticated) {
+      loadProfile().catch(() => {});
+    }
+  }, [fetchOrders, fetchAddresses, loadProfile, isAuthenticated]);
+
+  const displayName = (user?.name || '').trim() || (isAuthenticated ? 'Affordz Member' : 'Guest Collector');
+  const displayPhone = (user?.phone || '').trim();
+  const displayEmail = (user?.email || '').trim();
 
   const initials = displayName
-    .trim()
     .split(' ')
+    .filter(Boolean)
     .map((n: string) => n[0])
     .join('')
     .toUpperCase()
-    .slice(0, 2);
+    .slice(0, 2) || 'AC';
 
   const handleConfirmLogout = () => {
     setIsSignOutModalOpen(false);
@@ -92,14 +106,29 @@ export const AccountView = React.memo(function AccountView({
                     {displayName}
                   </Text>
                 </View>
-                <View className="flex-row items-center gap-1 mt-0.5">
-                  <ShieldCheck size={12} color="#059669" />
-                  <Text className="text-[12px] font-semibold text-[#6B6667]">{displayPhone}</Text>
-                </View>
+                {displayPhone ? (
+                  <View className="flex-row items-center gap-1 mt-0.5">
+                    <ShieldCheck size={12} color="#059669" />
+                    <Text className="text-[12px] font-semibold text-[#6B6667]">{displayPhone}</Text>
+                  </View>
+                ) : (
+                  <Pressable onPress={onAuth} className="flex-row items-center gap-1 mt-0.5">
+                    <Phone size={11} color="#C59B27" />
+                    <Text className="text-[11.5px] font-bold text-[#C59B27]">Link mobile number</Text>
+                  </Pressable>
+                )}
+                {displayEmail ? (
+                  <View className="flex-row items-center gap-1 mt-0.5">
+                    <Mail size={12} color="#8A857D" />
+                    <Text className="text-[11.5px] font-medium text-[#6B6667]" numberOfLines={1}>
+                      {displayEmail}
+                    </Text>
+                  </View>
+                ) : null}
                 <View className="flex-row items-center gap-1 mt-1">
                   <Sparkles size={10} color="#C59B27" />
                   <Text className="text-[10px] font-black uppercase text-[#8A857D] tracking-wider">
-                    Atelier Member
+                    {isAuthenticated ? 'Atelier Member' : 'Guest Pass'}
                   </Text>
                 </View>
               </View>
@@ -245,11 +274,16 @@ export const AccountView = React.memo(function AccountView({
               className="flex-row justify-between items-center py-[14px] border-b border-[#F4F1EA]"
               onPress={() => setIsEditProfileOpen(true)}
             >
-              <View className="flex-row items-center gap-3">
+              <View className="flex-row items-center gap-3 flex-1 pr-2">
                 <View className="w-8 h-8 rounded-xl bg-[#FAF8F5] border border-[#E8E5DF] items-center justify-center">
                   <User size={15} color="#111111" />
                 </View>
-                <Text className="text-[14px] font-bold text-[#111111]">Personal Details</Text>
+                <View className="flex-1">
+                  <Text className="text-[14px] font-bold text-[#111111]">Personal Details</Text>
+                  <Text className="text-[10.5px] text-[#8A857D]" numberOfLines={1}>
+                    {displayName}{displayPhone ? ` • ${displayPhone}` : ''}{displayEmail ? ` • ${displayEmail}` : ''}
+                  </Text>
+                </View>
               </View>
               <View className="w-[28px] h-[28px] rounded-full bg-[#F4F1EA] items-center justify-center">
                 <ChevronRight size={14} color="#111111" />
@@ -421,4 +455,4 @@ export const AccountView = React.memo(function AccountView({
       )}
     </View>
   );
-});
+}

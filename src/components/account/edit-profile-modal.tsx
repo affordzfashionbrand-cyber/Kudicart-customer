@@ -30,6 +30,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [validationError, setValidationError] = useState<string | null>(null);
   const [successToast, setSuccessToast] = useState(false);
 
@@ -37,6 +38,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
     if (visible) {
       setName(user?.name || '');
       setEmail(user?.email || '');
+      setPhone(user?.phone || '');
       setValidationError(null);
       setSuccessToast(false);
     }
@@ -61,6 +63,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
       await updateProfile({
         name: name.trim(),
         email: email.trim() || undefined,
+        phone: phone.trim() || undefined,
       });
       setSuccessToast(true);
       setTimeout(() => {
@@ -335,32 +338,36 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
                 </View>
               </View>
 
-              {/* Phone Input (Read Only / Verified via Firebase) */}
+              {/* Phone Input */}
               <View style={{ marginBottom: 22 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
                   <Text
-                    style={{
-                      fontSize: 11,
-                      fontWeight: '800',
-                      color: '#4A4A4A',
-                      textTransform: 'uppercase',
-                      letterSpacing: 0.5,
-                    }}
+                    style={[
+                      FontStyles.sansBold,
+                      {
+                        fontSize: 11,
+                        color: '#4A4A4A',
+                        textTransform: 'uppercase',
+                        letterSpacing: 0.5,
+                      },
+                    ]}
                   >
-                    Registered Phone Number
+                    Contact Phone Number
                   </Text>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-                    <CheckCircle2 size={12} color="#059669" />
-                    <Text style={{ fontSize: 10, fontWeight: '800', color: '#059669' }}>
-                      VERIFIED
-                    </Text>
-                  </View>
+                  {user?.phone ? (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                      <CheckCircle2 size={12} color="#059669" />
+                      <Text style={[FontStyles.sansBold, { fontSize: 10, color: '#059669' }]}>
+                        LINKED
+                      </Text>
+                    </View>
+                  ) : null}
                 </View>
                 <View
                   style={{
                     flexDirection: 'row',
                     alignItems: 'center',
-                    backgroundColor: '#F2EFEB',
+                    backgroundColor: '#FAF8F5',
                     borderWidth: 1,
                     borderColor: '#E8E5DF',
                     borderRadius: 14,
@@ -369,12 +376,17 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
                   }}
                 >
                   <Phone size={16} color="#8A857D" style={{ marginRight: 8 }} />
-                  <Text style={{ fontSize: 13.5, color: '#71717A', fontWeight: '700' }}>
-                    {user?.phone || '+91 8124188999'}
-                  </Text>
+                  <TextInput
+                    value={phone}
+                    onChangeText={setPhone}
+                    placeholder="e.g. +91 98765 43210"
+                    placeholderTextColor="#A0A0A0"
+                    keyboardType="phone-pad"
+                    style={[FontStyles.sansSemiBold, { flex: 1, fontSize: 13.5, color: '#111111' }]}
+                  />
                 </View>
-                <Text style={{ fontSize: 10, color: '#8A857D', marginTop: 4 }}>
-                  Phone number is verified with Firebase Authentication. To change, sign in with another number.
+                <Text style={[FontStyles.sansRegular, { fontSize: 10.5, color: '#8A857D', marginTop: 4 }]}>
+                  Used for rider dispatch, 18-minute delivery tracking, and order confirmations.
                 </Text>
               </View>
 
