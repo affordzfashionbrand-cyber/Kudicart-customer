@@ -7,6 +7,7 @@ import {
   Platform,
   Linking,
   Modal,
+  StyleSheet,
 } from 'react-native';
 import Svg, {
   Path,
@@ -28,8 +29,29 @@ import {
   Bike,
   Map as MapIcon,
   CheckCircle2,
+  AlertCircle,
+  Clock,
+  LocateFixed,
 } from 'lucide-react-native';
 import { OrderStatus } from '@/services/api';
+
+// Safe conditional import for react-native-maps
+let NativeMapView: any = null;
+let NativeMarker: any = null;
+let NativePolyline: any = null;
+let PROVIDER_GOOGLE: any = null;
+
+if (Platform.OS !== 'web') {
+  try {
+    const Maps = require('react-native-maps');
+    NativeMapView = Maps.default;
+    NativeMarker = Maps.Marker;
+    NativePolyline = Maps.Polyline;
+    PROVIDER_GOOGLE = Maps.PROVIDER_GOOGLE;
+  } catch (e) {
+    console.warn('[CustomerMap] react-native-maps load notice:', e);
+  }
+}
 
 export interface LiveTrackingMapProps {
   status: OrderStatus;
@@ -39,19 +61,40 @@ export interface LiveTrackingMapProps {
     name: string;
     phone: string;
     vehicle: string;
-    rating: number;
+    photo?: string;
+    rating: number | null;
     currentLocation?: {
       latitude: number;
       longitude: number;
       heading?: number;
-    };
+      accuracy?: number;
+      speed?: number;
+      updatedAt?: string;
+    } | null;
+    isStale?: boolean;
   } | null;
   hubName?: string;
   destinationAddress?: string;
   isDarkStore?: boolean;
+  deliveryCoordinates?: {
+    latitude: number;
+    longitude: number;
+  };
+  pickupCoordinates?: {
+    latitude: number;
+    longitude: number;
+  };
+  route?: {
+    encodedPolyline?: string;
+    coordinates?: [number, number][];
+    distanceKm?: string;
+    durationMinutes?: number;
+    isRealRoute?: boolean;
+    isStraightLineReference?: boolean;
+    routeUnavailable?: boolean;
+  } | null;
 }
 
-// 8 Stages progression hierarchy with accurate ETAs
 export const ALL_STAGES: { key: OrderStatus; label: string; progress: number; eta: number }[] = [
   { key: 'PLACED', label: 'Order Placed', progress: 0.05, eta: 18 },
   { key: 'ACCEPTED', label: 'Vendor Accepted', progress: 0.16, eta: 16 },
@@ -63,19 +106,6 @@ export const ALL_STAGES: { key: OrderStatus; label: string; progress: number; et
   { key: 'DELIVERED', label: 'Delivered', progress: 1.0, eta: 0 },
 ];
 
-// Waypoints on Bangalore Indiranagar -> Domlur grid (viewBox 0 0 800 460)
-// Store at Indiranagar 100ft Road (140, 370) -> Destination at Domlur/HAL (660, 110)
-const ROUTE_WAYPOINTS = [
-  { x: 140, y: 370, street: 'Indiranagar 100ft Road' },
-  { x: 230, y: 370, street: 'CMH Road Junction' },
-  { x: 230, y: 270, street: '12th Main Road' },
-  { x: 380, y: 270, street: 'Defense Colony Main Road' },
-  { x: 380, y: 190, street: 'HAL 2nd Stage Avenue' },
-  { x: 520, y: 190, street: 'Domlur Flyover Underpass' },
-  { x: 520, y: 110, street: 'Sunrise Boulevard' },
-  { x: 660, y: 110, street: 'Home Sanctuary Doorstep' },
-];
-
 export function LiveTrackingMap({
   status,
   etaMinutes,
@@ -83,11 +113,14 @@ export function LiveTrackingMap({
   hubName = 'Indiranagar Express Hub',
   destinationAddress = 'Apt 4B, Sunrise Heights, 42 Westend Blvd',
   isDarkStore = true,
+  deliveryCoordinates = { latitude: 12.9658, longitude: 77.6465 },
+  pickupCoordinates = { latitude: 12.9716, longitude: 77.6412 },
+  route,
 }: LiveTrackingMapProps) {
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [mapMode, setMapMode] = useState<'GOOGLE' | 'RADAR'>('RADAR');
+  const mapRef = useRef<any>(null);
 
-  // Pulse animations for live beacon
+  // Pulse animation for live markers
   const pulseAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -105,403 +138,334 @@ export function LiveTrackingMap({
         }),
       ]),
     );
-
     pulseLoop.start();
-    return () => {
-      pulseLoop.stop();
-    };
+    return () => pulseLoop.stop();
   }, [pulseAnim]);
 
-  // Current stage details
-  const currentStageMeta = useMemo(() => {
-    return ALL_STAGES.find((s) => s.key === status) || ALL_STAGES[0];
-  }, [status]);
+  const hasDriverAssigned = Boolean(driver && driver.name && driver.name !== 'Assigning delivery partner...');
+  const hasLiveLocation = Boolean(
+    hasDriverAssigned &&
+    driver?.currentLocation?.latitude &&
+    driver?.currentLocation?.longitude
+  );
+  const isStale = Boolean(driver?.isStale);
 
-  // Interpolate rider coordinates along route based on status progress
-  const riderPosition = useMemo(() => {
-    const progress = currentStageMeta.progress;
-    const totalSegments = ROUTE_WAYPOINTS.length - 1;
-    const rawIndex = progress * totalSegments;
-    const segIndex = Math.min(Math.floor(rawIndex), totalSegments - 1);
-    const segFraction = rawIndex - segIndex;
+  // Derive route polyline coordinates
+  const polylineCoords = useMemo(() => {
+    if (route?.coordinates && Array.isArray(route.coordinates) && route.coordinates.length > 1) {
+      return route.coordinates.map(([lat, lng]) => ({ latitude: lat, longitude: lng }));
+    }
+    // If live driver location is ready, line from driver to destination
+    if (hasLiveLocation && driver?.currentLocation) {
+      return [
+        { latitude: driver.currentLocation.latitude, longitude: driver.currentLocation.longitude },
+        { latitude: deliveryCoordinates.latitude, longitude: deliveryCoordinates.longitude },
+      ];
+    }
+    return [
+      { latitude: pickupCoordinates.latitude, longitude: pickupCoordinates.longitude },
+      { latitude: deliveryCoordinates.latitude, longitude: deliveryCoordinates.longitude },
+    ];
+  }, [route, hasLiveLocation, driver?.currentLocation, pickupCoordinates, deliveryCoordinates]);
 
-    const p1 = ROUTE_WAYPOINTS[segIndex];
-    const p2 = ROUTE_WAYPOINTS[segIndex + 1];
+  // Recenter camera on driver & destination
+  const handleRecenter = () => {
+    if (!mapRef.current) return;
+    try {
+      const pointsToFit = [
+        { latitude: deliveryCoordinates.latitude, longitude: deliveryCoordinates.longitude },
+      ];
+      if (hasLiveLocation && driver?.currentLocation) {
+        pointsToFit.push({
+          latitude: driver.currentLocation.latitude,
+          longitude: driver.currentLocation.longitude,
+        });
+      } else {
+        pointsToFit.push({
+          latitude: pickupCoordinates.latitude,
+          longitude: pickupCoordinates.longitude,
+        });
+      }
 
-    const currentX = p1.x + (p2.x - p1.x) * segFraction;
-    const currentY = p1.y + (p2.y - p1.y) * segFraction;
+      mapRef.current.fitToCoordinates(pointsToFit, {
+        edgePadding: { top: 60, right: 50, bottom: 60, left: 50 },
+        animated: true,
+      });
+    } catch {}
+  };
 
-    return {
-      x: Math.round(currentX),
-      y: Math.round(currentY),
-      street: p2.street,
-    };
-  }, [currentStageMeta]);
-
-  // Build SVG path string from waypoints
-  const fullRoutePath = useMemo(() => {
-    return ROUTE_WAYPOINTS.reduce((acc, pt, idx) => {
-      return idx === 0 ? `M ${pt.x} ${pt.y}` : `${acc} L ${pt.x} ${pt.y}`;
-    }, '');
-  }, []);
-
-  // Open real navigation in Google Maps
   const handleOpenGoogleMaps = () => {
-    const originLat = driver?.currentLocation?.latitude || 12.9784;
-    const originLng = driver?.currentLocation?.longitude || 77.6408;
-    const dest = encodeURIComponent(destinationAddress || 'Bengaluru');
-    const url = `https://www.google.com/maps/dir/?api=1&origin=${originLat},${originLng}&destination=${dest}&travelmode=driving`;
+    const lat = deliveryCoordinates.latitude;
+    const lng = deliveryCoordinates.longitude;
+    const url = Platform.select({
+      ios: `maps:0,0?q=${lat},${lng}(${encodeURIComponent(destinationAddress)})`,
+      android: `geo:0,0?q=${lat},${lng}(${encodeURIComponent(destinationAddress)})`,
+    }) || `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+
     Linking.openURL(url).catch(() => {});
   };
 
-  const renderMapCanvas = (height: number = 260) => {
-    const isGoogle = mapMode === 'GOOGLE';
-    const bgTheme = '#F7F5F0';
-    const roadColor = '#FFFFFF';
-    const roadBorder = '#E8E5DF';
-    const blockColor = '#EFECE5';
-    const parkColor = '#E5EFE7';
+  const renderStatusBanner = () => {
+    if (status === 'DELIVERED') {
+      return (
+        <View style={[styles.statusBanner, { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }]}>
+          <CheckCircle2 size={15} color="#15803D" />
+          <Text style={[styles.statusBannerText, { color: '#166534' }]}>Delivered to your doorstep</Text>
+        </View>
+      );
+    }
+
+    if (!hasDriverAssigned) {
+      return (
+        <View style={[styles.statusBanner, { backgroundColor: '#FFFBEB', borderColor: '#FDE68A' }]}>
+          <Clock size={15} color="#D97706" />
+          <Text style={[styles.statusBannerText, { color: '#92400E' }]}>Finding delivery partner...</Text>
+        </View>
+      );
+    }
+
+    if (!hasLiveLocation) {
+      return (
+        <View style={[styles.statusBanner, { backgroundColor: '#EFF6FF', borderColor: '#BFDBFE' }]}>
+          <Bike size={15} color="#2563EB" />
+          <Text style={[styles.statusBannerText, { color: '#1E40AF' }]}>Delivery partner assigned • Waiting for GPS signal</Text>
+        </View>
+      );
+    }
+
+    if (isStale) {
+      return (
+        <View style={[styles.statusBanner, { backgroundColor: '#FEF2F2', borderColor: '#FECACA' }]}>
+          <AlertCircle size={15} color="#DC2626" />
+          <Text style={[styles.statusBannerText, { color: '#991B1B' }]}>Waiting for live location... (Signal paused)</Text>
+        </View>
+      );
+    }
+
+    if (route?.isStraightLineReference) {
+      return (
+        <View style={[styles.statusBanner, { backgroundColor: '#F8FAFC', borderColor: '#E2E8F0' }]}>
+          <Compass size={15} color="#64748B" />
+          <Text style={[styles.statusBannerText, { color: '#475569' }]}>
+            Direct reference line (Live road route unavailable)
+          </Text>
+        </View>
+      );
+    }
+
+    if (route?.routeUnavailable) {
+      return (
+        <View style={[styles.statusBanner, { backgroundColor: '#FFFBEB', borderColor: '#FDE68A' }]}>
+          <AlertCircle size={15} color="#D97706" />
+          <Text style={[styles.statusBannerText, { color: '#B45309' }]}>
+            Road route calculation unavailable
+          </Text>
+        </View>
+      );
+    }
 
     return (
-      <View
-        style={{
-          width: '100%',
-          height,
-          backgroundColor: bgTheme,
-          borderRadius: 24,
-          overflow: 'hidden',
-          borderWidth: 1,
-          borderColor: '#E8E5DF',
-          position: 'relative',
-        }}
-      >
-        {/* View 1: Real Interactive Google Map Embed (Web only) */}
-        {Platform.OS === 'web' && isGoogle ? (
-          <iframe
-            title="Google Maps Live Tracking"
-            src="https://maps.google.com/maps?q=100+Feet+Rd,+Indiranagar,+Bengaluru,+Karnataka+560038&t=&z=15&ie=UTF8&iwloc=&output=embed"
-            width="100%"
-            height="100%"
-            style={{ border: 0, width: '100%', height: '100%' }}
-            loading="lazy"
-          />
+      <View style={[styles.statusBanner, { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }]}>
+        <View style={styles.liveGreenDot} />
+        <Text style={[styles.statusBannerText, { color: '#166534' }]}>
+          Live GPS tracking active {route?.distanceKm ? `• ${route.distanceKm} away` : ''}
+        </Text>
+      </View>
+    );
+  };
+
+  const renderMapCanvas = (mapHeight: number) => {
+    const isWebOrNoNative = Platform.OS === 'web' || !NativeMapView;
+
+    return (
+      <View style={[styles.mapCard, { height: mapHeight }]}>
+        {isWebOrNoNative ? (
+          // Web Preview / Fallback SVG Map Surface
+          <View style={styles.webFallbackContainer}>
+            <Svg width="100%" height="100%" viewBox="0 0 800 460">
+              <Defs>
+                <LinearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <Stop offset="0%" stopColor="#F9F7F2" />
+                  <Stop offset="100%" stopColor="#F1EDE5" />
+                </LinearGradient>
+              </Defs>
+              <Rect width="800" height="460" fill="url(#bgGrad)" />
+              {/* Road Grid */}
+              <Line x1="100" y1="370" x2="700" y2="370" stroke="#E5E0D8" strokeWidth="18" />
+              <Line x1="230" y1="100" x2="230" y2="400" stroke="#E5E0D8" strokeWidth="18" />
+              <Line x1="100" y1="270" x2="700" y2="270" stroke="#E5E0D8" strokeWidth="18" />
+              <Line x1="520" y1="100" x2="520" y2="400" stroke="#E5E0D8" strokeWidth="18" />
+              <Line x1="100" y1="110" x2="700" y2="110" stroke="#E5E0D8" strokeWidth="18" />
+
+              {/* Active Route */}
+              <Path
+                d="M 140 370 L 230 370 L 230 270 L 380 270 L 380 190 L 520 190 L 520 110 L 660 110"
+                stroke="#FF5A1F"
+                strokeWidth="6"
+                fill="none"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+
+              {/* Store Point */}
+              <Circle cx="140" cy="370" r="14" fill="#111111" />
+              <Circle cx="140" cy="370" r="6" fill="#FFFFFF" />
+
+              {/* Dropoff Point */}
+              <Circle cx="660" cy="110" r="14" fill="#FF5A1F" />
+              <Circle cx="660" cy="110" r="6" fill="#FFFFFF" />
+
+              {/* Live Driver Beacon on Web */}
+              {hasLiveLocation && (
+                <G>
+                  <Circle cx="450" cy="190" r="18" fill="#111111" />
+                  <Circle cx="450" cy="190" r="8" fill="#FF5A1F" />
+                </G>
+              )}
+            </Svg>
+          </View>
         ) : (
-          /* View 2: High-Performance Vector Cartography & Radar */
-          <Svg
-            viewBox="0 0 800 460"
-            width="100%"
-            height="100%"
-            preserveAspectRatio="xMidYMid slice"
+          // Production Native Google Map
+          <NativeMapView
+            ref={mapRef}
+            provider={PROVIDER_GOOGLE}
+            style={styles.nativeMap}
+            initialRegion={{
+              latitude: (deliveryCoordinates.latitude + pickupCoordinates.latitude) / 2,
+              longitude: (deliveryCoordinates.longitude + pickupCoordinates.longitude) / 2,
+              latitudeDelta: Math.max(0.015, Math.abs(deliveryCoordinates.latitude - pickupCoordinates.latitude) * 1.5),
+              longitudeDelta: Math.max(0.015, Math.abs(deliveryCoordinates.longitude - pickupCoordinates.longitude) * 1.5),
+            }}
+            showsUserLocation={false}
+            showsMyLocationButton={false}
+            showsCompass={true}
+            toolbarEnabled={false}
           >
-            <Defs>
-              <LinearGradient id="routeGradient" x1="0%" y1="100%" x2="100%" y2="0%">
-                <Stop offset="0%" stopColor="#FF5A1F" stopOpacity={0.9} />
-                <Stop offset="50%" stopColor="#FB923C" stopOpacity={0.95} />
-                <Stop offset="100%" stopColor="#22C55E" stopOpacity={1} />
-              </LinearGradient>
-            </Defs>
+            {/* Store / Pickup Marker */}
+            <NativeMarker
+              coordinate={{
+                latitude: pickupCoordinates.latitude,
+                longitude: pickupCoordinates.longitude,
+              }}
+              title={hubName}
+              description="Store Dispatch Hub"
+              anchor={{ x: 0.5, y: 0.5 }}
+            >
+              <View style={styles.storeMarker}>
+                <Store size={15} color="#FFFFFF" />
+              </View>
+            </NativeMarker>
 
-            {/* 1. Neighborhood City Blocks */}
-            <Rect x="40" y="40" width="160" height="120" rx="8" fill={blockColor} />
-            <Rect x="230" y="40" width="120" height="120" rx="8" fill={parkColor} />
-            <Rect x="380" y="40" width="180" height="120" rx="8" fill={blockColor} />
-            <Rect x="590" y="40" width="160" height="120" rx="8" fill={blockColor} />
+            {/* Customer Delivery Destination Marker */}
+            <NativeMarker
+              coordinate={{
+                latitude: deliveryCoordinates.latitude,
+                longitude: deliveryCoordinates.longitude,
+              }}
+              title="Your Delivery Destination"
+              description={destinationAddress}
+              anchor={{ x: 0.5, y: 0.5 }}
+            >
+              <View style={styles.destMarker}>
+                <MapPin size={18} color="#FFFFFF" />
+              </View>
+            </NativeMarker>
 
-            <Rect x="40" y="190" width="160" height="140" rx="8" fill={blockColor} />
-            <Rect x="230" y="190" width="120" height="60" rx="8" fill={blockColor} />
-            <Rect x="380" y="220" width="110" height="110" rx="8" fill={parkColor} />
-            <Rect x="520" y="190" width="100" height="140" rx="8" fill={blockColor} />
-            <Rect x="650" y="190" width="100" height="140" rx="8" fill={blockColor} />
-
-            <Rect x="40" y="360" width="70" height="70" rx="8" fill={blockColor} />
-            <Rect x="260" y="360" width="180" height="70" rx="8" fill={parkColor} />
-            <Rect x="470" y="360" width="280" height="70" rx="8" fill={blockColor} />
-
-            {/* 2. Grid Road Networks (Bangalore Arteries) */}
-            <Line x1="0" y1="110" x2="800" y2="110" stroke={roadBorder} strokeWidth="34" strokeLinecap="square" opacity={0.6} />
-            <Line x1="0" y1="110" x2="800" y2="110" stroke={roadColor} strokeWidth="30" strokeLinecap="square" />
-
-            <Line x1="0" y1="190" x2="800" y2="190" stroke={roadColor} strokeWidth="26" />
-            <Line x1="0" y1="270" x2="800" y2="270" stroke={roadColor} strokeWidth="26" />
-
-            <Line x1="0" y1="370" x2="800" y2="370" stroke={roadBorder} strokeWidth="36" opacity={0.6} />
-            <Line x1="0" y1="370" x2="800" y2="370" stroke={roadColor} strokeWidth="32" />
-
-            {/* Vertical Arteries */}
-            <Line x1="140" y1="0" x2="140" y2="460" stroke={roadColor} strokeWidth="28" />
-            <Line x1="230" y1="0" x2="230" y2="460" stroke={roadColor} strokeWidth="26" />
-            <Line x1="380" y1="0" x2="380" y2="460" stroke={roadColor} strokeWidth="30" />
-            <Line x1="520" y1="0" x2="520" y2="460" stroke={roadColor} strokeWidth="28" />
-            <Line x1="660" y1="0" x2="660" y2="460" stroke={roadColor} strokeWidth="30" />
-
-            {/* 3. Outer Route Track */}
-            <Path
-              d={fullRoutePath}
-              stroke="#FED7AA"
-              strokeWidth="12"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              fill="none"
-              opacity={0.7}
-            />
-
-            {/* 4. Active Glowing Gradient Route Line */}
-            <Path
-              d={fullRoutePath}
-              stroke="url(#routeGradient)"
-              strokeWidth="6"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              fill="none"
-            />
-
-            {/* 5. Animated Dashed Pulse Route */}
-            <Path
-              d={fullRoutePath}
-              stroke="#FFFFFF"
-              strokeWidth="2.5"
-              strokeDasharray="8 12"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              fill="none"
-              opacity={0.8}
-            />
-
-            {/* 6. Origin Hub Marker (Indiranagar Vault) */}
-            <G transform="translate(140, 370)">
-              <Circle r="18" fill="#111111" />
-              <Circle r="8" fill="#22C55E" />
-              <Circle r="24" fill="none" stroke="#22C55E" strokeWidth="2" strokeDasharray="4 4" opacity={0.6} />
-            </G>
-
-            {/* 7. Destination Marker (Home Sanctuary) */}
-            <G transform="translate(660, 110)">
-              <Circle r="18" fill="#FF5A1F" />
-              <Circle r="7" fill="#FFFFFF" />
-              <Circle r="26" fill="none" stroke="#FF5A1F" strokeWidth="2" opacity={0.4} />
-            </G>
-
-            {/* 8. Live Delivery Pilot Marker & Concentric Radar Waves (Only when rider is assigned & actively in transit) */}
-            {status !== 'DELIVERED' && driver && ['PICKED_UP', 'OUT_FOR_DELIVERY'].includes(status) && (
-              <G transform={`translate(${riderPosition.x}, ${riderPosition.y})`}>
-                <Circle r="34" fill="none" stroke="#FF5A1F" strokeWidth="1.5" opacity={0.35} />
-                <Circle r="24" fill="none" stroke="#FF5A1F" strokeWidth="2" opacity={0.6} />
-                <Circle r="15" fill="#111111" />
-                <Circle r="6" fill="#FF5A1F" />
-              </G>
+            {/* Real Driver Marker (Shown strictly when Driver location exists) */}
+            {hasLiveLocation && driver?.currentLocation && (
+              <NativeMarker
+                coordinate={{
+                  latitude: driver.currentLocation.latitude,
+                  longitude: driver.currentLocation.longitude,
+                }}
+                title={driver.name}
+                description={driver.vehicle || 'KudiCart Delivery Partner'}
+                anchor={{ x: 0.5, y: 0.5 }}
+              >
+                <View style={styles.driverMarker}>
+                  <Bike size={18} color="#FFFFFF" />
+                </View>
+              </NativeMarker>
             )}
 
-            {/* Success Check on Delivered */}
-            {status === 'DELIVERED' && (
-              <G transform="translate(660, 110)">
-                <Circle r="24" fill="#15803D" />
-                <Circle r="28" fill="none" stroke="#22C55E" strokeWidth="3" />
-              </G>
+            {/* Google Routes API Polyline */}
+            {polylineCoords.length > 1 && (
+              <NativePolyline
+                coordinates={polylineCoords}
+                strokeColor={route?.isStraightLineReference ? '#94A3B8' : '#FF5A1F'}
+                strokeWidth={route?.isStraightLineReference ? 3 : 5}
+                lineDashPattern={route?.isStraightLineReference ? [8, 8] : undefined}
+                lineCap="round"
+                lineJoin="round"
+              />
             )}
-          </Svg>
+          </NativeMapView>
         )}
 
-        {/* HUD Top Bar: GPS Telemetry & Mode Controls */}
-        <View
-          pointerEvents="box-none"
-          style={{
-            position: 'absolute',
-            top: 10,
-            left: 10,
-            right: 10,
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}
-        >
-          {/* Live Status Pill */}
-          <View
-            style={{
-              backgroundColor: 'rgba(17, 17, 17, 0.92)',
-              paddingHorizontal: 10,
-              paddingVertical: 5,
-              borderRadius: 20,
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: 6,
-            }}
-          >
-            <View
-              style={{
-                width: 7,
-                height: 7,
-                borderRadius: 3.5,
-                backgroundColor: status === 'DELIVERED' ? '#22C55E' : '#FF5A1F',
-              }}
-            />
-            <Text style={{ fontSize: 9.5, fontWeight: '900', color: '#FFFFFF', letterSpacing: 0.8 }}>
-              {status === 'DELIVERED'
-                ? 'DELIVERED AT DOORSTEP'
-                : !driver
-                ? 'PREPARING AT HUB • RIDER PENDING'
-                : ['PICKED_UP', 'OUT_FOR_DELIVERY'].includes(status)
-                ? `LIVE GPS • ${driver.name.toUpperCase()} ON ROUTE`
-                : `${driver.name.toUpperCase()} ASSIGNED • PICKUP IN PROGRESS`}
-            </Text>
-          </View>
-
-          {/* Map Controls */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            {/* Toggle between Google Map and Atelier Radar */}
-            {Platform.OS === 'web' && (
-              <Pressable
-                onPress={() => setMapMode(mapMode === 'GOOGLE' ? 'RADAR' : 'GOOGLE')}
-                style={{
-                  backgroundColor: 'rgba(255, 255, 255, 0.94)',
-                  paddingHorizontal: 8,
-                  paddingVertical: 5,
-                  borderRadius: 12,
-                  borderWidth: 1,
-                  borderColor: '#E8E5DF',
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: 4,
-                }}
-              >
-                {mapMode === 'GOOGLE' ? (
-                  <Compass size={12} color="#111111" />
-                ) : (
-                  <MapIcon size={12} color="#111111" />
-                )}
-                <Text style={{ fontSize: 9.5, fontWeight: '800', color: '#111111' }}>
-                  {mapMode === 'GOOGLE' ? 'Radar View' : 'Google Map'}
-                </Text>
-              </Pressable>
-            )}
-
-            {/* Expand / Minimize Fullscreen */}
-            <Pressable
-              onPress={() => setIsFullscreen(!isFullscreen)}
-              style={{
-                width: 28,
-                height: 28,
-                borderRadius: 14,
-                backgroundColor: 'rgba(255, 255, 255, 0.94)',
-                borderWidth: 1,
-                borderColor: '#E8E5DF',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              {isFullscreen ? (
-                <Minimize2 size={13} color="#111111" />
-              ) : (
-                <Maximize2 size={13} color="#111111" />
-              )}
-            </Pressable>
-          </View>
+        {/* Top Status Banner Overlay */}
+        <View style={styles.bannerOverlay}>
+          {renderStatusBanner()}
         </View>
 
-        {/* Floating Rider Pilot Card (Bottom overlay inside map) */}
-        {status !== 'DELIVERED' ? (
-          <View
-            style={{
-              position: 'absolute',
-              bottom: 10,
-              left: 10,
-              right: 10,
-              backgroundColor: 'rgba(255, 255, 255, 0.96)',
-              borderRadius: 14,
-              padding: 10,
-              borderWidth: 1,
-              borderColor: '#E8E5DF',
-              shadowColor: '#000',
-              shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: 0.08,
-              shadowRadius: 10,
-              elevation: 4,
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-            }}
+        {/* Floating Controls Overlay */}
+        <View style={styles.floatingControls}>
+          <Pressable
+            onPress={handleRecenter}
+            style={styles.floatingBtn}
+            accessibilityLabel="Recenter map"
           >
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9, flex: 1 }}>
-              <View
-                style={{
-                  width: 34,
-                  height: 34,
-                  borderRadius: 17,
-                  backgroundColor: '#111111',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <Bike size={16} color="#FF5A1F" />
+            <LocateFixed size={18} color="#111111" />
+          </Pressable>
+
+          <Pressable
+            onPress={() => setIsFullscreen(true)}
+            style={styles.floatingBtn}
+            accessibilityLabel="Expand map"
+          >
+            <Maximize2 size={18} color="#111111" />
+          </Pressable>
+        </View>
+
+        {/* Bottom Driver Summary Card Inside Map */}
+        {hasDriverAssigned && status !== 'DELIVERED' ? (
+          <View style={styles.bottomCard}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
+              <View style={styles.pilotAvatar}>
+                <Bike size={18} color="#FF5A1F" />
               </View>
               <View style={{ flex: 1 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                  <Text style={{ fontSize: 12, fontWeight: '900', color: '#111111' }}>
-                    {driver?.name || 'Rajesh Kumar (Pilot)'}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text style={styles.pilotName} numberOfLines={1}>
+                    {driver?.name}
                   </Text>
-                  <View style={{ backgroundColor: '#FEF3C7', paddingHorizontal: 5, paddingVertical: 1, borderRadius: 6 }}>
-                    <Text style={{ fontSize: 9, fontWeight: '900', color: '#B45309' }}>
-                      {driver?.rating || 4.9} ★
-                    </Text>
-                  </View>
+                  {driver?.rating && (
+                    <View style={styles.ratingBadge}>
+                      <Text style={styles.ratingText}>{driver.rating} ★</Text>
+                    </View>
+                  )}
                 </View>
-                <Text style={{ fontSize: 10, color: '#6B6667', marginTop: 1 }} numberOfLines={1}>
-                  Cruising on {riderPosition.street} • 28 km/h
+                <Text style={styles.pilotSubtitle} numberOfLines={1}>
+                  {driver?.vehicle ? `${driver.vehicle} • ` : ''}
+                  {hasLiveLocation ? 'Express Delivery' : 'Preparing for departure'}
                 </Text>
               </View>
             </View>
 
-            {/* Google Maps External Live Turn-by-Turn button */}
-            <Pressable
-              onPress={handleOpenGoogleMaps}
-              style={{
-                backgroundColor: '#111111',
-                paddingHorizontal: 9,
-                paddingVertical: 6,
-                borderRadius: 8,
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 4,
-              }}
-            >
-              <ExternalLink size={11} color="#FFFFFF" />
-              <Text style={{ fontSize: 9.5, fontWeight: '900', color: '#FFFFFF', letterSpacing: 0.5 }}>
-                DIRECTIONS
-              </Text>
+            <Pressable onPress={handleOpenGoogleMaps} style={styles.directionsBtn}>
+              <ExternalLink size={12} color="#FFFFFF" />
+              <Text style={styles.directionsBtnText}>MAPS</Text>
             </Pressable>
           </View>
-        ) : (
-          <View
-            style={{
-              position: 'absolute',
-              bottom: 10,
-              left: 10,
-              right: 10,
-              backgroundColor: '#F0FDF4',
-              borderRadius: 14,
-              padding: 10,
-              borderWidth: 1,
-              borderColor: '#BBF7D0',
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: 8,
-            }}
-          >
-            <CheckCircle2 size={18} color="#15803D" />
-            <Text style={{ fontSize: 11.5, fontWeight: '800', color: '#166534' }}>
-              Handover complete at Home Sanctuary doorstep!
-            </Text>
-          </View>
-        )}
+        ) : null}
       </View>
     );
   };
 
   return (
     <View style={{ width: '100%', marginBottom: 14 }}>
-      {/* 1. Main Map View Container */}
-      {renderMapCanvas(260)}
+      {renderMapCanvas(280)}
 
-      {/* 2. Fullscreen Map Modal */}
+      {/* Fullscreen Map Modal */}
       <Modal
         visible={isFullscreen}
         transparent={false}
@@ -509,41 +473,17 @@ export function LiveTrackingMap({
         onRequestClose={() => setIsFullscreen(false)}
       >
         <View style={{ flex: 1, backgroundColor: '#FAF8F5' }}>
-          {/* Header */}
-          <View
-            style={{
-              paddingTop: Platform.OS === 'ios' ? 50 : 20,
-              paddingHorizontal: 16,
-              paddingBottom: 12,
-              backgroundColor: '#FFFFFF',
-              borderBottomWidth: 1,
-              borderBottomColor: '#E8E5DF',
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-            }}
-          >
+          <View style={styles.fullscreenHeader}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#22C55E' }} />
-              <Text style={{ fontSize: 13, fontWeight: '900', color: '#111111' }}>
-                FULLSCREEN LIVE RADAR
-              </Text>
+              <View style={styles.liveGreenDot} />
+              <Text style={styles.fullscreenTitle}>LIVE DELIVERY RADAR</Text>
             </View>
-            <Pressable
-              onPress={() => setIsFullscreen(false)}
-              style={{
-                backgroundColor: '#111111',
-                paddingHorizontal: 12,
-                paddingVertical: 6,
-                borderRadius: 8,
-              }}
-            >
-              <Text style={{ fontSize: 11, fontWeight: '900', color: '#FFFFFF' }}>CLOSE</Text>
+            <Pressable onPress={() => setIsFullscreen(false)} style={styles.closeBtn}>
+              <Text style={styles.closeBtnText}>CLOSE</Text>
             </Pressable>
           </View>
 
-          {/* Fullscreen Map Body */}
-          <View style={{ flex: 1, padding: 16 }}>
+          <View style={{ flex: 1, padding: 14 }}>
             {renderMapCanvas(520)}
           </View>
         </View>
@@ -551,3 +491,213 @@ export function LiveTrackingMap({
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  mapCard: {
+    width: '100%',
+    borderRadius: 18,
+    overflow: 'hidden',
+    position: 'relative',
+    backgroundColor: '#F3F1EC',
+    borderWidth: 1,
+    borderColor: '#E8E5DF',
+  },
+  webFallbackContainer: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#F3F1EC',
+  },
+  nativeMap: {
+    width: '100%',
+    height: '100%',
+  },
+  bannerOverlay: {
+    position: 'absolute',
+    top: 10,
+    left: 12,
+    right: 12,
+    zIndex: 10,
+  },
+  statusBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 20,
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  statusBannerText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+  },
+  liveGreenDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#22C55E',
+  },
+  floatingControls: {
+    position: 'absolute',
+    right: 12,
+    top: 50,
+    zIndex: 10,
+    gap: 8,
+  },
+  floatingBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2DED7',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  storeMarker: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#171716',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  destMarker: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#FF5A1F',
+    borderWidth: 2.5,
+    borderColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  driverMarker: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#111111',
+    borderWidth: 2.5,
+    borderColor: '#FF5A1F',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 5,
+  },
+  bottomCard: {
+    position: 'absolute',
+    bottom: 10,
+    left: 10,
+    right: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.96)',
+    borderRadius: 14,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: '#E8E5DF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  pilotAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#111111',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  pilotName: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#111111',
+  },
+  ratingBadge: {
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 6,
+  },
+  ratingText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#B45309',
+  },
+  pilotSubtitle: {
+    fontSize: 10.5,
+    color: '#6B6667',
+    marginTop: 2,
+  },
+  directionsBtn: {
+    backgroundColor: '#111111',
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  directionsBtnText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
+  },
+  fullscreenHeader: {
+    paddingTop: Platform.OS === 'ios' ? 50 : 20,
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E8E5DF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  fullscreenTitle: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: '#111111',
+    letterSpacing: 0.5,
+  },
+  closeBtn: {
+    backgroundColor: '#111111',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  closeBtnText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+});

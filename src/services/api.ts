@@ -953,6 +953,26 @@ export interface TrackingModel {
   paymentMethod?: string;
   paymentStatus?: string;
   deliveryAddress?: AddressModel;
+  deliveryCoordinates?: {
+    latitude: number;
+    longitude: number;
+  };
+  pickupCoordinates?: {
+    latitude: number;
+    longitude: number;
+  };
+  route?: {
+    encodedPolyline?: string;
+    coordinates?: [number, number][];
+    distanceMeters?: number;
+    distanceKm?: string;
+    durationSeconds?: number;
+    durationMinutes?: number;
+    travelMode?: string;
+    isRealRoute?: boolean;
+    isStraightLineReference?: boolean;
+    routeUnavailable?: boolean;
+  } | null;
   items?: OrderItemModel[];
   milestones: OrderTrackingMilestone[];
   history?: any[];
@@ -961,13 +981,18 @@ export interface TrackingModel {
     name: string;
     phone: string;
     vehicle: string;
+    photo?: string;
     rating: number;
     currentLocation?: {
       latitude: number;
       longitude: number;
       heading?: number;
-    };
-  };
+      accuracy?: number;
+      speed?: number;
+      updatedAt?: string;
+    } | null;
+    isStale?: boolean;
+  } | null;
 }
 
 export interface CheckoutPayload {

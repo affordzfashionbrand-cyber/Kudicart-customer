@@ -40,6 +40,8 @@ interface OrderState {
   }) => Promise<any>;
   confirmPaymentStatus: (orderId: string) => Promise<PaymentStatusResponse | null>;
   fetchTracking: (orderId: string) => Promise<TrackingModel | null>;
+  updateLiveLocation: (orderId: string, location: any, route?: any) => void;
+  updateLiveStatus: (orderId: string, status: any) => void;
   setActiveOrder: (order: OrderModel | null) => void;
   submitOrderRating: (
     orderId: string,
@@ -163,7 +165,7 @@ export const useOrderStore = create<OrderState>((set, get) => ({
             fulfillmentType: it.fulfillmentType,
             isTryAndBuy: it.isTryAndBuy,
           })),
-          driver: tracking.driver,
+          driver: tracking.driver || undefined,
         };
 
         set((state) => {
@@ -193,6 +195,46 @@ export const useOrderStore = create<OrderState>((set, get) => ({
   },
 
   setActiveOrder: (order) => set({ activeOrder: order }),
+
+  updateLiveLocation: (orderId: string, location: any, route?: any) => {
+    set((state) => {
+      if (!state.activeTracking || state.activeTracking.orderId !== orderId) {
+        return state;
+      }
+      return {
+        activeTracking: {
+          ...state.activeTracking,
+          driver: state.activeTracking.driver
+            ? {
+                ...state.activeTracking.driver,
+                currentLocation: location,
+                isStale: false,
+              }
+            : null,
+          route: route !== undefined ? route : state.activeTracking.route,
+        },
+      };
+    });
+  },
+
+  updateLiveStatus: (orderId: string, status: any) => {
+    set((state) => {
+      if (!state.activeTracking || state.activeTracking.orderId !== orderId) {
+        return state;
+      }
+      return {
+        activeTracking: {
+          ...state.activeTracking,
+          status,
+        },
+        orders: state.orders.map((o) => (o.id === orderId ? { ...o, status } : o)),
+        activeOrder:
+          state.activeOrder?.id === orderId
+            ? { ...state.activeOrder, status }
+            : state.activeOrder,
+      };
+    });
+  },
 
   submitOrderRating: async (orderId, rating, tags, comment, productId) => {
     const ratingData: OrderRatingData = {

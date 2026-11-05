@@ -21,6 +21,7 @@ import { useOrderStore } from '@/store/useOrderStore';
 import { safeBack } from '@/utils/navigation';
 import { OrderStatus } from '@/services/api';
 import { LiveTrackingMap, ALL_STAGES } from '@/components/tracking/live-tracking-map';
+import { trackingSocketService } from '@/services/trackingSocket';
 import { FontStyles } from '@/constants/theme';
 import { AnimatedPressable } from '@/components/common/animated-pressable';
 
@@ -92,13 +93,31 @@ export default function TrackingScreen() {
   useEffect(() => {
     loadTracking();
     if (activeStatus === 'DELIVERED' || activeStatus === 'CANCELLED') {
+      trackingSocketService.disconnect();
       return;
     }
+
+    trackingSocketService.connect(effectiveOrderId);
+
+    const unsubLoc = trackingSocketService.subscribeLocation((loc, route) => {
+      useOrderStore.getState().updateLiveLocation(effectiveOrderId, loc, route);
+    });
+
+    const unsubStatus = trackingSocketService.subscribeStatus((newStatus) => {
+      useOrderStore.getState().updateLiveStatus(effectiveOrderId, newStatus as OrderStatus);
+    });
+
     const interval = setInterval(() => {
       loadTracking();
-    }, 15000); // 15-second live polling per DCR-005
-    return () => clearInterval(interval);
-  }, [loadTracking, activeStatus]);
+    }, 15000); // 15-second live polling fallback per DCR-005
+
+    return () => {
+      unsubLoc();
+      unsubStatus();
+      clearInterval(interval);
+      trackingSocketService.disconnect();
+    };
+  }, [loadTracking, activeStatus, effectiveOrderId]);
 
   // Android hardware back handler
   useEffect(() => {
@@ -359,7 +378,7 @@ export default function TrackingScreen() {
           />
         }
       >
-        {/* 1. Hero Live Tracking Map with Radar Telemetry */}
+        {/* 1. Hero Live Tracking Map with Native Google Maps & Telemetry */}
         <LiveTrackingMap
           status={activeStatus}
           etaMinutes={typeof displayEta === 'number' ? displayEta : 18}
@@ -367,6 +386,9 @@ export default function TrackingScreen() {
           hubName={(currentOrder as any)?.vendor?.storeName || 'Indiranagar Express Hub'}
           destinationAddress={`${deliveryAddress.line1}, ${deliveryAddress.locality || ''}, ${deliveryAddress.city}`}
           isDarkStore={isDarkStore}
+          deliveryCoordinates={activeTracking?.deliveryCoordinates}
+          pickupCoordinates={activeTracking?.pickupCoordinates}
+          route={activeTracking?.route}
         />
 
         {/* 2. Hero Countdown / ETA Card */}
