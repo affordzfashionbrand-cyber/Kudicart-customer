@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { View, Text, ScrollView, Animated, Platform } from 'react-native';
+import { View, Text, ScrollView, Platform } from 'react-native';
 import {
   ShoppingBag,
   Zap,
@@ -11,7 +11,7 @@ import {
 } from 'lucide-react-native';
 import { AnimatedPressable } from '@/components/common/animated-pressable';
 import { EditorialText } from '@/components/common/section-title';
-import { ProductItem, DEFAULT_PRODUCTS, formatPrice } from '@/data/homeData';
+import { ProductItem, formatPrice } from '@/data/homeData';
 import { WishlistItemCard } from '@/components/wishlist/wishlist-item-card';
 import { WishlistEmptyState } from '@/components/wishlist/wishlist-empty-state';
 
@@ -29,7 +29,7 @@ type FilterCategory = 'ALL' | 'WOMEN' | 'MEN' | 'EXPRESS' | 'DEALS';
 
 export const WishlistView = React.memo(function WishlistView({
   products,
-  allProducts = DEFAULT_PRODUCTS,
+  allProducts = [],
   onBag,
   onWishlist,
   onOpen,
@@ -77,7 +77,7 @@ export const WishlistView = React.memo(function WishlistView({
       case 'MEN':
         return products.filter((p) => (p.category || '').toLowerCase() === 'men');
       case 'EXPRESS':
-        return products.slice(0, Math.max(1, Math.ceil(products.length * 0.75)));
+        return products.filter((p) => p.fulfillmentType === 'DARK_STORE');
       case 'DEALS':
         return products.filter((p) => Boolean(p.old && p.old > p.price));
       case 'ALL':
@@ -117,6 +117,7 @@ export const WishlistView = React.memo(function WishlistView({
     <View style={{ flex: 1, backgroundColor: '#FAF8F5' }}>
       <ScrollView
         showsVerticalScrollIndicator={false}
+        scrollEventThrottle={16}
         removeClippedSubviews={Platform.OS !== 'web'}
         overScrollMode="never"
         keyboardShouldPersistTaps="handled"

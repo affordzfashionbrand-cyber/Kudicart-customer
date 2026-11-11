@@ -7,11 +7,8 @@
     "icon": "./assets/images/icon.png",
     "scheme": "affordz",
     "userInterfaceStyle": "automatic",
-    "ios": {
-      "icon": "./assets/expo.icon"
-    },
     "android": {
-      "package": "com.affordz.customer",
+      "package": "com.affordz",
       "versionCode": 1,
       "permissions": [
         "ACCESS_COARSE_LOCATION",
@@ -42,7 +39,14 @@
       ],
       "expo-font",
       "expo-secure-store",
-      "@sentry/react-native"
+      "expo-notifications",
+      [
+        "@sentry/react-native/expo",
+        {
+          "organization": "affordz",
+          "project": "affordz-customer"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

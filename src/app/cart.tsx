@@ -58,6 +58,8 @@ export default function CheckoutScreen() {
     deliveryFee,
     taxes,
     grandTotal,
+    giftWrapFee,
+    splitOrderCount,
     couponCode,
     discountAmount,
     giftWrap,
@@ -78,6 +80,11 @@ export default function CheckoutScreen() {
 
   const { mode } = useLocalSearchParams<{ mode?: string }>();
   const isBuyNowMode = mode === 'buyNow' && Boolean(buyNowItem);
+  const pendingCheckoutRef = useRef<{
+    cartSignature: string;
+    idempotencyKey: string;
+    order: any;
+  } | null>(null);
 
   // Active items for this checkout session
   const checkoutItems = useMemo(() => {
@@ -109,13 +116,16 @@ export default function CheckoutScreen() {
     return deliveryFee;
   }, [isBuyNowMode, buyNowItem, activeItemTotal, deliveryFee]);
 
-  const activeGiftWrapFee = giftWrap ? 35 : 0;
+  const activeGiftWrapFee = isBuyNowMode ? (giftWrap ? 35 : 0) : giftWrapFee;
+  const activeSplitOrderCount = isBuyNowMode ? (buyNowItem ? 1 : 0) : splitOrderCount;
+  const activeDiscountAmount = isBuyNowMode ? 0 : discountAmount;
+  const activeCouponCode = isBuyNowMode ? null : couponCode;
 
   const activeGrandTotal = useMemo(() => {
     if (isBuyNowMode && buyNowItem) {
       return Math.max(
         0,
-        activeItemTotal - discountAmount + activeTaxes + activeDeliveryFee + activeGiftWrapFee + donationAmount,
+        activeItemTotal - activeDiscountAmount + activeTaxes + activeDeliveryFee + activeGiftWrapFee + donationAmount,
       );
     }
     return grandTotal;
@@ -123,7 +133,7 @@ export default function CheckoutScreen() {
     isBuyNowMode,
     buyNowItem,
     activeItemTotal,
-    discountAmount,
+    activeDiscountAmount,
     activeTaxes,
     activeDeliveryFee,
     activeGiftWrapFee,
@@ -150,17 +160,19 @@ export default function CheckoutScreen() {
 
   // Payment & Order State
   const [orderSuccess, setOrderSuccess] = useState<boolean>(false);
-  const [confirmedOrderNumber, setConfirmedOrderNumber] = useState<string>('KC-89241');
+  const [confirmedOrderNumber, setConfirmedOrderNumber] = useState<string>('');
   const [confirmedOrder, setConfirmedOrder] = useState<any>(null);
   const successAnim = useRef(new Animated.Value(0)).current;
 
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [isProcessingPayment, setIsProcessingPayment] = useState<boolean>(false);
 
-  // Dark Store vs Vendor Invariant (Bound strictly to active checkout items)
-  const hasDarkStoreItems = useMemo(() => {
-    return checkoutItems.some((it) => it.fulfillmentType === 'DARK_STORE' || it.isTryAndBuy);
+  // Dark Store vs Vendor Invariant (strictly isolate DARK_STORE items in mixed bags)
+  const darkStoreItems = useMemo(() => {
+    return checkoutItems.filter((it) => it.fulfillmentType === 'DARK_STORE');
   }, [checkoutItems]);
+  const hasDarkStoreItems = darkStoreItems.length > 0;
+  const hasMixedCart = hasDarkStoreItems && darkStoreItems.length < checkoutItems.length;
 
   useEffect(() => {
     if (!hasDarkStoreItems && checkoutItems.length > 0) {
@@ -305,13 +317,12 @@ export default function CheckoutScreen() {
       return;
     }
 
-    // Serviceability check for 18-minute Dark Store items
     if (hasDarkStoreItems && !addressServiceability.isServiceable) {
       setPaymentError(
-        `Instant 18-minute delivery is NOT AVAILABLE for ${selectedAddress?.locality || selectedAddress?.city || 'this location'} (${addressServiceability.distanceKm} km from Indiranagar Hub, max radius 8.0 km). Please select an address within 8.0 km or remove dark store items.`,
+        addressServiceability.reason ||
+          addressServiceability.statusText ||
+          '18-min Express Dark Store delivery is unavailable at this address. Please choose a serviceable address.',
       );
-      showToast('Location not available for 18-min drop!');
-      setIsLocationModalOpen(true);
       return;
     }
 
@@ -324,10 +335,11 @@ export default function CheckoutScreen() {
 
     const orderItemsSnapshot = checkoutItems.map((it) => ({
       id: it.id,
+      productId: it.productId || it.id,
       title: it.title,
       brand: it.brand,
       size: it.size,
-      trialSize: it.trialSize || null,
+      trialSize: it.trialSize || undefined,
       quantity: it.quantity,
       price: it.price,
       originalPrice: it.originalPrice,
@@ -336,14 +348,14 @@ export default function CheckoutScreen() {
     }));
 
     const orderSnapshot = {
-      orderNumber: `AF-${Math.floor(10000 + Math.random() * 90000)}`,
+      orderNumber: `AFZ-${Math.floor(10000 + Math.random() * 90000)}`,
       orderId: '',
       totalPaid: finalPayable,
       itemTotal: activeItemTotal,
       deliveryFee: activeDeliveryFee,
       taxes: activeTaxes,
-      discountAmount,
-      couponCode: couponCode || null,
+      discountAmount: activeDiscountAmount,
+      couponCode: activeCouponCode,
       isDarkStore: isDark,
       isTryAndBuy: isTry,
       deliveryAddress: selectedAddress
@@ -356,34 +368,62 @@ export default function CheckoutScreen() {
           }
         : null,
       recipientName: user?.name || 'Affordz Customer',
-      recipientPhone: user?.phone || '+91 8124188999',
+      recipientPhone: user?.phone || '',
       items: orderItemsSnapshot,
       etaText: isDark
-        ? (isTry ? '⚡ In 18 Minutes • Doorstep Try & Buy Concierge' : '⚡ In 18 Minutes • Express Drop')
-        : '📦 In 2-4 Business Days • Insured Boutique Courier',
+        ? (isTry ? '⚡ In 18 Minutes • Doorstep Try & Buy concierge' : '⚡ In 18 Minutes • Express Drop')
+        : '📦 In 2-4 Business Days • Insured Courier',
       paymentMethod: isCod ? 'Cash on Delivery (COD)' : 'Prepaid Online (Razorpay)',
       placedAt: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
     };
 
+    const cartSignature = JSON.stringify({
+      addressId: selectedAddress.id,
+      paymentMethod: isCod ? 'COD' : 'RAZORPAY',
+      couponCode: activeCouponCode || '',
+      giftWrap: Boolean(giftWrap),
+      donationAmount: Number(donationAmount || 0),
+      isTryAndBuy: Boolean(effectiveTryAndBuy),
+      isBuyNow: isBuyNowMode,
+      deliveryInstructions: selectedInstruction || '',
+      items: orderItemsSnapshot.map((i) => `${i.productId}:${i.size}:${i.quantity}`),
+    });
+
+    if (
+      !pendingCheckoutRef.current ||
+      pendingCheckoutRef.current.cartSignature !== cartSignature
+    ) {
+      pendingCheckoutRef.current = {
+        cartSignature,
+        idempotencyKey: `chk-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
+        order: null,
+      };
+    }
+
     setIsProcessingPayment(true);
-    let order: any = null;
-    try {
-      order = await checkout({
-        addressId: selectedAddress.id,
-        paymentMethod: isCod ? 'COD' : 'RAZORPAY',
-        couponCode: couponCode || undefined,
-        isTryAndBuy: effectiveTryAndBuy,
-        isBuyNow: isBuyNowMode,
-        items: orderItemsSnapshot,
-        itemTotal: activeItemTotal,
-        deliveryFee: activeDeliveryFee,
-        taxes: activeTaxes,
-        grandTotal: finalPayable,
-      });
-    } catch (err: any) {
-      setIsProcessingPayment(false);
-      setPaymentError(err?.message || 'Failed to place order. Please try again.');
-      return;
+    let order: any = pendingCheckoutRef.current.order;
+    if (!order || isCod) {
+      try {
+        order = await checkout({
+          addressId: selectedAddress.id,
+          paymentMethod: isCod ? 'COD' : 'RAZORPAY',
+          couponCode: activeCouponCode || undefined,
+          isTryAndBuy: effectiveTryAndBuy,
+          isBuyNow: isBuyNowMode,
+          giftWrap: Boolean(giftWrap),
+          donationAmount: Number(donationAmount || 0),
+          deliveryInstructions: selectedInstruction || undefined,
+          idempotencyKey: pendingCheckoutRef.current.idempotencyKey,
+          items: orderItemsSnapshot,
+        });
+        if (order && !isCod) {
+          pendingCheckoutRef.current.order = order;
+        }
+      } catch (err: any) {
+        setIsProcessingPayment(false);
+        setPaymentError(err?.message || 'Failed to place order. Please try again.');
+        return;
+      }
     }
 
     if (!order) {
@@ -394,6 +434,8 @@ export default function CheckoutScreen() {
 
     orderSnapshot.orderNumber = order.orderNumber || orderSnapshot.orderNumber;
     orderSnapshot.orderId = order.id || orderSnapshot.orderId;
+    (orderSnapshot as any).splitOrders = order.splitOrders || [order];
+    (orderSnapshot as any).groupNumber = order.groupNumber || order.checkoutGroup?.groupNumber;
     if (order.grandTotal) {
       orderSnapshot.totalPaid = order.grandTotal;
     }
@@ -401,6 +443,7 @@ export default function CheckoutScreen() {
     setConfirmedOrderNumber(orderSnapshot.orderNumber);
 
     if (isCod) {
+      pendingCheckoutRef.current = null;
       setIsProcessingPayment(false);
       if (isBuyNowMode) {
         clearBuyNowItem();
@@ -417,26 +460,45 @@ export default function CheckoutScreen() {
       return;
     }
 
-    // Razorpay Online Flow
+    // Razorpay Online Flow (reuse CheckoutGroup razorpayOrderId or create if needed)
     try {
-      // 1. Create real Razorpay order on backend
-      const rzpDetails = await paymentsApi.createRazorpayOrder(finalPayable, order.id);
+      const targetPaymentOrderId = order.checkoutGroupId || order.id;
+      const orderHasHostedSession =
+        Boolean(order.razorpayOrderId && order.razorpayKeyId) &&
+        Boolean(order.checkoutSessionUrl || order.checkoutSessionToken);
+
+      const rzpDetails = orderHasHostedSession
+        ? {
+            razorpayOrderId: order.razorpayOrderId,
+            keyId: order.razorpayKeyId,
+            amountInPaisa: Math.round((order.grandTotal || finalPayable) * 100),
+            amount: Math.round((order.grandTotal || finalPayable) * 100),
+            currency: 'INR',
+            checkoutSessionToken: order.checkoutSessionToken,
+            checkoutSessionUrl: order.checkoutSessionUrl,
+          }
+        : await paymentsApi.createRazorpayOrder(
+            order.grandTotal || finalPayable,
+            targetPaymentOrderId,
+          );
+
       if (!rzpDetails || !rzpDetails.razorpayOrderId || !rzpDetails.keyId) {
         throw new Error('Backend did not return valid Razorpay credentials.');
       }
 
-      // 2. Launch Razorpay Checkout (Web popup or Native hosted session)
       const rzpResult = await launchRazorpayCheckout({
         key: rzpDetails.keyId,
-        amount: rzpDetails.amountInPaisa,
+        amount: rzpDetails.amountInPaisa || rzpDetails.amount || Math.round((order.grandTotal || finalPayable) * 100),
         currency: rzpDetails.currency || 'INR',
-        name: 'Affordz Quick Commerce',
-        description: `Order #${order.orderNumber || order.id}`,
+        name: 'Affordz',
+        description: `Order #${order.groupNumber || order.orderNumber || order.id}`,
         order_id: rzpDetails.razorpayOrderId,
-        orderId: order.id,
+        orderId: targetPaymentOrderId,
+        checkoutSessionToken: rzpDetails.checkoutSessionToken,
+        checkoutSessionUrl: rzpDetails.checkoutSessionUrl,
         prefill: {
           name: user?.name || orderSnapshot.recipientName,
-          email: user?.email || 'customer@affordz.in',
+          email: user?.email || 'concierge@affordz.in',
           contact: user?.phone || orderSnapshot.recipientPhone,
         },
         theme: {
@@ -447,21 +509,24 @@ export default function CheckoutScreen() {
       if (rzpResult.type === 'cancelled') {
         setIsProcessingPayment(false);
         setPaymentError(
-          rzpResult.reason || 'Payment was cancelled. Your bag items are preserved and you can retry safely.',
+          rzpResult.reason ||
+            'Payment was cancelled. Tap Pay again to retry safely without duplicating your order.',
         );
         return;
       }
 
       if (rzpResult.type === 'genuine_callback') {
-        // Direct web callback: authoritative verification via HMAC-SHA256 signature
         const verifyRes = await useOrderStore.getState().verifyPayment({
           orderId: order.id,
+          checkoutGroupId: order.checkoutGroupId || undefined,
           paymentId: rzpResult.razorpay_payment_id,
           signature: rzpResult.razorpay_signature,
           razorpayOrderId: rzpResult.razorpay_order_id,
+          isBuyNow: isBuyNowMode,
         });
 
         if (verifyRes?.verified) {
+          pendingCheckoutRef.current = null;
           if (isBuyNowMode) {
             clearBuyNowItem();
           } else {
@@ -478,9 +543,9 @@ export default function CheckoutScreen() {
           throw new Error('Payment signature verification failed on server.');
         }
       } else if (rzpResult.type === 'hosted_session_completed') {
-        // Native mobile session callback: query authoritative server status
-        const statusRes = await useOrderStore.getState().confirmPaymentStatus(order.id);
+        const statusRes = await useOrderStore.getState().confirmPaymentStatus(order.id, isBuyNowMode);
         if (statusRes?.paymentStatus === 'COMPLETED') {
+          pendingCheckoutRef.current = null;
           if (isBuyNowMode) {
             clearBuyNowItem();
           } else {
@@ -653,6 +718,7 @@ export default function CheckoutScreen() {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
+        scrollEventThrottle={16}
         contentContainerStyle={{
           paddingHorizontal: 16,
           paddingTop: 16,
@@ -703,6 +769,7 @@ export default function CheckoutScreen() {
         {/* 2. Try & Buy Toggle Card */}
         <CartTryBuySection
           hasDarkStoreItems={hasDarkStoreItems}
+          hasMixedCart={hasMixedCart}
           tryAndBuyEnabled={tryAndBuyEnabled}
           onToggleTryAndBuy={() => setTryAndBuyEnabled((v) => !v)}
         />
@@ -723,15 +790,17 @@ export default function CheckoutScreen() {
           formatPrice={formatPrice}
         />
 
-        {/* 5. Coupons & Offers */}
-        <CartCouponsSection
-          couponCode={couponCode}
-          couponInput={couponInput}
-          setCouponInput={setCouponInput}
-          couponFeedback={couponFeedback}
-          handleApplyCouponCode={handleApplyCouponCode}
-          handleRemoveCoupon={handleRemoveCoupon}
-        />
+        {/* 5. Coupons & Offers (Hidden during direct Buy Now checkout) */}
+        {!isBuyNowMode && (
+          <CartCouponsSection
+            couponCode={couponCode}
+            couponInput={couponInput}
+            setCouponInput={setCouponInput}
+            couponFeedback={couponFeedback}
+            handleApplyCouponCode={handleApplyCouponCode}
+            handleRemoveCoupon={handleRemoveCoupon}
+          />
+        )}
 
         {/* 6. Payment Method Selector */}
         <CartPaymentSection
@@ -747,15 +816,17 @@ export default function CheckoutScreen() {
         <CartBillDetailsSection
           items={checkoutItems}
           giftWrap={giftWrap}
+          giftWrapFee={activeGiftWrapFee}
+          splitOrderCount={activeSplitOrderCount}
           toggleGiftWrap={toggleGiftWrap}
           donationAmount={donationAmount}
           setDonation={setDonation}
           totalMrp={totalMrp}
           discountOnMrp={discountOnMrp}
-          discountAmount={discountAmount}
-          couponCode={couponCode}
-          deliveryFee={deliveryFee}
-          taxes={taxes}
+          discountAmount={activeDiscountAmount}
+          couponCode={activeCouponCode}
+          deliveryFee={activeDeliveryFee}
+          taxes={activeTaxes}
           finalPayable={finalPayable}
           formatPrice={formatPrice}
         />

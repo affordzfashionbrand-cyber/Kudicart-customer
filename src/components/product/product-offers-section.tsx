@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, Text, Pressable } from 'react-native';
 import { Tag, Copy, Check } from 'lucide-react-native';
-import { ATELIER_OFFERS } from './product-constants';
+import { useCatalogStore } from '@/store/useCatalogStore';
 
 interface ProductOffersSectionProps {
   copiedCoupon: string | null;
@@ -12,6 +12,19 @@ export function ProductOffersSection({
   copiedCoupon,
   onCopyCoupon,
 }: ProductOffersSectionProps) {
+  const activeCoupons = useCatalogStore((s) => s.activeCoupons);
+  const fetchCoupons = useCatalogStore((s) => s.fetchCoupons);
+
+  useEffect(() => {
+    if (activeCoupons.length === 0) {
+      fetchCoupons().catch(() => {});
+    }
+  }, [activeCoupons.length, fetchCoupons]);
+
+  if (!activeCoupons || activeCoupons.length === 0) {
+    return null;
+  }
+
   return (
     <View style={{ paddingHorizontal: 16, marginTop: 14 }}>
       <View
@@ -27,20 +40,31 @@ export function ProductOffersSection({
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
             <Tag size={14} color="#FF5A1F" />
             <Text style={{ fontSize: 13, fontWeight: '900', color: '#111111' }}>
-              Best Offers & Atelier Privileges
+              Available Offers &amp; Promo Codes
             </Text>
           </View>
           <View style={{ backgroundColor: '#F0ECE4', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 }}>
-            <Text style={{ fontSize: 8.5, fontWeight: '800', color: '#71717A' }}>3 ELIGIBLE</Text>
+            <Text style={{ fontSize: 8.5, fontWeight: '800', color: '#71717A' }}>
+              {activeCoupons.length} ELIGIBLE
+            </Text>
           </View>
         </View>
 
         <View style={{ gap: 8 }}>
-          {ATELIER_OFFERS.map((offer) => {
-            const isCopied = copiedCoupon === offer.code;
+          {activeCoupons.map((offer: any) => {
+            const code = String(offer.code || '');
+            const isCopied = copiedCoupon === code;
+            const title =
+              offer.discountType === 'PERCENTAGE'
+                ? `${offer.discountValue}% Off`
+                : `Flat ₹${offer.discountValue} Off`;
+            const descParts: string[] = [];
+            if (offer.minOrderValue) descParts.push(`Min order ₹${offer.minOrderValue}`);
+            if (offer.maxDiscount) descParts.push(`Up to ₹${offer.maxDiscount} off`);
+            const desc = descParts.join(' • ') || 'Apply at checkout';
             return (
               <View
-                key={offer.code}
+                key={offer.id || code}
                 style={{
                   borderWidth: 1,
                   borderColor: '#E8E5DF',
@@ -57,19 +81,19 @@ export function ProductOffersSection({
                 <View style={{ flex: 1 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
                     <Text style={{ fontSize: 12, fontWeight: '900', color: '#111111' }}>
-                      {offer.title}
+                      {title}
                     </Text>
                     <View style={{ backgroundColor: '#FFF0EA', paddingHorizontal: 5, paddingVertical: 1.5, borderRadius: 4 }}>
-                      <Text style={{ fontSize: 8.5, fontWeight: '900', color: '#FF5A1F' }}>{offer.tag}</Text>
+                      <Text style={{ fontSize: 8.5, fontWeight: '900', color: '#FF5A1F' }}>COUPON</Text>
                     </View>
                   </View>
                   <Text style={{ fontSize: 10, color: '#71717A', lineHeight: 13 }}>
-                    {offer.desc}
+                    {desc}
                   </Text>
                 </View>
 
                 <Pressable
-                  onPress={() => onCopyCoupon(offer.code)}
+                  onPress={() => onCopyCoupon(code)}
                   style={{
                     backgroundColor: isCopied ? '#22C55E' : '#111111',
                     paddingHorizontal: 10,
@@ -88,7 +112,7 @@ export function ProductOffersSection({
                   ) : (
                     <>
                       <Copy size={11} color="#FFFFFF" />
-                      <Text style={{ fontSize: 10, fontWeight: '900', color: '#FFFFFF' }}>{offer.code}</Text>
+                      <Text style={{ fontSize: 10, fontWeight: '900', color: '#FFFFFF' }}>{code}</Text>
                     </>
                   )}
                 </Pressable>

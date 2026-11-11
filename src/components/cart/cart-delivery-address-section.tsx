@@ -113,10 +113,12 @@ export const CartDeliveryAddressSection = React.memo(function CartDeliveryAddres
           {isAuthenticated ? (
             <>
               <Text style={{ fontSize: 14, fontWeight: '800', color: '#111111' }}>
-                {user?.name || 'Affordz Customer'}{' '}
-                <Text style={{ fontSize: 12, color: '#71717A', fontWeight: '500' }}>
-                  • {user?.phone || '+91 8124188999'}
-                </Text>
+                {user?.name || 'Affordz Customer'}
+                {user?.phone ? (
+                  <Text style={{ fontSize: 12, color: '#71717A', fontWeight: '500' }}>
+                    {' '}• {user.phone}
+                  </Text>
+                ) : null}
               </Text>
               <Text
                 style={{
@@ -189,7 +191,7 @@ export const CartDeliveryAddressSection = React.memo(function CartDeliveryAddres
 
           <Text style={{ fontSize: 11.5, color: '#991B1B', lineHeight: 16 }}>
             {hasDarkStoreItems
-              ? `Our 18-minute quick drop and Try & Buy fleet only operates within 8.0 km of Indiranagar Hub. ${selectedAddress?.locality || selectedAddress?.city || 'Selected address'} is ${addressServiceability.distanceKm} km away.`
+              ? `Our 18-minute quick drop and Try & Buy fleet only operates within 8.0 km of our Express Hub. ${selectedAddress?.locality || selectedAddress?.city || 'Selected address'} is ${addressServiceability.distanceKm} km away.`
               : 'Standard boutique delivery will arrive via insured courier in 2-4 business days.'}
           </Text>
 
@@ -286,7 +288,7 @@ export const CartDeliveryAddressSection = React.memo(function CartDeliveryAddres
           </Text>
         </View>
         <Text style={{ fontSize: 10.5, color: '#71717A' }}>
-          {hasDarkStoreItems ? 'Indiranagar Vault' : 'Artisan Atelier'}
+          {hasDarkStoreItems ? 'Affordz Express' : 'Artisan Atelier'}
         </Text>
       </View>
     </View>

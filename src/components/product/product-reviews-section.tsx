@@ -10,6 +10,8 @@ import {
 import { EditorialText } from '@/components/common/section-title';
 import { WriteReviewModal } from './write-review-modal';
 import { reviewsApi } from '@/services/api';
+import { useAuthStore } from '@/store/useAuthStore';
+import { useOrderStore, isOrderItemEligibleForReview } from '@/store/useOrderStore';
 import { FontStyles } from '@/constants/theme';
 import { ReviewSectionSkeleton } from '@/components/common/skeleton';
 
@@ -41,6 +43,8 @@ export function ProductReviewsSection({
   rating: initialRating = 0,
   reviewsCount: initialReviewsCount = 0,
 }: ProductReviewsSectionProps) {
+  const { isAuthenticated } = useAuthStore();
+  const { orders, fetchOrders } = useOrderStore();
   const [reviews, setReviews] = useState<ReviewItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(Boolean(productId));
   const [isWriteModalOpen, setIsWriteModalOpen] = useState(false);
@@ -48,6 +52,30 @@ export function ProductReviewsSection({
   const [helpfulCounts, setHelpfulCounts] = useState<Record<string, number>>({});
   const [votedReviews, setVotedReviews] = useState<Record<string, boolean>>({});
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isAuthenticated && orders.length === 0) {
+      void fetchOrders();
+    }
+  }, [isAuthenticated, orders.length, fetchOrders]);
+
+  const eligibleOrder = useMemo(
+    () => orders.find((o) => isOrderItemEligibleForReview(o, productId)) || null,
+    [orders, productId],
+  );
+
+  const handleOpenWriteReview = useCallback(() => {
+    if (!eligibleOrder) {
+      setToastMessage(
+        !isAuthenticated
+          ? 'Sign in after receiving a delivered item to write a review.'
+          : 'Reviews unlock once your order containing this piece is delivered.',
+      );
+      setTimeout(() => setToastMessage(null), 3500);
+      return;
+    }
+    setIsWriteModalOpen(true);
+  }, [eligibleOrder, isAuthenticated]);
 
   // Fetch reviews from live backend if productId is present
   useEffect(() => {
@@ -106,7 +134,7 @@ export function ProductReviewsSection({
       const item: ReviewItem = {
         id: newReview.id,
         userName: newReview.userName,
-        userLocation: 'Indiranagar Hub • Just Now',
+        userLocation: 'Verified Buyer',
         rating: newReview.rating,
         comment: newReview.comment,
         tags: newReview.tags,
@@ -183,7 +211,7 @@ export function ProductReviewsSection({
 
         {/* Primary CTA: Write a Review */}
         <Pressable
-          onPress={() => setIsWriteModalOpen(true)}
+          onPress={handleOpenWriteReview}
           style={({ pressed }) => ({
             backgroundColor: '#111111',
             paddingHorizontal: 12,
@@ -220,7 +248,7 @@ export function ProductReviewsSection({
           }}
         >
           <CheckCircle2 size={16} color="#059669" />
-          <Text style={[FontStyles.sansBold, { fontSize: 11.5, color: '#065F46' }]}>
+          <Text style={[FontStyles.sansBold, { fontSize: 11.5, color: '#065F46', flex: 1 }]}>
             {toastMessage}
           </Text>
         </View>
@@ -266,7 +294,7 @@ export function ProductReviewsSection({
 
             {/* Quick Rate Trigger */}
             <Pressable
-              onPress={() => setIsWriteModalOpen(true)}
+              onPress={handleOpenWriteReview}
               style={{
                 backgroundColor: '#FFF7ED',
                 borderWidth: 1,
@@ -303,7 +331,7 @@ export function ProductReviewsSection({
 
             {/* Quick Rate Trigger */}
             <Pressable
-              onPress={() => setIsWriteModalOpen(true)}
+              onPress={handleOpenWriteReview}
               style={{
                 backgroundColor: '#FFF7ED',
                 borderWidth: 1,
@@ -452,7 +480,7 @@ export function ProductReviewsSection({
                         {rev.userName}
                       </Text>
                       <Text style={[FontStyles.sansRegular, { fontSize: 9.5, color: '#71717A' }]}>
-                        {rev.userLocation || 'Indiranagar Hub'} • {rev.createdAt}
+                        {rev.userLocation || 'Verified Buyer'} • {rev.createdAt}
                       </Text>
                     </View>
                   </View>
@@ -535,7 +563,7 @@ export function ProductReviewsSection({
 
       {/* Bottom Write Review Prompt Button */}
       <Pressable
-        onPress={() => setIsWriteModalOpen(true)}
+        onPress={handleOpenWriteReview}
         style={({ pressed }) => ({
           marginTop: 14,
           backgroundColor: '#FFFFFF',
@@ -561,6 +589,7 @@ export function ProductReviewsSection({
         visible={isWriteModalOpen}
         onClose={() => setIsWriteModalOpen(false)}
         productId={productId}
+        orderId={eligibleOrder?.id}
         productTitle={productTitle}
         productImage={productImage}
         brand={brand}

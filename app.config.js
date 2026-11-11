@@ -2,8 +2,7 @@ module.exports = ({ config }) => {
   const googleMapsApiKey =
     process.env.CUSTOMER_GOOGLE_MAPS_ANDROID_API_KEY ||
     process.env.GOOGLE_MAPS_API_KEY ||
-    process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY ||
-    'AIzaSyDzq2am13zEbHJM_sgLAbyQVLygsPlceUs';
+    process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
 
   return {
     ...config,
@@ -11,9 +10,7 @@ module.exports = ({ config }) => {
       ...config.android,
       config: {
         ...config.android?.config,
-        googleMaps: {
-          apiKey: googleMapsApiKey,
-        },
+        ...(googleMapsApiKey ? { googleMaps: { apiKey: googleMapsApiKey } } : {}),
       },
     },
   };

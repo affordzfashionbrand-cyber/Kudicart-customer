@@ -117,6 +117,7 @@ export default function OrdersScreen() {
       <ScrollView
         contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 100 }}
         showsVerticalScrollIndicator={false}
+        scrollEventThrottle={16}
         removeClippedSubviews={Platform.OS !== 'web'}
         overScrollMode="never"
         keyboardShouldPersistTaps="handled"

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { View, Text, ScrollView, Animated, Pressable, RefreshControl, NativeSyntheticEvent, NativeScrollEvent, BackHandler, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { ShoppingBag, Sparkles, ChevronRight, AlertTriangle, Zap, MapPin } from 'lucide-react-native';
 
 import { useAddressStore } from '@/store/useAddressStore';
@@ -10,8 +10,6 @@ import { useCartStore } from '@/store/useCartStore';
 import { useCatalogStore } from '@/store/useCatalogStore';
 
 import {
-  DEFAULT_PRODUCTS,
-  BANK_OFFERS,
   ProductItem,
   HeroBannerItem,
   TrendingCityItem,
@@ -28,7 +26,6 @@ import { CategoryBubblesSection } from '@/components/home/category-bubbles-secti
 import { HeroBannerSection } from '@/components/home/hero-banner-section';
 import { BankOffersTicker } from '@/components/home/bank-offers-ticker';
 import { TrendingCitySection } from '@/components/home/trending-city-section';
-import { TodayLookSection } from '@/components/home/today-look-section';
 import { CuratedGenderDealsSection } from '@/components/home/curated-gender-deals-section';
 import { BudgetStoresSection } from '@/components/home/budget-stores-section';
 import { FlashDropSection } from '@/components/home/flash-drop-section';
@@ -43,15 +40,15 @@ import { BankOffersModal } from '@/components/home/bank-offers-modal';
 import { TryBuyModal } from '@/components/home/try-buy-modal';
 import { FloatingBottomBar } from '@/components/home/floating-bottom-bar';
 import { EditorialText } from '@/components/common/section-title';
-import { HeroBannerSkeleton, CategoryStripSkeleton, ProductCardSkeleton } from '@/components/common/skeleton';
 import { SearchSuggestionsOverlay } from '@/components/home/search-suggestions-overlay';
 import { SearchResultsView } from '@/components/home/search-results-view';
 
 import { ShopView } from '@/components/views/shop-view';
 import { WishlistView } from '@/components/views/wishlist-view';
-import { BagView } from '@/components/views/bag-view';
 import { AccountView } from '@/components/views/account-view';
 import { DarkStoreView } from '@/components/views/dark-store-view';
+import { NotificationModal } from '@/components/notification-modal';
+import { notificationsApi } from '@/services/api';
 
 import { AuthModal } from '@/components/auth-modal';
 import { AddressModal } from '@/components/address-modal';
@@ -62,12 +59,11 @@ import { useDarkStore } from '@/store/useDarkStore';
 export default function Page() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const params = useLocalSearchParams<{ tab?: string }>();
 
   // Global Stores
   const {
     products: storeProducts,
-    categories,
-    activeCoupons,
     isLoading,
     isRefreshing,
     fulfillmentFilter,
@@ -80,7 +76,7 @@ export default function Page() {
     fetchCoupons,
   } = useCatalogStore();
   const { items: cartItems, addItem, toggleWishlist: storeToggleWishlist, wishlist: storeWishlist } = useCartStore();
-  const { user, logout } = useAuthStore();
+  const { user, isAuthenticated, logout } = useAuthStore();
   const {
     addresses,
     selectedAddressId,
@@ -98,6 +94,50 @@ export default function Page() {
 
   // Screen Tabs & Active Filters
   const [tab, setTab] = useState('HOME');
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
+
+  useEffect(() => {
+    if (!params.tab) return;
+    const requested = String(params.tab).toUpperCase();
+    if (requested === 'CART') {
+      router.push('/cart');
+      return;
+    }
+    if (['HOME', 'SHOP', 'DARK_STORE', 'WISHLIST', 'ACCOUNT'].includes(requested)) {
+      setTab(requested);
+    }
+  }, [params.tab, router]);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setUnreadNotifications(0);
+      return;
+    }
+    let cancelled = false;
+    notificationsApi
+      .list()
+      .then((res) => {
+        if (!cancelled && typeof res?.unreadCount === 'number') {
+          setUnreadNotifications(res.unreadCount);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, isNotificationsOpen]);
+
+  const handleSelectTab = useCallback(
+    (nextTab: string) => {
+      if (nextTab === 'CART') {
+        router.push('/cart');
+        return;
+      }
+      setTab(nextTab);
+    },
+    [router]
+  );
   const [category, setCategory] = useState('All');
   const [query, setQuery] = useState('');
   const [selectedGender, setSelectedGender] = useState<'All' | 'Men' | 'Women' | 'Kids'>('All');
@@ -222,13 +262,13 @@ export default function Page() {
         category: p.category || 'Women',
         wear: (p as any).wear || 'Tops',
         image: p.image || (p.galleryImages && p.galleryImages[0]) || '',
-        fulfillmentType: (p as any).fulfillmentType || 'DARK_STORE',
+        fulfillmentType: (p as any).fulfillmentType,
         tryAndBuyEligible: (p as any).tryAndBuyEligible ?? true,
         fabric: (p as any).fabric,
         description: (p as any).description,
       }));
     }
-    return [...DEFAULT_PRODUCTS];
+    return [];
   }, [storeProducts]);
 
   // Filtered Products for Shop / Search
@@ -398,17 +438,6 @@ export default function Page() {
     setCategory('All');
   }, []);
 
-  // Bag Products List
-  const bagProductsList = useMemo(() => {
-    return cartItems.map((ci) => ({
-      id: ci.productId,
-      brand: ci.brand,
-      name: ci.title,
-      price: ci.price,
-      image: ci.image,
-    }));
-  }, [cartItems]);
-
   // Wishlist Products List
   const wishlistProductsList = useMemo(() => {
     return activeProducts.filter((product: any) => storeWishlist.includes(String(product.id)));
@@ -417,38 +446,27 @@ export default function Page() {
   return (
     <View style={{ flex: 1, backgroundColor: '#FDFBF7' }}>
       {/* Top Header */}
-      {tab !== 'CART' && (
-        <HomeHeader
-          paddingTop={insets.top + 8}
-          selectedAddressText={selectedAddressText}
-          isServiceable={serviceability.isServiceable}
-          onOpenAddressModal={() => setIsLocationModalOpen(true)}
-          onOpenAccount={() => setTab('ACCOUNT')}
-          query={query}
-          onQueryChange={(text) => {
-            setQuery(text);
-            if (text.trim().length > 0) {
-              executeSearch(text);
-            }
-          }}
-          onSelectSearchQuery={handleSelectSearchQuery}
-          onOpenSearchOverlay={() => setIsSearchOverlayVisible(true)}
-        />
-      )}
+      <HomeHeader
+        paddingTop={insets.top + 8}
+        selectedAddressText={selectedAddressText}
+        isServiceable={serviceability.isServiceable}
+        onOpenAddressModal={() => setIsLocationModalOpen(true)}
+        onOpenAccount={() => setTab('ACCOUNT')}
+        onOpenNotifications={() => setIsNotificationsOpen(true)}
+        unreadCount={unreadNotifications}
+        query={query}
+        onQueryChange={(text) => {
+          setQuery(text);
+          if (text.trim().length > 0) {
+            executeSearch(text);
+          }
+        }}
+        onSelectSearchQuery={handleSelectSearchQuery}
+        onOpenSearchOverlay={() => setIsSearchOverlayVisible(true)}
+      />
 
       {/* Main Content Area */}
-      {tab === 'CART' ? (
-        <View style={{ flex: 1 }}>
-          <BagView
-            products={bagProductsList}
-            onShop={() => setTab('SHOP')}
-            onPayNow={() => router.push('/cart')}
-            onOpenProduct={handleOpenProduct}
-            onBack={() => setTab('HOME')}
-          />
-        </View>
-      ) : (
-        <ScrollView
+      <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: insets.bottom + 120 }}
           onScroll={tab === 'HOME' && !query ? handleHomeScroll : undefined}
@@ -555,7 +573,7 @@ export default function Page() {
                   Instant 18-minute delivery is not available at {selectedAddress?.locality || selectedAddress?.city || 'this location'}.
                 </Text>
                 <Text style={{ fontSize: 11, color: '#7F1D1D', marginTop: 3, lineHeight: 16 }}>
-                  Our Ather 450X EV quick-commerce fleet operates within 8.0 km of Indiranagar Hub. Items can only be ordered via Standard Boutique Dispatch (2-4 Days) or choose another location.
+                  Our Ather 450X EV quick-commerce fleet operates within 8.0 km of our Express Hub. Items can only be ordered via Standard Boutique Dispatch (2-4 Days) or choose another location.
                 </Text>
 
                 <Pressable
@@ -598,7 +616,7 @@ export default function Page() {
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   <Zap size={13} color="#15803D" fill="#15803D" />
                   <Text style={{ fontSize: 11, fontWeight: '900', color: '#15803D' }}>
-                    ⚡ 18-Min Instant Drop Available at {selectedAddress?.locality || 'Indiranagar'}
+                    ⚡ 18-Min Instant Drop Available at {selectedAddress?.locality || selectedAddress?.city || 'Your Area'}
                   </Text>
                 </View>
                 <Text style={{ fontSize: 10, fontWeight: '800', color: '#166534' }}>
@@ -669,15 +687,6 @@ export default function Page() {
 
             {/* ROW 5: Trending in Your City */}
             <TrendingCitySection onItemPress={handleTrendingCityPress} />
-
-            {/* Algorithm Recommendation Engine: Today's Look. Today. */}
-            <TodayLookSection
-              storeWishlist={storeWishlist}
-              selectedGender={selectedGender}
-              onWishlist={toggleWishlist}
-              onBag={addToBag}
-              onOpenProduct={handleOpenProduct}
-            />
 
             {/* Curated Luxury Tiers: For Him & For Her */}
             <CuratedGenderDealsSection
@@ -774,7 +783,7 @@ export default function Page() {
             onWishlist={toggleWishlist}
             onOpen={handleOpenProduct}
             onExplore={() => setTab('SHOP')}
-            onGoToBag={() => setTab('CART')}
+            onGoToBag={() => router.push('/cart')}
           />
         )}
 
@@ -806,18 +815,15 @@ export default function Page() {
           </>
         )}
       </ScrollView>
-    )}
 
-      {/* Floating Bottom Pill Nav (Hidden on Cart/Bag screen so sticky Place Order bar is unobstructed) */}
-      {tab !== 'CART' && (
-        <FloatingBottomBar
-          currentTab={tab}
-          onSelectTab={setTab}
-          totalBagCount={totalBagCount}
-          wishlistCount={storeWishlist.length}
-          onOpenDarkStoreModal={openDarkStoreModal}
-        />
-      )}
+      {/* Floating Bottom Pill Nav */}
+      <FloatingBottomBar
+        currentTab={tab}
+        onSelectTab={handleSelectTab}
+        totalBagCount={totalBagCount}
+        wishlistCount={storeWishlist.length}
+        onOpenDarkStoreModal={openDarkStoreModal}
+      />
 
       {/* Animated Action Toast */}
       <Animated.View
@@ -903,6 +909,12 @@ export default function Page() {
           handleOpenProduct(product);
         }}
         onClose={() => setIsSearchOverlayVisible(false)}
+      />
+
+      {/* Live Notifications Modal */}
+      <NotificationModal
+        visible={isNotificationsOpen}
+        onClose={() => setIsNotificationsOpen(false)}
       />
     </View>
   );

@@ -8,7 +8,7 @@ import {
   RotateCcw,
   ShieldCheck,
 } from 'lucide-react-native';
-import { TRUST_PILLARS, PRODUCT_SPECIFICATIONS } from './product-constants';
+import { TRUST_PILLARS } from './product-constants';
 
 interface ProductSpecsSectionProps {
   isDarkStoreProduct: boolean;
@@ -28,19 +28,20 @@ export function ProductSpecsSection({
   const [tryOnProtocolOpen, setTryOnProtocolOpen] = useState(false);
 
   const dynamicSpecs = React.useMemo(() => {
+    const entries: { label: string; value: string }[] = [];
     if (specifications && Object.keys(specifications).length > 0) {
-      return Object.entries(specifications).map(([label, value]) => ({
-        label,
-        value: String(value),
-      }));
-    }
-    return PRODUCT_SPECIFICATIONS.map((spec) => {
-      if (spec.label === 'Fabric Composition' && fabric) {
-        return { label: spec.label, value: fabric };
+      for (const [label, value] of Object.entries(specifications)) {
+        if (value) entries.push({ label, value: String(value) });
       }
-      return spec;
-    });
-  }, [specifications, fabric]);
+    }
+    if (fabric && !entries.some((e) => e.label.toLowerCase().includes('fabric'))) {
+      entries.unshift({ label: 'Fabric Composition', value: fabric });
+    }
+    if (origin && !entries.some((e) => e.label.toLowerCase().includes('origin'))) {
+      entries.push({ label: 'Origin', value: origin });
+    }
+    return entries;
+  }, [specifications, fabric, origin]);
 
   return (
     <>
@@ -90,7 +91,8 @@ export function ProductSpecsSection({
         </View>
       </View>
 
-      {/* Detailed Product Specifications Matrix (Ajio Luxe Standard) */}
+      {/* Detailed Product Specifications Matrix */}
+      {dynamicSpecs.length > 0 && (
       <View style={{ paddingHorizontal: 16, marginTop: 18 }}>
         <View
           style={{
@@ -137,6 +139,7 @@ export function ProductSpecsSection({
           </View>
         </View>
       </View>
+      )}
 
       {/* Fabric & Artisan Accordions */}
       <View style={{ paddingHorizontal: 16, marginTop: 20, gap: 10 }}>
@@ -144,7 +147,8 @@ export function ProductSpecsSection({
           ATELIER CRAFTSMANSHIP & PROVENANCE
         </Text>
 
-        {/* Accordion 1: Loom & Weave Specs */}
+        {/* Accordion 1: Loom & Weave Specs (rendered only when material specs exist) */}
+        {(fabric || (specifications && Object.keys(specifications).length > 0)) && (
         <View style={{ backgroundColor: '#FFFFFF', borderRadius: 16, borderWidth: 1, borderColor: '#E8E5DF', overflow: 'hidden' }}>
           <Pressable
             onPress={() => setSpecsOpen(!specsOpen)}
@@ -153,7 +157,7 @@ export function ProductSpecsSection({
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <Sparkles size={15} color="#FF5A1F" />
               <Text style={{ fontSize: 13, fontWeight: '800', color: '#111111' }}>
-                Loom & Weave Specifications
+                Material &amp; Weave Specifications
               </Text>
             </View>
             {specsOpen ? <ChevronUp size={16} color="#71717A" /> : <ChevronDown size={16} color="#71717A" />}
@@ -162,26 +166,23 @@ export function ProductSpecsSection({
           {specsOpen && (
             <View style={{ paddingHorizontal: 14, paddingBottom: 14, paddingTop: 4 }}>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                <View style={{ width: '48%', backgroundColor: '#F7F5F0', padding: 8, borderRadius: 10 }}>
-                  <Text style={{ fontSize: 8.5, fontWeight: '800', color: '#8A8580', textTransform: 'uppercase' }}>COMPOSITION</Text>
-                  <Text style={{ fontSize: 11, fontWeight: '800', color: '#111111', marginTop: 2 }}>100% Handloom Chanderi</Text>
-                </View>
-                <View style={{ width: '48%', backgroundColor: '#F7F5F0', padding: 8, borderRadius: 10 }}>
-                  <Text style={{ fontSize: 8.5, fontWeight: '800', color: '#8A8580', textTransform: 'uppercase' }}>DENSITY & WEIGHT</Text>
-                  <Text style={{ fontSize: 11, fontWeight: '800', color: '#111111', marginTop: 2 }}>90 GSM Featherweight</Text>
-                </View>
-                <View style={{ width: '48%', backgroundColor: '#F7F5F0', padding: 8, borderRadius: 10 }}>
-                  <Text style={{ fontSize: 8.5, fontWeight: '800', color: '#8A8580', textTransform: 'uppercase' }}>EMBROIDERY WEFT</Text>
-                  <Text style={{ fontSize: 11, fontWeight: '800', color: '#111111', marginTop: 2 }}>Tested Zari Weave</Text>
-                </View>
-                <View style={{ width: '48%', backgroundColor: '#F7F5F0', padding: 8, borderRadius: 10 }}>
-                  <Text style={{ fontSize: 8.5, fontWeight: '800', color: '#8A8580', textTransform: 'uppercase' }}>DYE TECHNIQUE</Text>
-                  <Text style={{ fontSize: 11, fontWeight: '800', color: '#111111', marginTop: 2 }}>Natural Haldi Extract</Text>
-                </View>
+                {fabric && (
+                  <View style={{ width: '48%', backgroundColor: '#F7F5F0', padding: 8, borderRadius: 10 }}>
+                    <Text style={{ fontSize: 8.5, fontWeight: '800', color: '#8A8580', textTransform: 'uppercase' }}>COMPOSITION</Text>
+                    <Text style={{ fontSize: 11, fontWeight: '800', color: '#111111', marginTop: 2 }}>{fabric}</Text>
+                  </View>
+                )}
+                {dynamicSpecs.slice(0, 4).map((spec, idx) => (
+                  <View key={idx} style={{ width: '48%', backgroundColor: '#F7F5F0', padding: 8, borderRadius: 10 }}>
+                    <Text style={{ fontSize: 8.5, fontWeight: '800', color: '#8A8580', textTransform: 'uppercase' }}>{spec.label}</Text>
+                    <Text style={{ fontSize: 11, fontWeight: '800', color: '#111111', marginTop: 2 }}>{spec.value}</Text>
+                  </View>
+                ))}
               </View>
             </View>
           )}
         </View>
+        )}
 
         {/* Accordion 2: Doorstep Fitting Protocol */}
         {isDarkStoreProduct && (

@@ -66,19 +66,19 @@ export const TrackingProgressionStepper = React.memo(function TrackingProgressio
           ? 'Order confirmed via Cash on Delivery (COD)'
           : 'Payment verified via Razorpay Secure UPI';
       case 'ACCEPTED':
-        return 'Affordz Atelier confirmed garments';
+        return 'Affordz Atelier partner confirmed garments';
       case 'PREPARING':
-        return 'Hand-pressed, steamed & quality inspected in Vault';
+        return 'Hand-pressed, steamed & quality inspected';
       case 'READY_FOR_PICKUP':
         return 'Sealed in tamper-evident breathable sleeve';
       case 'ASSIGNED':
-        return driverName ? `${driverName} assigned with Ather 450X EV` : 'Assigned to EV fleet pilot';
+        return driverName ? `${driverName} assigned by dispatch` : 'Assigned to delivery partner';
       case 'PICKED_UP':
-        return 'Pilot collected garments from Vault counter';
+        return 'Delivery partner collected garments from pickup hub';
       case 'OUT_FOR_DELIVERY':
         return locality
-          ? `Cruising on 100ft Rd to ${locality}`
-          : 'Cruising toward your doorstep now';
+          ? `On the way to ${locality}`
+          : 'On the way to your doorstep now';
       case 'DELIVERED':
         return 'Handed over at doorstep & size verified';
       default:

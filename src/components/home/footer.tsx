@@ -1,9 +1,35 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
+import { useRouter } from 'expo-router';
 import { Icon } from '@/components/icon';
+import { Fonts } from '@/constants/theme';
 
-export function Footer() {
+export const Footer = React.memo(function Footer() {
+  const router = useRouter();
+
+  const handleHelpPress = (item: string) => {
+    if (item === 'Track Order') {
+      router.push('/tracking');
+      return;
+    }
+    router.push({
+      pathname: '/support',
+      params: { category: 'General Stylist Inquiry' },
+    });
+  };
+
+  const handleAboutPress = (item: string) => {
+    if (item === 'Express Hubs') {
+      router.push('/explore');
+      return;
+    }
+    router.push({
+      pathname: '/support',
+      params: { category: 'General Stylist Inquiry' },
+    });
+  };
+
   return (
     <View style={styles.container}>
       {/* Trust Guarantee Pods */}
@@ -75,7 +101,11 @@ export function Footer() {
           <Text style={styles.columnTitle}>SHOP</Text>
           {['Men', 'Women', 'Kids', 'Beauty', 'Footwear', 'Accessories'].map(
             (item, idx) => (
-              <TouchableOpacity key={idx} style={styles.linkRow}>
+              <TouchableOpacity
+                key={idx}
+                style={styles.linkRow}
+                onPress={() => router.push(`/category/${item.toLowerCase()}` as any)}
+              >
                 <Text style={styles.linkText}>{item}</Text>
               </TouchableOpacity>
             )
@@ -92,7 +122,11 @@ export function Footer() {
             'Size Guide',
             'Customer FAQs',
           ].map((item, idx) => (
-            <TouchableOpacity key={idx} style={styles.linkRow}>
+            <TouchableOpacity
+              key={idx}
+              style={styles.linkRow}
+              onPress={() => handleHelpPress(item)}
+            >
               <Text style={styles.linkText}>{item}</Text>
             </TouchableOpacity>
           ))}
@@ -109,21 +143,25 @@ export function Footer() {
             'Privacy Policy',
             'Terms of Service',
           ].map((item, idx) => (
-            <TouchableOpacity key={idx} style={styles.linkRow}>
+            <TouchableOpacity
+              key={idx}
+              style={styles.linkRow}
+              onPress={() => handleAboutPress(item)}
+            >
               <Text style={styles.linkText}>{item}</Text>
             </TouchableOpacity>
           ))}
         </View>
       </View>
 
-      {/* Social Media Links */}
+      {/* Social Channels */}
       <View style={styles.socialRow}>
-        <Text style={styles.socialLabel}>CONNECT WITH US</Text>
+        <Text style={styles.socialLabel}>OFFICIAL CHANNELS</Text>
         <View style={styles.socialIcons}>
           {['Instagram', 'Facebook', 'YouTube', 'LinkedIn'].map((platform, idx) => (
-            <TouchableOpacity key={idx} style={styles.socialPill}>
+            <View key={idx} style={styles.socialPill}>
               <Text style={styles.socialText}>{platform}</Text>
-            </TouchableOpacity>
+            </View>
           ))}
         </View>
       </View>
@@ -136,7 +174,7 @@ export function Footer() {
       </View>
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   container: {
@@ -171,12 +209,14 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   trustTitle: {
+    fontFamily: Fonts.sansExtraBold,
     color: '#F7F7F5',
     fontSize: 12,
     fontWeight: '800',
     marginBottom: 4,
   },
   trustDesc: {
+    fontFamily: Fonts.sans,
     color: '#D9D9D5',
     fontSize: 10,
     lineHeight: 14,
@@ -196,12 +236,14 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   brandTitle: {
+    fontFamily: Fonts.sansExtraBold,
     fontSize: 22,
     fontWeight: '900',
     color: '#F7F7F5',
     letterSpacing: -0.5,
   },
   brandTagline: {
+    fontFamily: Fonts.sansBold,
     fontSize: 10,
     color: '#D9D9D5',
     marginTop: 2,
@@ -217,6 +259,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   columnTitle: {
+    fontFamily: Fonts.sansExtraBold,
     color: '#F7F7F5',
     fontSize: 11,
     fontWeight: '900',
@@ -227,6 +270,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   linkText: {
+    fontFamily: Fonts.sans,
     color: '#D9D9D5',
     fontSize: 11.5,
   },
@@ -237,6 +281,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   socialLabel: {
+    fontFamily: Fonts.sansBold,
     color: '#6B6667',
     fontSize: 10,
     fontWeight: '800',
@@ -257,6 +302,7 @@ const styles = StyleSheet.create({
     borderColor: '#353335',
   },
   socialText: {
+    fontFamily: Fonts.sansBold,
     color: '#F7F7F5',
     fontSize: 10.5,
     fontWeight: '700',
@@ -267,6 +313,7 @@ const styles = StyleSheet.create({
     borderTopColor: '#353335',
   },
   copyrightText: {
+    fontFamily: Fonts.sans,
     color: '#6B6667',
     fontSize: 10,
     lineHeight: 14,

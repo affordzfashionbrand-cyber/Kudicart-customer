@@ -1,6 +1,6 @@
 import React from 'react';
 import { Text, TextProps, StyleSheet } from 'react-native';
-import { Fonts, FontStyles } from '@/constants/theme';
+import { FontStyles } from '@/constants/theme';
 
 export type BrandTextVariant =
   | 'regular'

@@ -65,7 +65,7 @@ export const TrackingPilotCard = React.memo(function TrackingPilotCard({
               </View>
             </View>
             <Text style={{ fontSize: 11, color: '#6B6667', marginTop: 1 }}>
-              {driver.vehicle || 'Ather 450X EV • KA 03 EV 4821'}
+              {driver.vehicle || 'Authorized Delivery Partner'}
             </Text>
           </View>
         </View>
@@ -97,24 +97,33 @@ export const TrackingPilotCard = React.memo(function TrackingPilotCard({
           justifyContent: 'space-between',
         }}
       >
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <ShieldCheck size={14} color="#15803D" />
-          <Text style={{ fontSize: 11, fontWeight: '700', color: '#4A4A4A' }}>Delivery Handshake OTP:</Text>
-          <View
-            style={{
-              backgroundColor: '#FAF8F5',
-              paddingHorizontal: 8,
-              paddingVertical: 2,
-              borderRadius: 6,
-              borderWidth: 1,
-              borderColor: '#E8E5DF',
-            }}
-          >
-            <Text style={{ fontSize: 12, fontWeight: '900', color: '#111111', letterSpacing: 1.5 }}>
-              {deliveryOtp}
+        {deliveryOtp ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <ShieldCheck size={14} color="#15803D" />
+            <Text style={{ fontSize: 11, fontWeight: '700', color: '#4A4A4A' }}>Delivery Handshake OTP:</Text>
+            <View
+              style={{
+                backgroundColor: '#FAF8F5',
+                paddingHorizontal: 8,
+                paddingVertical: 2,
+                borderRadius: 6,
+                borderWidth: 1,
+                borderColor: '#E8E5DF',
+              }}
+            >
+              <Text style={{ fontSize: 12, fontWeight: '900', color: '#111111', letterSpacing: 1.5 }}>
+                {deliveryOtp}
+              </Text>
+            </View>
+          </View>
+        ) : (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <ShieldCheck size={14} color="#8E877E" />
+            <Text style={{ fontSize: 11, fontWeight: '600', color: '#8E877E' }}>
+              OTP shown once assigned
             </Text>
           </View>
-        </View>
+        )}
 
         {existingRating ? (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>

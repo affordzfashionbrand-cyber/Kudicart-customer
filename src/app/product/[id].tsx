@@ -44,7 +44,7 @@ import {
   ProductRelatedCatalog,
 } from '@/components/product';
 
-import { DEFAULT_PRODUCTS, ProductItem } from '@/data/homeData';
+import { ProductItem } from '@/data/homeData';
 import { resolveProductGalleryShots } from '@/data/product-gallery-data';
 
 export default function ProductDetailScreen() {
@@ -100,36 +100,11 @@ export default function ProductDetailScreen() {
     };
   }, [id, storeProducts]);
 
-  // Resolve Product Data
+  // Resolve Product Data (live backend or catalog store only)
   const product = useMemo<ApiProduct | null>(() => {
     if (liveProduct) return liveProduct;
     const fromStore = storeProducts.find((p) => String(p.id) === String(id));
     if (fromStore) return fromStore;
-
-    // Fallback for default seed products
-    const fromDefault = DEFAULT_PRODUCTS.find((p) => String(p.id) === String(id));
-    if (fromDefault) {
-      return {
-        id: String(fromDefault.id),
-        brand: fromDefault.brand,
-        title: fromDefault.name,
-        description: 'Exquisite handcrafted apparel tailored from premium textiles by master ateliers.',
-        price: fromDefault.price,
-        originalPrice: fromDefault.old,
-        discount: '40% OFF',
-        rating: Number(fromDefault.rating) || 0,
-        reviewsCount: (fromDefault as any).reviewsCount ?? 0,
-        stockQuantity: 10,
-        readyToShip: true,
-        sizes: AVAILABLE_SIZES,
-        image: fromDefault.image,
-        altText: fromDefault.name,
-        galleryImages: [fromDefault.image],
-        category: fromDefault.category,
-        fulfillmentType: [4, 8, 9, 10, 102, 103, 106, 107].includes(Number(fromDefault.id)) ? 'DARK_STORE' : 'VENDOR',
-        tryAndBuyEligible: [4, 8, 9, 10, 102, 103, 106, 107].includes(Number(fromDefault.id)),
-      };
-    }
     return null;
   }, [liveProduct, storeProducts, id]);
 
@@ -249,7 +224,7 @@ export default function ProductDetailScreen() {
         is18Min: true,
         badge: '18-MIN DOORSTEP DROP',
         etaText: 'Concierge arrives in 18 minutes',
-        hub: selectedDarkStore?.name || product?.darkStoreHub?.name || 'Indiranagar Express Hub',
+        hub: selectedDarkStore?.name || product?.darkStoreHub?.name || 'Affordz Express Hub',
       };
     }
     return {
@@ -260,6 +235,8 @@ export default function ProductDetailScreen() {
     };
   }, [pincode, isDarkStoreProduct, selectedDarkStore, product]);
 
+  const isNative = Platform.OS !== 'web';
+
   // Toast State
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [toastAnim] = useState(() => new Animated.Value(100));
@@ -267,11 +244,11 @@ export default function ProductDetailScreen() {
   const showToast = useCallback((msg: string) => {
     setToastMessage(msg);
     Animated.sequence([
-      Animated.timing(toastAnim, { toValue: 0, duration: 250, useNativeDriver: true }),
+      Animated.timing(toastAnim, { toValue: 0, duration: 250, useNativeDriver: isNative }),
       Animated.delay(1800),
-      Animated.timing(toastAnim, { toValue: 100, duration: 250, useNativeDriver: true }),
+      Animated.timing(toastAnim, { toValue: 100, duration: 250, useNativeDriver: isNative }),
     ]).start(() => setToastMessage(null));
-  }, [toastAnim]);
+  }, [toastAnim, isNative]);
 
   // Smart Bottom Bar Threshold
   const catalogYThreshold = useRef(0);
@@ -279,14 +256,26 @@ export default function ProductDetailScreen() {
   const isInCatalogZone = useRef(false);
 
   const allRelatedProducts = useMemo<ProductItem[]>(() => {
-    return DEFAULT_PRODUCTS.filter((p) => String(p.id) !== String(id));
-  }, [id]);
+    return storeProducts
+      .filter((p) => String(p.id) !== String(id))
+      .map((p) => ({
+        id: p.id,
+        brand: p.brand,
+        name: p.title,
+        price: p.price,
+        old: p.originalPrice || Math.round(p.price * 1.3),
+        rating: String(p.rating || '4.8'),
+        category: p.category || 'Women',
+        wear: (p as any).wear || 'Tops',
+        image: p.image || (p.galleryImages && p.galleryImages[0]) || '',
+        fulfillmentType: (p as any).fulfillmentType,
+        tryAndBuyEligible: (p as any).tryAndBuyEligible,
+      }));
+  }, [storeProducts, id]);
 
   const handleCatalogLayout = useCallback((event: LayoutChangeEvent) => {
     catalogYThreshold.current = event.nativeEvent.layout.y;
   }, []);
-
-  const isNative = Platform.OS !== 'web';
 
   const handleProductScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const currentY = event.nativeEvent.contentOffset.y;

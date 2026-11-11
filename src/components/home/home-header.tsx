@@ -6,7 +6,6 @@ import { AnimatedPressable } from '@/components/common/animated-pressable';
 import { useDarkStore } from '@/store/useDarkStore';
 import { Fonts } from '@/constants/theme';
 import { UniversalSearchBar } from '@/components/home/search-bar';
-import { Alert } from 'react-native';
 
 export interface HomeHeaderProps {
   paddingTop: number;
@@ -14,6 +13,7 @@ export interface HomeHeaderProps {
   onOpenAddressModal: () => void;
   onOpenAccount: () => void;
   onOpenNotifications?: () => void;
+  unreadCount?: number;
   query: string;
   onQueryChange: (text: string) => void;
   onSelectSearchQuery: (text: string) => void;
@@ -27,6 +27,7 @@ export const HomeHeader = React.memo(function HomeHeader({
   onOpenAddressModal,
   onOpenAccount,
   onOpenNotifications,
+  unreadCount = 0,
   query,
   onQueryChange,
   onSelectSearchQuery,
@@ -125,17 +126,7 @@ export const HomeHeader = React.memo(function HomeHeader({
           </AnimatedPressable>
 
           {/* Notification Bell */}
-          <AnimatedPressable
-            onPress={
-              onOpenNotifications ||
-              (() =>
-                Alert.alert(
-                  'Atelier Notifications',
-                  'You have no unread alerts. All active drops are on schedule.',
-                  [{ text: 'Dismiss', style: 'cancel' }],
-                ))
-            }
-          >
+          <AnimatedPressable onPress={onOpenNotifications}>
             <View
               style={{
                 width: 34,
@@ -150,19 +141,21 @@ export const HomeHeader = React.memo(function HomeHeader({
               }}
             >
               <Bell size={16} color="#111111" />
-              <View
-                style={{
-                  width: 7,
-                  height: 7,
-                  backgroundColor: '#FF5A1F',
-                  borderRadius: 3.5,
-                  position: 'absolute',
-                  top: 1,
-                  right: 1,
-                  borderWidth: 1.5,
-                  borderColor: '#ffffff',
-                }}
-              />
+              {unreadCount > 0 && (
+                <View
+                  style={{
+                    width: 7,
+                    height: 7,
+                    backgroundColor: '#FF5A1F',
+                    borderRadius: 3.5,
+                    position: 'absolute',
+                    top: 1,
+                    right: 1,
+                    borderWidth: 1.5,
+                    borderColor: '#ffffff',
+                  }}
+                />
+              )}
             </View>
           </AnimatedPressable>
 

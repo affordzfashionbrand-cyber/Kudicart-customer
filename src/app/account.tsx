@@ -70,6 +70,7 @@ export default function AccountScreen() {
       <ScrollView
         contentContainerStyle={{ paddingBottom: insets.bottom + 40 }}
         showsVerticalScrollIndicator={false}
+        scrollEventThrottle={16}
         removeClippedSubviews={Platform.OS !== 'web'}
         overScrollMode="never"
         keyboardShouldPersistTaps="handled"

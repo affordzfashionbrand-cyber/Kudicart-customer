@@ -21,7 +21,6 @@ import { useOrderStore } from '@/store/useOrderStore';
 import { useCartStore } from '@/store/useCartStore';
 import { useAddressStore } from '@/store/useAddressStore';
 import { useAuthStore } from '@/store/useAuthStore';
-import { FontStyles } from '@/constants/theme';
 import { EditProfileModal } from '@/components/account/edit-profile-modal';
 import { SettingsModal } from '@/components/account/settings-modal';
 
@@ -57,11 +56,12 @@ export function AccountView({
   const [isSignOutModalOpen, setIsSignOutModalOpen] = useState(false);
 
   React.useEffect(() => {
+    if (!isAuthenticated) {
+      return;
+    }
     fetchOrders().catch(() => {});
     fetchAddresses().catch(() => {});
-    if (isAuthenticated) {
-      loadProfile().catch(() => {});
-    }
+    loadProfile().catch(() => {});
   }, [fetchOrders, fetchAddresses, loadProfile, isAuthenticated]);
 
   const displayName = (user?.name || '').trim() || (isAuthenticated ? 'Affordz Member' : 'Guest Collector');

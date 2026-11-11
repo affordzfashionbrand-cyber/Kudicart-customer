@@ -6,16 +6,12 @@ import {
   ScrollView,
   Pressable,
   Switch,
-  Platform,
-  Alert,
 } from 'react-native';
 import {
   X,
   Bell,
-  MessageSquare,
   Zap,
   Vibrate,
-  Lock,
   Trash2,
   Globe,
   FileText,
@@ -24,7 +20,6 @@ import {
   CheckCircle2,
   Info,
   ChevronRight,
-  ExternalLink,
 } from 'lucide-react-native';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { useAuthStore } from '@/store/useAuthStore';
@@ -44,18 +39,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const {
     notifications,
     hapticsEnabled,
-    biometricLock,
     setNotificationPreference,
     setHapticsEnabled,
-    setBiometricLock,
     clearAppCache,
   } = useSettingsStore();
 
-  const { user, logout } = useAuthStore();
+  const { user, deleteAccount } = useAuthStore();
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [legalModal, setLegalModal] = useState<{ title: string; content: string } | null>(null);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -68,12 +63,20 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   const handleRequestDeletion = async () => {
-    setIsDeleteConfirmOpen(false);
-    showToast('Account deletion request initiated. Our concierge team will confirm within 24 hours.');
-    setTimeout(() => {
-      logout();
+    if (isDeletingAccount) return;
+    setDeleteError(null);
+    setIsDeletingAccount(true);
+    try {
+      await deleteAccount();
+      setIsDeleteConfirmOpen(false);
       onClose();
-    }, 2000);
+    } catch (err: any) {
+      setDeleteError(
+        err?.message || 'Unable to delete account right now. Active in-transit orders may block deletion.',
+      );
+    } finally {
+      setIsDeletingAccount(false);
+    }
   };
 
   return (
@@ -237,36 +240,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   />
                 </View>
 
-                {/* WhatsApp Updates */}
-                <View
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    paddingVertical: 10,
-                    borderBottomWidth: 1,
-                    borderBottomColor: '#F4F1EA',
-                  }}
-                >
-                  <View style={{ flex: 1, paddingRight: 12 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                      <MessageSquare size={15} color="#15803D" />
-                      <Text style={{ fontSize: 13, fontWeight: '800', color: '#111111' }}>
-                        WhatsApp Delivery Tracking
-                      </Text>
-                    </View>
-                    <Text style={{ fontSize: 10.5, color: '#6B6667', marginTop: 2, lineHeight: 15 }}>
-                      Get rider location links and OTP delivery codes via WhatsApp
-                    </Text>
-                  </View>
-                  <Switch
-                    value={notifications.whatsappUpdates}
-                    onValueChange={(val) => setNotificationPreference('whatsappUpdates', val)}
-                    trackColor={{ false: '#E8E5DF', true: '#111111' }}
-                    thumbColor="#FFFFFF"
-                  />
-                </View>
-
                 {/* Exclusive Drops */}
                 <View
                   style={{
@@ -345,36 +318,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <Switch
                     value={hapticsEnabled}
                     onValueChange={setHapticsEnabled}
-                    trackColor={{ false: '#E8E5DF', true: '#111111' }}
-                    thumbColor="#FFFFFF"
-                  />
-                </View>
-
-                {/* Biometric Quick Lock */}
-                <View
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    paddingVertical: 10,
-                    borderBottomWidth: 1,
-                    borderBottomColor: '#F4F1EA',
-                  }}
-                >
-                  <View style={{ flex: 1, paddingRight: 12 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                      <Lock size={15} color="#111111" />
-                      <Text style={{ fontSize: 13, fontWeight: '800', color: '#111111' }}>
-                        Biometric / App Lock
-                      </Text>
-                    </View>
-                    <Text style={{ fontSize: 10.5, color: '#6B6667', marginTop: 2, lineHeight: 15 }}>
-                      Require fingerprint or face verification before opening bag or checkout
-                    </Text>
-                  </View>
-                  <Switch
-                    value={biometricLock}
-                    onValueChange={setBiometricLock}
                     trackColor={{ false: '#E8E5DF', true: '#111111' }}
                     thumbColor="#FFFFFF"
                   />
@@ -479,7 +422,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     setLegalModal({
                       title: 'Terms of Atelier Service',
                       content:
-                        'Welcome to Affordz / KudiCart. By placing an order, you agree to our 18-minute express delivery commitment from nearest dark store micro-hubs, doorstep Try-and-Buy fit options, and direct vendor dispatch. Deliveries are fulfilled by authorized partners. Payments are processed securely via verified gateways.',
+                        'Welcome to Affordz. By placing an order, you agree to our express delivery commitment from nearby dark store hubs, doorstep Try-and-Buy fit options, and direct vendor dispatch. Deliveries are fulfilled by authorized partners. Payments are processed securely via verified gateways.',
                     })
                   }
                   style={({ pressed }) => ({
@@ -506,7 +449,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     setLegalModal({
                       title: 'Privacy Policy & Data Security',
                       content:
-                        'Your personal data (phone number, delivery addresses, and order history) is protected under industry standard encryption and Firebase Authentication protocols. Payment credentials and card numbers are never stored on KudiCart servers.',
+                        'Your personal data (phone number, delivery addresses, and order history) is protected under industry standard encryption and Firebase Authentication protocols. Payment credentials and card numbers are never stored on Affordz servers.',
                     })
                   }
                   style={({ pressed }) => ({
@@ -534,7 +477,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     setLegalModal({
                       title: 'Grievance Officer & Statutory Details',
                       content:
-                        'In compliance with Rule 5(9) of the Consumer Protection (E-Commerce) Rules, 2020 & Digital Personal Data Protection Act, 2023:\n\n• Legal Entity: KudiCart E-Commerce Private Limited\n• CIN: U52100KA2026PTC184210\n• Designated Grievance Officer: Rajeshwar Rao (Principal Officer)\n• Email: grievance@kudicart.in\n• Concierge Desk: +91 80 4567 8900\n• Office Address: 100 Feet Road, Indiranagar, Bengaluru, KA 560038\n\nSLA Commitment: Acknowledgement within 48 hours; complete resolution within 30 days from date of receipt.',
+                        'In compliance with Rule 5(9) of the Consumer Protection (E-Commerce) Rules, 2020 & Digital Personal Data Protection Act, 2023:\n\n• Legal Entity: Affordz Commerce Private Limited\n• Designated Grievance Officer: Grievance Redressal Desk\n• Email: grievance@affordz.in\n• Support Desk: concierge@affordz.in\n\nSLA Commitment: Acknowledgement within 48 hours; complete resolution within 30 days from date of receipt.',
                     })
                   }
                   style={({ pressed }) => ({
@@ -582,7 +525,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               {/* Version & Build */}
               <View style={{ alignItems: 'center', paddingVertical: 16 }}>
                 <Text style={{ fontSize: 11, fontWeight: '800', color: '#8A857D' }}>
-                  KudiCart Atelier • Customer Edition
+                  Affordz • Customer Edition
                 </Text>
                 <Text style={{ fontSize: 10, color: '#A0A0A0', marginTop: 2 }}>
                   Version 1.0.4 • Build 2026.10 • Ultra-Fast Dark Store Commerce
@@ -676,12 +619,33 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <Text style={{ fontSize: 16, fontWeight: '900', color: '#111111', marginBottom: 8 }}>
                 Delete Atelier Account?
               </Text>
-              <Text style={{ fontSize: 12, color: '#6B6667', lineHeight: 18, marginBottom: 20 }}>
+              <Text style={{ fontSize: 12, color: '#6B6667', lineHeight: 18, marginBottom: deleteError ? 12 : 20 }}>
                 This will delete your registered profile, saved addresses, and active dark store tokens. Active in-transit orders must be fulfilled or returned before closure.
               </Text>
+              {deleteError && (
+                <View
+                  style={{
+                    backgroundColor: '#FEF2F2',
+                    borderWidth: 1,
+                    borderColor: '#FCA5A5',
+                    borderRadius: 12,
+                    padding: 10,
+                    marginBottom: 14,
+                  }}
+                >
+                  <Text style={{ fontSize: 11.5, fontWeight: '700', color: '#DC2626' }}>
+                    {deleteError}
+                  </Text>
+                </View>
+              )}
               <View style={{ flexDirection: 'row', gap: 10 }}>
                 <Pressable
-                  onPress={() => setIsDeleteConfirmOpen(false)}
+                  onPress={() => {
+                    if (isDeletingAccount) return;
+                    setDeleteError(null);
+                    setIsDeleteConfirmOpen(false);
+                  }}
+                  disabled={isDeletingAccount}
                   style={{
                     flex: 1,
                     height: 44,
@@ -690,6 +654,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     borderColor: '#E8E5DF',
                     alignItems: 'center',
                     justifyContent: 'center',
+                    opacity: isDeletingAccount ? 0.5 : 1,
                   }}
                 >
                   <Text style={{ fontSize: 12.5, fontWeight: '800', color: '#111111' }}>
@@ -698,6 +663,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </Pressable>
                 <AnimatedPressable
                   onPress={handleRequestDeletion}
+                  disabled={isDeletingAccount}
                   style={{
                     flex: 1,
                     height: 44,
@@ -705,10 +671,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     backgroundColor: '#DC2626',
                     alignItems: 'center',
                     justifyContent: 'center',
+                    opacity: isDeletingAccount ? 0.7 : 1,
                   }}
                 >
                   <Text style={{ fontSize: 12.5, fontWeight: '900', color: '#FFFFFF' }}>
-                    Confirm Delete
+                    {isDeletingAccount ? 'Deleting...' : 'Confirm Delete'}
                   </Text>
                 </AnimatedPressable>
               </View>

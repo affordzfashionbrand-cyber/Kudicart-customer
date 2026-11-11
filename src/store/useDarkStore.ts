@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import { useCatalogStore } from '@/store/useCatalogStore';
+import { registerAuthLogoutReset } from './useAuthStore';
 
 export interface DarkStore {
   id: string;
@@ -15,95 +17,94 @@ export interface DarkStore {
   prepTimeMinutes: number;
   address: string;
   features: string[];
+  latitude?: number;
+  longitude?: number;
+  maxRadiusKm?: number;
 }
 
-export const DARK_STORES: DarkStore[] = [
-  {
-    id: 'ds-indiranagar',
-    name: 'Indiranagar Atelier Hub',
-    shortName: 'Indiranagar Hub',
-    code: 'DS-01',
-    locality: '100ft Road, Indiranagar',
-    distanceKm: 1.2,
-    deliveryMinutes: 18,
-    stockCount: 4850,
-    badge: 'FASTEST DISPATCH',
-    isPopular: true,
-    isOpen: true,
-    prepTimeMinutes: 3,
-    address: 'Plot 418, 100 Feet Rd, HAL 2nd Stage, Indiranagar, Bengaluru',
-    features: ['Instant Try & Buy', 'Steam Pressed Drops', 'Live Wardrobe Fitting'],
-  },
-  {
-    id: 'ds-koramangala',
-    name: 'Koramangala Atelier Depot',
-    shortName: 'Koramangala Depot',
-    code: 'DS-02',
-    locality: '5th Block, Koramangala',
-    distanceKm: 2.4,
-    deliveryMinutes: 22,
-    stockCount: 5420,
-    badge: 'EXPANDED WARDROBE',
-    isPopular: false,
-    isOpen: true,
-    prepTimeMinutes: 4,
-    address: '80ft Road, Sony World Signal, 5th Block, Koramangala, Bengaluru',
-    features: ['Luxury Evening Wear', 'Doorstep Stylist', 'Instant Exchanges'],
-  },
-  {
-    id: 'ds-lavelle',
-    name: 'Lavelle Road Private Vault',
-    shortName: 'CBD Vault',
-    code: 'DS-03',
-    locality: 'Lavelle Road, Central Bengaluru',
-    distanceKm: 3.8,
-    deliveryMinutes: 26,
-    stockCount: 3940,
-    badge: 'HAUTE LUXE SUITE',
-    isPopular: false,
-    isOpen: true,
-    prepTimeMinutes: 5,
-    address: '22 Lavelle Road, Shanthala Nagar, Ashok Nagar, Bengaluru',
-    features: ['Couture Exclusives', 'White-Glove Courier', 'VIP Fitting Rooms'],
-  },
-  {
-    id: 'ds-whitefield',
-    name: 'Whitefield Fashion Fulfillment Center',
-    shortName: 'Whitefield Hub',
-    code: 'DS-04',
-    locality: 'EPIP Zone, Whitefield',
-    distanceKm: 7.1,
-    deliveryMinutes: 34,
-    stockCount: 6180,
-    badge: 'MEGA INVENTORY',
-    isPopular: false,
-    isOpen: true,
-    prepTimeMinutes: 6,
-    address: 'Plot 12, EPIP Industrial Area, Whitefield, Bengaluru',
-    features: ['Complete Runway Catalog', 'Express Dispatch', 'Next-Day Tailoring'],
-  },
-];
+export function mapCatalogHubToDarkStore(raw: any, index = 0): DarkStore {
+  const name = raw?.name || 'Affordz Express Hub';
+  const locality = raw?.locality || raw?.city || 'Service Area';
+  return {
+    id: String(raw?.id || `hub-${index + 1}`),
+    name,
+    shortName: raw?.shortName || locality,
+    code: raw?.code || `HUB-${String(index + 1).padStart(2, '0')}`,
+    locality,
+    distanceKm: typeof raw?.distanceKm === 'number' ? raw.distanceKm : 2.0,
+    deliveryMinutes: typeof raw?.deliveryMinutes === 'number' ? raw.deliveryMinutes : 18,
+    stockCount: typeof raw?.stockCount === 'number' ? raw.stockCount : 0,
+    badge: raw?.badge || (raw?.isActive !== false ? 'EXPRESS HUB' : undefined),
+    isPopular: index === 0,
+    isOpen: raw?.isActive !== false,
+    prepTimeMinutes: typeof raw?.prepTimeMinutes === 'number' ? raw.prepTimeMinutes : 3,
+    address: raw?.address || locality,
+    features: Array.isArray(raw?.features) && raw.features.length > 0
+      ? raw.features
+      : ['Instant Try & Buy', 'Steam Pressed Drops'],
+    latitude: typeof raw?.latitude === 'number' ? raw.latitude : undefined,
+    longitude: typeof raw?.longitude === 'number' ? raw.longitude : undefined,
+    maxRadiusKm: typeof raw?.maxRadiusKm === 'number' ? raw.maxRadiusKm : undefined,
+  };
+}
 
 interface DarkStoreState {
   darkStores: DarkStore[];
   selectedDarkStore: DarkStore | null;
   isDarkStoreModalOpen: boolean;
 
+  setDarkStores: (stores: DarkStore[]) => void;
+  syncFromCatalog: () => Promise<DarkStore[]>;
   setSelectedDarkStore: (store: DarkStore | null) => void;
   openDarkStoreModal: () => void;
   closeDarkStoreModal: () => void;
   toggleDarkStoreModal: () => void;
+  resetDarkStore: () => void;
 }
 
-export const useDarkStore = create<DarkStoreState>((set) => ({
-  darkStores: DARK_STORES,
-  // Start with null so that "Select dark store" prompt is prominently shown initially,
-  // or user can pick one immediately
+export const useDarkStore = create<DarkStoreState>((set, get) => ({
+  darkStores: [],
   selectedDarkStore: null,
   isDarkStoreModalOpen: false,
 
+  setDarkStores: (darkStores) => set((state) => ({
+    darkStores,
+    selectedDarkStore: state.selectedDarkStore
+      ? darkStores.find((s) => s.id === state.selectedDarkStore?.id) || darkStores[0] || null
+      : state.selectedDarkStore,
+  })),
+
+  syncFromCatalog: async () => {
+    const catalog = useCatalogStore.getState();
+    if (catalog.darkStores.length === 0) {
+      await catalog.fetchDarkStores();
+    }
+    const rawHubs = useCatalogStore.getState().darkStores || [];
+    const mapped = rawHubs.map((hub, idx) => mapCatalogHubToDarkStore(hub, idx));
+    get().setDarkStores(mapped);
+    return mapped;
+  },
+
   setSelectedDarkStore: (store) => set({ selectedDarkStore: store }),
-  openDarkStoreModal: () => set({ isDarkStoreModalOpen: true }),
+  openDarkStoreModal: () => {
+    set({ isDarkStoreModalOpen: true });
+    if (get().darkStores.length === 0) {
+      get().syncFromCatalog().catch(() => {});
+    }
+  },
   closeDarkStoreModal: () => set({ isDarkStoreModalOpen: false }),
-  toggleDarkStoreModal: () => set((state) => ({ isDarkStoreModalOpen: !state.isDarkStoreModalOpen })),
+  toggleDarkStoreModal: () => {
+    const next = !get().isDarkStoreModalOpen;
+    set({ isDarkStoreModalOpen: next });
+    if (next && get().darkStores.length === 0) {
+      get().syncFromCatalog().catch(() => {});
+    }
+  },
+  resetDarkStore: () => {
+    set({ darkStores: [], selectedDarkStore: null, isDarkStoreModalOpen: false });
+  },
 }));
+
+registerAuthLogoutReset(() => {
+  useDarkStore.getState().resetDarkStore();
+});

@@ -13,6 +13,7 @@ import {
 import { Image } from 'expo-image';
 import { Star, X, Check, Sparkles, CheckCircle2 } from 'lucide-react-native';
 import { useAuthStore } from '@/store/useAuthStore';
+import { useOrderStore, isOrderItemEligibleForReview } from '@/store/useOrderStore';
 import { reviewsApi } from '@/services/api';
 import { FontStyles } from '@/constants/theme';
 
@@ -20,6 +21,7 @@ export interface WriteReviewModalProps {
   visible: boolean;
   onClose: () => void;
   productId: string;
+  orderId?: string;
   productTitle: string;
   productImage?: string;
   brand: string;
@@ -58,6 +60,7 @@ export function WriteReviewModal({
   visible,
   onClose,
   productId,
+  orderId: propOrderId,
   productTitle,
   productImage,
   brand,
@@ -94,13 +97,40 @@ export function WriteReviewModal({
     setIsSubmitting(true);
 
     try {
-      const orderId = `ord-${Date.now()}`;
+      let resolvedOrderId = propOrderId;
+      let currentOrders = useOrderStore.getState().orders;
+      if (isAuthenticated && currentOrders.length === 0) {
+        await useOrderStore.getState().fetchOrders();
+        currentOrders = useOrderStore.getState().orders;
+      }
+
+      if (resolvedOrderId) {
+        const matchedOrder = currentOrders.find(
+          (o) => o.id === resolvedOrderId || o.orderNumber === resolvedOrderId,
+        );
+        if (matchedOrder && !isOrderItemEligibleForReview(matchedOrder, productId)) {
+          resolvedOrderId = undefined;
+        }
+      } else if (isAuthenticated) {
+        const eligibleMatch = currentOrders.find((o) =>
+          isOrderItemEligibleForReview(o, productId),
+        );
+        resolvedOrderId = eligibleMatch?.id;
+      }
+
+      if (!resolvedOrderId) {
+        setErrorMessage(
+          'Only delivered orders (or settled Try & Buy items you kept) can be reviewed.',
+        );
+        return;
+      }
+
       const tagText = selectedTags.length > 0 ? ` [${selectedTags.join(', ')}]` : '';
       const fullComment = `${trimmedComment}${tagText}`;
 
       // Call live backend review API
       await reviewsApi.createReview({
-        orderId,
+        orderId: resolvedOrderId,
         productId,
         rating,
         comment: fullComment,
@@ -121,22 +151,8 @@ export function WriteReviewModal({
       // Reset form
       setComment('');
       setRating(5);
-    } catch {
-      // Optimistic fallback for sandbox / offline mode
-      const newReviewItem = {
-        id: `rev-${Date.now()}`,
-        userName: authorName.trim() || user?.name || 'Affordz Collector',
-        rating,
-        comment: trimmedComment,
-        tags: selectedTags,
-        createdAt: 'Just now',
-        verified: true,
-      };
-
-      onSubmitSuccess(newReviewItem);
-      onClose();
-      setComment('');
-      setRating(5);
+    } catch (err: any) {
+      setErrorMessage(err?.message || 'Unable to submit review right now. Please try again.');
     } finally {
       setIsSubmitting(false);
     }

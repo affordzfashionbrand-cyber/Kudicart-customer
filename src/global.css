@@ -23,66 +23,14 @@ html, body {
   font-family: var(--font-sans);
 }
 
-/* Universal default: Every React Native Text component renders as [dir="auto"] */
-html, body, #root {
-  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
-}
-
-[dir="auto"],
-div[dir="auto"],
-span[dir="auto"],
-[class*="css-text-"],
-input,
-textarea,
-button,
-select {
-  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-}
-
-/* All editorial headlines, serif accents, and lookbook titles */
 .font-serif,
-.font-serif *,
 .font-editorial,
-.font-editorial *,
-.font-display,
-.font-display *,
-.font-display-hero,
-.font-display-hero *,
-.font-headline-lg,
-.font-headline-lg *,
-.font-headline-md,
-.font-headline-md *,
-.font-headline-sm,
-.font-headline-sm *,
-.editorial-text,
-.editorial-text *,
-[data-font="serif"],
-[data-font="editorial"],
-[class*="font-serif"],
-[class*="font-editorial"],
-[class*="font-display"],
-[class*="headline-"],
-[class*="display-"],
-[style*="serif"],
-[style*="Georgia"],
-[style*="Playfair"],
-[style*="PlayfairDisplay"],
-[dir="auto"][style*="serif"],
-[dir="auto"][style*="Georgia"],
-[dir="auto"][style*="Playfair"],
-[dir="auto"][style*="PlayfairDisplay"],
-[dir="auto"] [style*="serif"],
-[dir="auto"] [style*="Georgia"],
-[dir="auto"] [style*="Playfair"],
-[dir="auto"] [style*="PlayfairDisplay"],
-[class*="r-fontFamily-serif"],
-[class*="r-fontFamily-Georgia"],
-[class*="r-fontFamily-Playfair"] {
-  font-family: 'Playfair Display', Georgia, 'Times New Roman', serif !important;
+.editorial-text {
+  font-family: var(--font-serif);
 }
 
 .material-symbols-outlined {
-  font-family: 'Material Symbols Outlined', 'MaterialIcons', sans-serif !important;
+  font-family: 'Material Symbols Outlined', 'MaterialIcons', sans-serif;
   font-weight: normal;
   font-style: normal;
   line-height: 1;

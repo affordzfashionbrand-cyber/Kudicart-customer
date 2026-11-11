@@ -6,20 +6,17 @@ const SETTINGS_KEY = 'affordz_user_settings';
 
 export interface NotificationPreferences {
   orderUpdates: boolean;
-  whatsappUpdates: boolean;
   dropAlerts: boolean;
 }
 
 export interface SettingsState {
   notifications: NotificationPreferences;
   hapticsEnabled: boolean;
-  biometricLock: boolean;
   isInitialized: boolean;
 
   initializeSettings: () => Promise<void>;
   setNotificationPreference: (key: keyof NotificationPreferences, value: boolean) => Promise<void>;
   setHapticsEnabled: (enabled: boolean) => Promise<void>;
-  setBiometricLock: (enabled: boolean) => Promise<void>;
   clearAppCache: () => Promise<{ success: boolean; message: string }>;
   resetSettings: () => Promise<void>;
 }
@@ -27,17 +24,14 @@ export interface SettingsState {
 const DEFAULT_SETTINGS = {
   notifications: {
     orderUpdates: true,
-    whatsappUpdates: true,
     dropAlerts: false,
   },
   hapticsEnabled: true,
-  biometricLock: false,
 };
 
 async function persistSettings(data: {
   notifications: NotificationPreferences;
   hapticsEnabled: boolean;
-  biometricLock: boolean;
 }) {
   try {
     const raw = JSON.stringify(data);
@@ -68,11 +62,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         const parsed = JSON.parse(raw);
         set({
           notifications: {
-            ...DEFAULT_SETTINGS.notifications,
-            ...(parsed.notifications || {}),
+            orderUpdates: parsed.notifications?.orderUpdates ?? DEFAULT_SETTINGS.notifications.orderUpdates,
+            dropAlerts: parsed.notifications?.dropAlerts ?? DEFAULT_SETTINGS.notifications.dropAlerts,
           },
           hapticsEnabled: parsed.hapticsEnabled ?? DEFAULT_SETTINGS.hapticsEnabled,
-          biometricLock: parsed.biometricLock ?? DEFAULT_SETTINGS.biometricLock,
           isInitialized: true,
         });
         return;
@@ -92,7 +85,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     await persistSettings({
       notifications: nextNotifications,
       hapticsEnabled: get().hapticsEnabled,
-      biometricLock: get().biometricLock,
     });
   },
 
@@ -101,22 +93,11 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     await persistSettings({
       notifications: get().notifications,
       hapticsEnabled: enabled,
-      biometricLock: get().biometricLock,
-    });
-  },
-
-  setBiometricLock: async (enabled) => {
-    set({ biometricLock: enabled });
-    await persistSettings({
-      notifications: get().notifications,
-      hapticsEnabled: get().hapticsEnabled,
-      biometricLock: enabled,
     });
   },
 
   clearAppCache: async () => {
     try {
-      // Clean temporary storage or session memory safely
       return {
         success: true,
         message: 'Atelier cache & temporary lookbooks purged successfully.',

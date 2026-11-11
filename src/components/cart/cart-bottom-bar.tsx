@@ -76,13 +76,13 @@ export const CartBottomBar = React.memo(function CartBottomBar({
           >
             {!addressServiceability.isServiceable && hasDarkStoreItems
               ? `⚠️ Outside 8.0 km radius (${addressServiceability.distanceKm} km)`
-              : `Deliver to: ${selectedAddress?.locality || selectedAddress?.city || 'Indiranagar'}`}
+              : `Deliver to: ${selectedAddress?.locality || selectedAddress?.city || 'Selected Address'}`}
           </Text>
         </View>
 
         {/* Place Order CTA Button */}
         <AnimatedPressable
-          disabled={isCheckingOut}
+          disabled={isCheckingOut || (hasDarkStoreItems && !addressServiceability.isServiceable)}
           onPress={handlePlaceOrder}
           style={{
             backgroundColor: isCheckingOut

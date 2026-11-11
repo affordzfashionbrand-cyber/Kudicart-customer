@@ -684,7 +684,7 @@ export const SearchSuggestionsOverlay = React.memo(function SearchSuggestionsOve
                         textTransform: 'uppercase',
                       }}
                     >
-                      Top Matches for "{query}"
+                      Top Matches for &quot;{query}&quot;
                     </Text>
                     <Pressable onPress={() => handleExecuteSearch(query)}>
                       <Text style={{ fontSize: 12, fontFamily: Fonts.sansBold, color: '#FF5A1F' }}>
@@ -781,7 +781,7 @@ export const SearchSuggestionsOverlay = React.memo(function SearchSuggestionsOve
               >
                 <Search size={16} color="#ffffff" />
                 <Text style={{ fontSize: 14, fontFamily: Fonts.sansBold, color: '#ffffff' }}>
-                  See all results for "{query}"
+                  See all results for &quot;{query}&quot;
                 </Text>
                 <ChevronRight size={16} color="#ffffff" />
               </Pressable>

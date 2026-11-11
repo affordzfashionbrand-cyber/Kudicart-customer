@@ -125,7 +125,7 @@ export const OrderListCard = React.memo(function OrderListCard({
             month: 'short',
             year: 'numeric',
           })}{' '}
-          • Deliver to {order.address?.locality || order.address?.label || 'Indiranagar'}
+          • Deliver to {order.address?.locality || order.address?.label || 'Selected Address'}
         </Text>
 
         {/* Thumbnail Row */}

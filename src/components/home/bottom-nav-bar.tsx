@@ -1,8 +1,10 @@
+import React, { useEffect, useState } from 'react';
 import { Icon } from '@/components/icon';
+import { Fonts } from '@/constants/theme';
 import { usePathname, useRouter } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
 import {
     Animated,
+    Platform,
     StyleSheet,
     Text,
     TouchableOpacity,
@@ -19,7 +21,7 @@ interface BottomNavBarProps {
     onScrollToDeals?: () => void;
 }
 
-export function BottomNavBar({
+export const BottomNavBar = React.memo(function BottomNavBar({
     activeTab = 'home',
     onTabChange,
     onOpenCategories,
@@ -44,7 +46,7 @@ export function BottomNavBar({
             { id: 'account', label: 'Account', icon: 'person' },
         ];
 
-    const effectiveWidth = Math.min(width, 440);
+    const effectiveWidth = Math.min(width, 480);
     const tabWidth = effectiveWidth / tabs.length;
     const activeIndex = tabs.findIndex((t) => t.id === activeTab);
 
@@ -59,7 +61,7 @@ export function BottomNavBar({
             toValue: targetX,
             bounciness: 8,
             speed: 16,
-            useNativeDriver: true,
+            useNativeDriver: Platform.OS !== 'web',
         }).start();
     }, [activeIndex, tabWidth, indicatorAnim]);
 
@@ -69,14 +71,16 @@ export function BottomNavBar({
         if (tabId === 'home') {
             if (pathname !== '/') router.push('/');
         } else if (tabId === 'explore') {
-            router.push('/explore');
+            if (pathname !== '/explore') router.push('/explore');
         } else if (tabId === 'deals') {
             if (onScrollToDeals) onScrollToDeals();
+            else if (pathname !== '/') router.push('/?tab=SHOP');
         } else if (tabId === 'categories') {
             if (onOpenCategories) onOpenCategories();
             else if (pathname !== '/explore') router.push('/explore');
         } else if (tabId === 'account') {
             if (onOpenAccount) onOpenAccount();
+            else router.push('/?tab=ACCOUNT');
         }
     };
 
@@ -144,7 +148,7 @@ export function BottomNavBar({
             </View>
         </View>
     );
-}
+});
 
 const styles = StyleSheet.create({
     container: {
@@ -152,7 +156,7 @@ const styles = StyleSheet.create({
         bottom: 0,
         left: 0,
         right: 0,
-        maxWidth: 440,
+        maxWidth: 480,
         alignSelf: 'center',
         backgroundColor: '#F7F7F5',
         borderTopWidth: 1,
@@ -201,12 +205,14 @@ const styles = StyleSheet.create({
         borderRadius: 6,
     },
     badgeText: {
+        fontFamily: Fonts.sansExtraBold,
         color: '#FFFFFF',
         fontSize: 7.5,
         fontWeight: '900',
         letterSpacing: 0.5,
     },
     tabLabel: {
+        fontFamily: Fonts.sansBold,
         fontSize: 10.5,
         fontWeight: '700',
         color: '#6B6667',
@@ -214,6 +220,7 @@ const styles = StyleSheet.create({
         letterSpacing: 0.3,
     },
     tabLabelActive: {
+        fontFamily: Fonts.sansExtraBold,
         color: '#111111',
         fontWeight: '900',
     },

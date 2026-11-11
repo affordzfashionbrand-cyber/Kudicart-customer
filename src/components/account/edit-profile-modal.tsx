@@ -62,8 +62,8 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
     try {
       await updateProfile({
         name: name.trim(),
-        email: email.trim() || undefined,
-        phone: phone.trim() || undefined,
+        email: email.trim() ? email.trim() : null,
+        phone: phone.trim() ? phone.trim() : null,
       });
       setSuccessToast(true);
       setTimeout(() => {

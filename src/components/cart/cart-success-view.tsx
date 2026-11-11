@@ -180,6 +180,48 @@ export const CartSuccessView = React.memo(function CartSuccessView({
             </View>
           )}
 
+          {Array.isArray(confirmedOrder?.splitOrders) && confirmedOrder.splitOrders.length > 1 && (
+            <View
+              style={{
+                width: '100%',
+                backgroundColor: '#FFF7ED',
+                borderRadius: 16,
+                padding: 14,
+                borderWidth: 1,
+                borderColor: '#FED7AA',
+                marginBottom: 14,
+              }}
+            >
+              <Text style={{ fontSize: 11, fontWeight: '900', color: '#9A3412', letterSpacing: 0.6 }}>
+                MULTI-VENDOR SPLIT ORDER ({confirmedOrder.splitOrders.length} SHIPMENTS)
+              </Text>
+              {confirmedOrder.groupNumber && (
+                <Text style={{ fontSize: 10.5, color: '#7C2D12', marginTop: 2, marginBottom: 6 }}>
+                  Checkout Group {confirmedOrder.groupNumber}
+                </Text>
+              )}
+              {confirmedOrder.splitOrders.map((sub: any) => (
+                <View
+                  key={sub.id}
+                  style={{
+                    flexDirection: 'row',
+                    justifyContent: 'space-between',
+                    paddingTop: 6,
+                    borderTopWidth: 1,
+                    borderTopColor: '#FFEDD5',
+                  }}
+                >
+                  <Text style={{ fontSize: 11.5, fontWeight: '700', color: '#111111' }}>
+                    #{sub.orderNumber} ({sub.fulfillmentType?.replace(/_/g, ' ') || 'ORDER'})
+                  </Text>
+                  <Text style={{ fontSize: 11.5, fontWeight: '900', color: '#111111' }}>
+                    {formatPrice(sub.grandTotal)}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          )}
+
           {/* Delivery & Fulfillment Card */}
           <View
             style={{
@@ -285,7 +327,7 @@ export const CartSuccessView = React.memo(function CartSuccessView({
                   }}
                 >
                   {confirmedOrder?.recipientName || user?.name || 'Affordz Customer'} •{' '}
-                  {confirmedOrder?.recipientPhone || user?.phone || '+91 8124188999'}
+                  {confirmedOrder?.recipientPhone || user?.phone || ''}
                 </Text>
               </View>
             </View>
@@ -329,7 +371,7 @@ export const CartSuccessView = React.memo(function CartSuccessView({
                 </Text>
               </View>
               <Text style={{ fontSize: 10.5, color: '#71717A' }}>
-                {isDark ? 'Indiranagar Vault' : 'Insured Courier'}
+                {isDark ? 'Affordz Express' : 'Insured Courier'}
               </Text>
             </View>
           </View>

@@ -17,10 +17,11 @@ import {
 } from 'lucide-react-native';
 import { AnimatedPressable } from '@/components/common/animated-pressable';
 import { EditorialText } from '@/components/common/section-title';
+import { EmptyState } from '@/components/common/empty-state';
 import { ProductCard } from '@/components/common/product-card';
 import { useDarkStore } from '@/store/useDarkStore';
 import { useCartStore } from '@/store/useCartStore';
-import { ProductItem, DEFAULT_PRODUCTS } from '@/data/homeData';
+import { ProductItem } from '@/data/homeData';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 
@@ -33,7 +34,7 @@ interface DarkStoreViewProps {
   onOpenDarkStoreModal?: () => void;
 }
 export const DarkStoreView = React.memo(function DarkStoreView({
-  products = DEFAULT_PRODUCTS,
+  products = [],
   wishlist = [],
   onWishlist,
   onBag,
@@ -41,11 +42,16 @@ export const DarkStoreView = React.memo(function DarkStoreView({
   onOpenDarkStoreModal,
 }: DarkStoreViewProps) {
   const router = useRouter();
-  const { selectedDarkStore, darkStores, openDarkStoreModal } = useDarkStore();
+  const { selectedDarkStore, darkStores, openDarkStoreModal, syncFromCatalog } = useDarkStore();
   const { addItem, toggleWishlist: storeToggleWishlist, wishlist: storeWishlist } = useCartStore();
 
-  // Active store fallback to Indiranagar Hub if none selected
-  const currentStore = selectedDarkStore || darkStores[0];
+  React.useEffect(() => {
+    if (darkStores.length === 0) {
+      syncFromCatalog().catch(() => {});
+    }
+  }, [darkStores.length, syncFromCatalog]);
+
+  const currentStore = selectedDarkStore || darkStores[0] || null;
 
   const effectiveWishlist = wishlist.length > 0 ? wishlist : storeWishlist;
 
@@ -90,11 +96,17 @@ export const DarkStoreView = React.memo(function DarkStoreView({
     }
   };
 
-  const filteredProducts = products;
+  const filteredProducts = React.useMemo(
+    () => products.filter((p) => !p.fulfillmentType || p.fulfillmentType === 'DARK_STORE'),
+    [products],
+  );
+
+  const etaMinutes = currentStore?.deliveryMinutes ?? 18;
 
   return (
     <ScrollView
       showsVerticalScrollIndicator={false}
+      scrollEventThrottle={16}
       style={{ flex: 1, backgroundColor: '#FAF8F5' }}
       contentContainerStyle={{ paddingBottom: 110 }}
     >
@@ -208,7 +220,7 @@ export const DarkStoreView = React.memo(function DarkStoreView({
               lineHeight: 18,
             }}
           >
-            Instant doorstep delivery in {currentStore.deliveryMinutes} mins directly from your neighborhood fashion dark store.
+            Instant doorstep delivery in {etaMinutes} mins directly from your neighborhood fashion dark store.
           </Text>
 
           {/* Interactive Connected Dark Store Hub Card */}
@@ -255,14 +267,17 @@ export const DarkStoreView = React.memo(function DarkStoreView({
                     }}
                     numberOfLines={1}
                   >
-                    {currentStore.name}
+                    {currentStore ? currentStore.name : 'Select Express Dark Store Hub'}
                   </Text>
                 </View>
 
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 3 }}>
                   <MapPin size={11} color="#FF5A1F" />
                   <Text style={{ fontSize: 11, color: '#CCCCCC' }}>
-                    {currentStore.locality} • <Text style={{ color: '#38BDF8', fontWeight: '800' }}>{currentStore.distanceKm} km</Text>
+                    {currentStore ? `${currentStore.locality} • ` : 'Tap to choose an active hub'}
+                    {currentStore && (
+                      <Text style={{ color: '#38BDF8', fontWeight: '800' }}>{currentStore.distanceKm} km</Text>
+                    )}
                   </Text>
                 </View>
               </View>
@@ -282,7 +297,7 @@ export const DarkStoreView = React.memo(function DarkStoreView({
             >
               <Zap size={11} color="#ffffff" fill="#ffffff" />
               <Text style={{ fontSize: 11, fontWeight: '900', color: '#ffffff' }}>
-                {currentStore.deliveryMinutes}m Drop
+                {currentStore ? `${etaMinutes}m Drop` : 'Select Hub'}
               </Text>
               <ChevronRight size={13} color="#ffffff" />
             </View>
@@ -391,7 +406,7 @@ export const DarkStoreView = React.memo(function DarkStoreView({
             withDot
           />
           <Text style={{ fontSize: 11, color: '#6B6667', fontWeight: '500', marginTop: 2 }}>
-            {filteredProducts.length} styles • Ready for {currentStore.deliveryMinutes}-min doorstep drop
+            {filteredProducts.length} styles • Ready for {etaMinutes}-min doorstep drop
           </Text>
         </View>
 
@@ -408,27 +423,38 @@ export const DarkStoreView = React.memo(function DarkStoreView({
       </View>
 
       {/* Product Catalog Grid (2 Columns using Affordz's signature ProductCard) */}
-      <View
-        style={{
-          flexDirection: 'row',
-          flexWrap: 'wrap',
-          justifyContent: 'space-between',
-          paddingHorizontal: 16,
-        }}
-      >
-        {filteredProducts.map((product) => (
-          <View key={product.id} style={{ width: '48.5%', marginBottom: 18 }}>
-            <ProductCard
-              product={product}
-              badge={`${currentStore.deliveryMinutes}M DROP`}
-              wished={effectiveWishlist.includes(String(product.id))}
-              onWishlist={() => handleWishlist(product.id)}
-              onBag={() => handleBag(product)}
-              onOpen={() => handleProductPress(product)}
-            />
-          </View>
-        ))}
-      </View>
+      {filteredProducts.length === 0 ? (
+        <View style={{ paddingHorizontal: 16 }}>
+          <EmptyState
+            title="No Express Drops Available"
+            body="Active dark store styles will appear here once catalog items sync from your nearest hub."
+            action="Select Hub"
+            onClick={onOpenDarkStoreModal || openDarkStoreModal}
+          />
+        </View>
+      ) : (
+        <View
+          style={{
+            flexDirection: 'row',
+            flexWrap: 'wrap',
+            justifyContent: 'space-between',
+            paddingHorizontal: 16,
+          }}
+        >
+          {filteredProducts.map((product) => (
+            <View key={product.id} style={{ width: '48.5%', marginBottom: 18 }}>
+              <ProductCard
+                product={product}
+                badge={`${etaMinutes}M DROP`}
+                wished={effectiveWishlist.includes(String(product.id))}
+                onWishlist={() => handleWishlist(product.id)}
+                onBag={() => handleBag(product)}
+                onOpen={() => handleProductPress(product)}
+              />
+            </View>
+          ))}
+        </View>
+      )}
     </ScrollView>
   );
 });

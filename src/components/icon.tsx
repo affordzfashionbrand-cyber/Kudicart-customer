@@ -1,5 +1,5 @@
 import React from 'react';
-import { Text, StyleProp, TextStyle } from 'react-native';
+import { Text, StyleProp, TextStyle, Platform } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 
 interface IconProps {
@@ -14,6 +14,30 @@ interface IconProps {
 const NAME_MAP: { [key: string]: keyof typeof MaterialIcons.glyphMap } = {
   styler: 'style',
   favorite_border: 'favorite-border',
+  published_with_changes: 'cached',
+  grid_view: 'grid-view',
+  account_balance: 'account-balance',
+  chevron_right: 'chevron-right',
+  chevron_left: 'chevron-left',
+  arrow_forward: 'arrow-forward',
+  add_shopping_cart: 'add-shopping-cart',
+  shopping_bag: 'shopping-bag',
+  photo_camera: 'photo-camera',
+  camera_alt: 'camera-alt',
+  filter_none: 'filter-none',
+  bolt: 'bolt',
+  verified: 'verified',
+  shield: 'security',
+  tune: 'tune',
+  close: 'close',
+  straighten: 'straighten',
+  info: 'info',
+  storefront: 'storefront',
+  explore: 'explore',
+  person: 'person',
+  notifications: 'notifications',
+  sync: 'sync',
+  star: 'star',
 };
 
 export function Icon({
@@ -32,6 +56,19 @@ export function Icon({
       <MaterialIcons
         name={mappedName}
         size={size}
+        color={color}
+        className={className}
+        style={style}
+      />
+    );
+  }
+
+  // Fallback for native platforms so raw ligature text is never rendered
+  if (Platform.OS !== 'web') {
+    return (
+      <MaterialIcons
+        name="circle"
+        size={Math.max(8, Math.round(size * 0.5))}
         color={color}
         className={className}
         style={style}

@@ -1,12 +1,10 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   ScrollView,
   TextInput,
   Pressable,
-  Animated,
-  Easing,
   Platform,
   KeyboardAvoidingView,
   BackHandler,
@@ -16,29 +14,53 @@ import {
   ArrowLeft,
   Send,
   CheckCircle2,
-  Clock,
   Sparkles,
   Package,
-  Headphones,
-  Mail,
-  ChevronRight,
 } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useSupportStore } from '@/store/useSupportStore';
+import {
+  useSupportStore,
+  CANONICAL_SUPPORT_CATEGORIES,
+  SupportTicketCategory,
+  SupportTicketPriority,
+} from '@/store/useSupportStore';
 import { safeBack } from '@/utils/navigation';
 import { Fonts, FontStyles } from '@/constants/theme';
 import { AnimatedPressable } from '@/components/common/animated-pressable';
 
-const bespokeEasing = Easing.bezier(0.32, 0.72, 0, 1);
+const SUPPORT_CATEGORY_LABELS: Record<SupportTicketCategory, string> = {
+  DELIVERY: 'Delivery & Rider',
+  TRY_AND_BUY: 'Try & Buy Fit',
+  ORDER_ISSUE: 'Order Issue',
+  PAYMENT_REFUND: 'Payment & Refund',
+  PRODUCT_QUALITY: 'Garment Quality',
+  ACCOUNT: 'Account',
+  GENERAL: 'General Inquiry',
+};
 
-const SUPPORT_CATEGORIES = [
-  'Try & Buy Fit Exchange',
-  'Delivery & Rider Help',
-  'Payment & Refund Dispute',
-  'Garment Quality & Care',
-  'General Stylist Inquiry',
+const SUPPORT_PRIORITIES: { value: SupportTicketPriority; label: string }[] = [
+  { value: 'LOW', label: 'Low' },
+  { value: 'NORMAL', label: 'Normal' },
+  { value: 'HIGH', label: 'High' },
+  { value: 'URGENT', label: 'Urgent' },
 ];
+
+function resolveSupportCategory(raw?: string): SupportTicketCategory {
+  if (!raw) return 'TRY_AND_BUY';
+  const upper = raw.trim().toUpperCase().replace(/[\s-]+/g, '_');
+  if ((CANONICAL_SUPPORT_CATEGORIES as readonly string[]).includes(upper)) {
+    return upper as SupportTicketCategory;
+  }
+  const lower = raw.trim().toLowerCase();
+  if (lower.includes('deliver') || lower.includes('rider')) return 'DELIVERY';
+  if (lower.includes('order')) return 'ORDER_ISSUE';
+  if (lower.includes('pay') || lower.includes('refund')) return 'PAYMENT_REFUND';
+  if (lower.includes('quality') || lower.includes('care')) return 'PRODUCT_QUALITY';
+  if (lower.includes('account')) return 'ACCOUNT';
+  if (lower.includes('try') || lower.includes('fit') || lower.includes('size')) return 'TRY_AND_BUY';
+  return 'GENERAL';
+}
 
 export default function SupportScreen() {
   const router = useRouter();
@@ -48,10 +70,19 @@ export default function SupportScreen() {
 
   const { tickets, createTicket, fetchTickets, isLoading } = useSupportStore();
 
-  const [selectedCategory, setSelectedCategory] = useState(params.category || 'Try & Buy Fit Exchange');
+  const [selectedCategory, setSelectedCategory] = useState<SupportTicketCategory>(() =>
+    resolveSupportCategory(params.category),
+  );
+  const [selectedPriority, setSelectedPriority] = useState<SupportTicketPriority>('NORMAL');
   const [subject, setSubject] = useState(params.orderId ? `Inquiry regarding Drop #${params.orderId}` : '');
   const [message, setMessage] = useState('');
   const [submitted, setSubmitted] = useState(false);
+
+  useEffect(() => {
+    if (params.category) {
+      setSelectedCategory(resolveSupportCategory(params.category));
+    }
+  }, [params.category]);
 
   useEffect(() => {
     fetchTickets();
@@ -73,12 +104,20 @@ export default function SupportScreen() {
       return;
     }
 
-    await createTicket({
+    const created = await createTicket({
       title: subject.trim(),
       category: selectedCategory,
       description: message.trim(),
+      priority: selectedPriority,
       orderId: params.orderId || undefined,
     });
+    if (!created) {
+      Alert.alert(
+        'Could Not Submit Inquiry',
+        useSupportStore.getState().error || 'Please sign in or check your connection and try again.',
+      );
+      return;
+    }
     setSubmitted(true);
   };
 
@@ -159,6 +198,7 @@ export default function SupportScreen() {
       <ScrollView
         contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 100 }}
         showsVerticalScrollIndicator={false}
+        scrollEventThrottle={16}
         removeClippedSubviews={Platform.OS !== 'web'}
         overScrollMode="never"
         keyboardShouldPersistTaps="handled"
@@ -212,7 +252,7 @@ export default function SupportScreen() {
           overScrollMode="never"
           contentContainerStyle={{ gap: 8, paddingBottom: 14 }}
         >
-          {SUPPORT_CATEGORIES.map((cat) => {
+          {CANONICAL_SUPPORT_CATEGORIES.map((cat) => {
             const isSelected = selectedCategory === cat;
             return (
               <Pressable
@@ -234,12 +274,47 @@ export default function SupportScreen() {
                     color: isSelected ? '#FFFFFF' : '#4A4A4A',
                   }}
                 >
-                  {cat}
+                  {SUPPORT_CATEGORY_LABELS[cat]}
                 </Text>
               </Pressable>
             );
           })}
         </ScrollView>
+
+        {/* Priority Chips */}
+        <Text style={{ fontSize: 10.5, fontWeight: '900', color: '#8E877E', letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 8 }}>
+          PRIORITY LEVEL
+        </Text>
+        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
+          {SUPPORT_PRIORITIES.map((p) => {
+            const isSelected = selectedPriority === p.value;
+            return (
+              <Pressable
+                key={p.value}
+                onPress={() => setSelectedPriority(p.value)}
+                style={{
+                  flex: 1,
+                  paddingVertical: 8,
+                  borderRadius: 999,
+                  borderWidth: 1,
+                  alignItems: 'center',
+                  borderColor: isSelected ? '#FF5A1F' : '#E8E5DF',
+                  backgroundColor: isSelected ? '#FFF7ED' : '#FFFFFF',
+                }}
+              >
+                <Text
+                  style={{
+                    fontSize: 11,
+                    fontWeight: isSelected ? '900' : '700',
+                    color: isSelected ? '#C2410C' : '#4A4A4A',
+                  }}
+                >
+                  {p.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
 
         {/* Input Card */}
         <View style={{ backgroundColor: '#FFFFFF', borderRadius: 22, padding: 18, borderWidth: 1, borderColor: '#E8E5DF', marginBottom: 16 }}>
@@ -301,55 +376,95 @@ export default function SupportScreen() {
             <Text style={{ fontSize: 10.5, fontWeight: '900', color: '#8E877E', letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 10 }}>
               RECENT TICKETS & RESOLUTIONS
             </Text>
-            {tickets.map((t) => (
-              <View
-                key={t.id}
-                style={{
-                  backgroundColor: '#FFFFFF',
-                  borderWidth: 1,
-                  borderColor: '#E8E5DF',
-                  borderRadius: 18,
-                  padding: 14,
-                  marginBottom: 10,
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                }}
-              >
-                <View style={{ flex: 1, marginRight: 12 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+            {tickets.map((t) => {
+              const isClosedOrResolved = t.status === 'RESOLVED' || t.status === 'CLOSED';
+              const categoryLabel =
+                SUPPORT_CATEGORY_LABELS[t.category as SupportTicketCategory] || t.category;
+              return (
+                <View
+                  key={t.id}
+                  style={{
+                    backgroundColor: '#FFFFFF',
+                    borderWidth: 1,
+                    borderColor: '#E8E5DF',
+                    borderRadius: 18,
+                    padding: 14,
+                    marginBottom: 10,
+                  }}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
                     <Text style={{ fontSize: 10, fontWeight: '800', color: '#8E877E', textTransform: 'uppercase' }}>
                       {t.id}
                     </Text>
-                    <View
-                      style={{
-                        paddingHorizontal: 8,
-                        paddingVertical: 2,
-                        borderRadius: 10,
-                        backgroundColor: t.status === 'RESOLVED' ? '#ECFDF5' : '#FFF7ED',
-                        borderWidth: 1,
-                        borderColor: t.status === 'RESOLVED' ? '#A7F3D0' : '#FFEDD5',
-                      }}
-                    >
-                      <Text
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      {t.priority ? (
+                        <View
+                          style={{
+                            paddingHorizontal: 8,
+                            paddingVertical: 2,
+                            borderRadius: 10,
+                            backgroundColor:
+                              t.priority === 'URGENT' || t.priority === 'HIGH' ? '#FEF2F2' : '#F4F1EA',
+                            borderWidth: 1,
+                            borderColor:
+                              t.priority === 'URGENT' || t.priority === 'HIGH' ? '#FECACA' : '#E8E5DF',
+                          }}
+                        >
+                          <Text
+                            style={{
+                              fontSize: 9,
+                              fontWeight: '900',
+                              textTransform: 'uppercase',
+                              color:
+                                t.priority === 'URGENT' || t.priority === 'HIGH' ? '#B91C1C' : '#57534E',
+                            }}
+                          >
+                            {t.priority}
+                          </Text>
+                        </View>
+                      ) : null}
+                      <View
                         style={{
-                          fontSize: 9,
-                          fontWeight: '900',
-                          textTransform: 'uppercase',
-                          color: t.status === 'RESOLVED' ? '#065F46' : '#C2410C',
+                          paddingHorizontal: 8,
+                          paddingVertical: 2,
+                          borderRadius: 10,
+                          backgroundColor: isClosedOrResolved ? '#ECFDF5' : '#FFF7ED',
+                          borderWidth: 1,
+                          borderColor: isClosedOrResolved ? '#A7F3D0' : '#FFEDD5',
                         }}
                       >
-                        {t.status}
-                      </Text>
+                        <Text
+                          style={{
+                            fontSize: 9,
+                            fontWeight: '900',
+                            textTransform: 'uppercase',
+                            color: isClosedOrResolved ? '#065F46' : '#C2410C',
+                          }}
+                        >
+                          {t.status}
+                        </Text>
+                      </View>
                     </View>
                   </View>
                   <Text style={{ fontSize: 13, fontWeight: '800', color: '#111111' }} numberOfLines={1}>
                     {t.title}
                   </Text>
-                  <Text style={{ fontSize: 11, color: '#6B6667', marginTop: 2 }}>{t.category}</Text>
+                  <Text style={{ fontSize: 11, color: '#8E877E', marginTop: 2 }}>{categoryLabel}</Text>
+                  {t.description ? (
+                    <Text style={{ fontSize: 11.5, color: '#4A4A4A', marginTop: 6 }} numberOfLines={2}>
+                      {t.description}
+                    </Text>
+                  ) : null}
+                  {t.resolutionRemarks ? (
+                    <View style={{ marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: '#F4F1EA' }}>
+                      <Text style={{ fontSize: 10.5, fontWeight: '800', color: '#065F46' }}>
+                        Resolution: {t.resolutionRemarks}
+                      </Text>
+                    </View>
+                  ) : null}
                 </View>
-              </View>
-            ))}
+              );
+            })}
           </View>
         )}
 

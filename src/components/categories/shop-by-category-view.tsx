@@ -4,7 +4,8 @@ import { useRouter } from 'expo-router';
 import { ArrowLeft, Store, Layers } from 'lucide-react-native';
 
 import { EditorialText } from '@/components/common/section-title';
-import { ProductItem, DEFAULT_PRODUCTS } from '@/data/homeData';
+import { ProductItem } from '@/data/homeData';
+import { safeBack } from '@/utils/navigation';
 import { useCartStore } from '@/store/useCartStore';
 import { useDarkStore } from '@/store/useDarkStore';
 
@@ -82,7 +83,7 @@ export const ShopByCategoryView = React.memo(function ShopByCategoryView({
   }, [selectedGender]);
 
   const masterProducts = useMemo(() => {
-    return products && products.length > 0 ? products : DEFAULT_PRODUCTS;
+    return products && products.length > 0 ? products : [];
   }, [products]);
 
   // Filtered Products for category view
@@ -127,24 +128,24 @@ export const ShopByCategoryView = React.memo(function ShopByCategoryView({
   const storeProducts = useMemo(() => {
     if (!activeStore) return [];
 
-    let list = masterProducts.filter((p) => activeStore.filterFn(p));
-    if (list.length < 3) list = masterProducts.slice(0, 8);
+    const list = masterProducts.filter((p) => activeStore.filterFn(p));
+    let filtered = list;
 
     if (storeSubFilter === 'WOMEN') {
-      list = list.filter((p) => (p.category || '').toLowerCase() === 'women');
+      filtered = list.filter((p) => (p.category || '').toLowerCase() === 'women');
     } else if (storeSubFilter === 'MEN') {
-      list = list.filter((p) => (p.category || '').toLowerCase() === 'men');
+      filtered = list.filter((p) => (p.category || '').toLowerCase() === 'men');
     } else if (storeSubFilter === 'ETHNIC') {
-      list = list.filter((p) => (p.wear || '').toLowerCase() === 'ethnic');
+      filtered = list.filter((p) => (p.wear || '').toLowerCase() === 'ethnic');
     } else if (storeSubFilter === 'WESTERN') {
-      list = list.filter((p) => (p.wear || '').toLowerCase() === 'western');
+      filtered = list.filter((p) => (p.wear || '').toLowerCase() === 'western');
     } else if (storeSubFilter === 'BUDGET') {
-      list = list.filter((p) => p.price < 3500);
+      filtered = list.filter((p) => p.price < 3500);
     } else if (storeSubFilter === 'EXPRESS') {
-      list = list.filter((p) => p.price < 7000);
+      filtered = list.filter((p) => p.fulfillmentType === 'DARK_STORE');
     }
 
-    return list;
+    return filtered;
   }, [activeStore, masterProducts, storeSubFilter]);
 
   // Actions
@@ -245,7 +246,7 @@ export const ShopByCategoryView = React.memo(function ShopByCategoryView({
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
           {isStandaloneScreen && (
             <Pressable
-              onPress={() => router.back()}
+              onPress={() => safeBack(router, '/')}
               hitSlop={8}
               style={{
                 width: 36,

@@ -110,8 +110,8 @@ export function LiveTrackingMap({
   status,
   etaMinutes,
   driver,
-  hubName = 'Indiranagar Express Hub',
-  destinationAddress = 'Apt 4B, Sunrise Heights, 42 Westend Blvd',
+  hubName = 'Affordz Express Hub',
+  destinationAddress = '',
   isDarkStore = true,
   deliveryCoordinates = { latitude: 12.9658, longitude: 77.6465 },
   pickupCoordinates = { latitude: 12.9716, longitude: 77.6412 },
@@ -150,15 +150,18 @@ export function LiveTrackingMap({
   );
   const isStale = Boolean(driver?.isStale);
 
+  const driverLat = driver?.currentLocation?.latitude;
+  const driverLng = driver?.currentLocation?.longitude;
+
   // Derive route polyline coordinates
   const polylineCoords = useMemo(() => {
     if (route?.coordinates && Array.isArray(route.coordinates) && route.coordinates.length > 1) {
       return route.coordinates.map(([lat, lng]) => ({ latitude: lat, longitude: lng }));
     }
     // If live driver location is ready, line from driver to destination
-    if (hasLiveLocation && driver?.currentLocation) {
+    if (hasLiveLocation && driverLat !== undefined && driverLng !== undefined) {
       return [
-        { latitude: driver.currentLocation.latitude, longitude: driver.currentLocation.longitude },
+        { latitude: driverLat, longitude: driverLng },
         { latitude: deliveryCoordinates.latitude, longitude: deliveryCoordinates.longitude },
       ];
     }
@@ -166,7 +169,7 @@ export function LiveTrackingMap({
       { latitude: pickupCoordinates.latitude, longitude: pickupCoordinates.longitude },
       { latitude: deliveryCoordinates.latitude, longitude: deliveryCoordinates.longitude },
     ];
-  }, [route, hasLiveLocation, driver?.currentLocation, pickupCoordinates, deliveryCoordinates]);
+  }, [route, hasLiveLocation, driverLat, driverLng, pickupCoordinates, deliveryCoordinates]);
 
   // Recenter camera on driver & destination
   const handleRecenter = () => {
@@ -379,7 +382,7 @@ export function LiveTrackingMap({
                   longitude: driver.currentLocation.longitude,
                 }}
                 title={driver.name}
-                description={driver.vehicle || 'KudiCart Delivery Partner'}
+                description={driver.vehicle || 'Affordz Delivery Partner'}
                 anchor={{ x: 0.5, y: 0.5 }}
               >
                 <View style={styles.driverMarker}>

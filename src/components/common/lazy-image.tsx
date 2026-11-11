@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { View, StyleSheet, StyleProp, ViewStyle } from 'react-native';
 import { Image, ImageProps } from 'expo-image';
 import { Skeleton } from '@/components/common/skeleton';
@@ -19,7 +19,7 @@ export interface LazyImageProps extends Omit<ImageProps, 'placeholder'> {
  * - automatic width/height inheritance
  * - optional synchronized skeleton shimmer while in flight
  */
-export function LazyImage({
+export const LazyImage = React.memo(function LazyImage({
   source,
   style,
   containerStyle,
@@ -35,6 +35,18 @@ export function LazyImage({
 }: LazyImageProps) {
   const [isLoaded, setIsLoaded] = useState(false);
   const [hasError, setHasError] = useState(false);
+
+  const sourceKey = useMemo(() => {
+    if (!source) return '';
+    if (typeof source === 'string') return source;
+    if (typeof source === 'object' && 'uri' in source && source.uri) return String(source.uri);
+    return String(source);
+  }, [source]);
+
+  useEffect(() => {
+    setIsLoaded(false);
+    setHasError(false);
+  }, [sourceKey]);
 
   // Normalize source: string URL -> { uri: string }
   const resolvedSource = useMemo(() => {
@@ -104,7 +116,7 @@ export function LazyImage({
       />
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   container: {

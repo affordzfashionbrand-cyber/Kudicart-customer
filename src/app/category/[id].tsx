@@ -44,6 +44,88 @@ import { safeBack } from '@/utils/navigation';
 type SortOption = 'featured' | 'price_asc' | 'price_desc' | 'rating';
 type PriceFilter = 'all' | 'under2k' | 'under5k' | 'above5k';
 
+function resolveCategoryDef(normalizedId: string): CategoryItemDef {
+  // 1. Search in 3-Tier COMPLETE_CATEGORY_HIERARCHY
+  for (const dept of COMPLETE_CATEGORY_HIERARCHY) {
+    if (
+      dept.id.toLowerCase() === normalizedId ||
+      dept.slug.toLowerCase() === normalizedId ||
+      dept.name.toLowerCase() === normalizedId
+    ) {
+      return {
+        id: dept.id,
+        name: dept.name,
+        subtitle: `${dept.countText} • Instant Doorstep Drop`,
+        gender: dept.gender === 'Women' || dept.gender === 'Men' || dept.gender === 'Kids' ? dept.gender : 'All',
+        wear: 'All',
+        image: dept.image,
+        subcategories: ['All', ...dept.subcategories.map((s) => s.name)],
+      };
+    }
+
+    for (const sub of dept.subcategories) {
+      if (
+        sub.id.toLowerCase() === normalizedId ||
+        sub.slug.toLowerCase() === normalizedId ||
+        sub.name.toLowerCase() === normalizedId
+      ) {
+        return {
+          id: sub.id,
+          name: sub.name,
+          subtitle: `${sub.countText} • Instant Doorstep Drop`,
+          gender: sub.gender === 'Women' || sub.gender === 'Men' || sub.gender === 'Kids' ? sub.gender : 'All',
+          wear: sub.name,
+          image: sub.image,
+          subcategories: ['All', ...sub.subcategories.map((l) => l.name)],
+        };
+      }
+
+      for (const leaf of sub.subcategories) {
+        if (
+          leaf.id.toLowerCase() === normalizedId ||
+          leaf.slug.toLowerCase() === normalizedId ||
+          leaf.name.toLowerCase() === normalizedId
+        ) {
+          return {
+            id: leaf.id,
+            name: leaf.name,
+            subtitle: `${leaf.countText} • Instant Doorstep Drop`,
+            gender: leaf.gender === 'Women' || leaf.gender === 'Men' || leaf.gender === 'Kids' ? leaf.gender : 'All',
+            wear: leaf.name,
+            image: leaf.image,
+            subcategories: ['All', 'Express 18m', 'Try & Buy', 'Top Rated'],
+          };
+        }
+      }
+    }
+  }
+
+  // 2. Fallback to CATEGORY_COLLECTIONS
+  const found = CATEGORY_COLLECTIONS.find(
+    (c) =>
+      c.id.toLowerCase() === normalizedId ||
+      c.name.toLowerCase() === normalizedId ||
+      c.wear.toLowerCase() === normalizedId,
+  );
+  if (found) return found;
+
+  const title =
+    normalizedId === 'all'
+      ? 'All Collections'
+      : normalizedId.charAt(0).toUpperCase() + normalizedId.slice(1);
+
+  return {
+    id: normalizedId,
+    name: title,
+    subtitle: 'Curated Designer Apparel • Instant Doorstep Drop',
+    gender: 'All',
+    wear: 'All',
+    image:
+      'https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=1000&q=85',
+    subcategories: ['All', 'Featured', 'New Arrivals', 'Bestsellers'],
+  };
+}
+
 export default function CategoryResultsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -61,85 +143,7 @@ export default function CategoryResultsScreen() {
 
   // Identify matching category metadata from 3-Tier Hierarchy (L1, L2, L3)
   const categoryDef: CategoryItemDef = useMemo(() => {
-    // 1. Search in 3-Tier COMPLETE_CATEGORY_HIERARCHY
-    for (const dept of COMPLETE_CATEGORY_HIERARCHY) {
-      if (
-        dept.id.toLowerCase() === normalizedId ||
-        dept.slug.toLowerCase() === normalizedId ||
-        dept.name.toLowerCase() === normalizedId
-      ) {
-        return {
-          id: dept.id,
-          name: dept.name,
-          subtitle: `${dept.countText} • Instant Doorstep Drop`,
-          gender: dept.gender === 'Women' || dept.gender === 'Men' || dept.gender === 'Kids' ? dept.gender : 'All',
-          wear: 'All',
-          image: dept.image,
-          subcategories: ['All', ...dept.subcategories.map((s) => s.name)],
-        };
-      }
-
-      for (const sub of dept.subcategories) {
-        if (
-          sub.id.toLowerCase() === normalizedId ||
-          sub.slug.toLowerCase() === normalizedId ||
-          sub.name.toLowerCase() === normalizedId
-        ) {
-          return {
-            id: sub.id,
-            name: sub.name,
-            subtitle: `${sub.countText} • Instant Doorstep Drop`,
-            gender: sub.gender === 'Women' || sub.gender === 'Men' || sub.gender === 'Kids' ? sub.gender : 'All',
-            wear: sub.name,
-            image: sub.image,
-            subcategories: ['All', ...sub.subcategories.map((l) => l.name)],
-          };
-        }
-
-        for (const leaf of sub.subcategories) {
-          if (
-            leaf.id.toLowerCase() === normalizedId ||
-            leaf.slug.toLowerCase() === normalizedId ||
-            leaf.name.toLowerCase() === normalizedId
-          ) {
-            return {
-              id: leaf.id,
-              name: leaf.name,
-              subtitle: `${leaf.countText} • Instant Doorstep Drop`,
-              gender: leaf.gender === 'Women' || leaf.gender === 'Men' || leaf.gender === 'Kids' ? leaf.gender : 'All',
-              wear: leaf.name,
-              image: leaf.image,
-              subcategories: ['All', 'Express 18m', 'Try & Buy', 'Top Rated'],
-            };
-          }
-        }
-      }
-    }
-
-    // 2. Fallback to CATEGORY_COLLECTIONS
-    const found = CATEGORY_COLLECTIONS.find(
-      (c) =>
-        c.id.toLowerCase() === normalizedId ||
-        c.name.toLowerCase() === normalizedId ||
-        c.wear.toLowerCase() === normalizedId,
-    );
-    if (found) return found;
-
-    const title =
-      normalizedId === 'all'
-        ? 'All Collections'
-        : normalizedId.charAt(0).toUpperCase() + normalizedId.slice(1);
-
-    return {
-      id: normalizedId,
-      name: title,
-      subtitle: 'Curated Designer Apparel • Instant Doorstep Drop',
-      gender: 'All',
-      wear: 'All',
-      image:
-        'https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=1000&q=85',
-      subcategories: ['All', 'Featured', 'New Arrivals', 'Bestsellers'],
-    };
+    return resolveCategoryDef(normalizedId);
   }, [normalizedId]);
 
   // Filters and Sorting State

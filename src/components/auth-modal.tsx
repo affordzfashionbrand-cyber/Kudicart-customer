@@ -1,8 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, Modal, TextInput, Animated, Easing, KeyboardAvoidingView, Platform, Dimensions, Pressable } from 'react-native';
 import { X, ArrowRight, ShieldCheck, CheckCircle2, AlertCircle } from 'lucide-react-native';
+import type { FirebasePhoneConfirmation } from '@/services/firebase';
 import { useAuthStore } from '@/store/useAuthStore';
 import { AnimatedPressable } from '@/components/common/animated-pressable';
+import {
+  canUseFirebasePhoneAuth,
+  clearRecaptchaVerifier,
+  startFirebasePhoneSignIn,
+  verifyFirebasePhoneCode,
+} from '@/services/firebase';
 
 const bespokeEasing = Easing.bezier(0.32, 0.72, 0, 1);
 
@@ -23,8 +30,10 @@ export function AuthModal({ visible, onClose, onSuccess }: AuthModalProps) {
   const [verifiedSuccess, setVerifiedSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [devOtp, setDevOtp] = useState<string | null>(null);
-  
-  const { sendOtp, verifyOtp } = useAuthStore();
+  const [authMode, setAuthMode] = useState<'firebase' | 'backend_dev'>('firebase');
+
+  const { sendOtp, verifyOtp, loginWithFirebase } = useAuthStore();
+  const confirmationResultRef = useRef<FirebasePhoneConfirmation | null>(null);
   const inputRefs = useRef<(TextInput | null)[]>([]);
   const slideAnim = useRef(new Animated.Value(300)).current;
 
@@ -35,9 +44,13 @@ export function AuthModal({ visible, onClose, onSuccess }: AuthModalProps) {
       setVerifiedSuccess(false);
       setError(null);
       setDevOtp(null);
+      setOtp(['', '', '', '', '', '']);
+      confirmationResultRef.current = null;
     } else {
       slideAnim.setValue(300);
       setError(null);
+      confirmationResultRef.current = null;
+      clearRecaptchaVerifier();
     }
   }, [visible, isNative]);
 
@@ -51,6 +64,7 @@ export function AuthModal({ visible, onClose, onSuccess }: AuthModalProps) {
 
   const handleClose = () => {
     setError(null);
+    clearRecaptchaVerifier();
     Animated.timing(slideAnim, { toValue: Dimensions.get('window').height, duration: 260, easing: bespokeEasing, useNativeDriver: isNative }).start(() => {
       onClose();
     });
@@ -62,26 +76,70 @@ export function AuthModal({ visible, onClose, onSuccess }: AuthModalProps) {
       setError('Please enter a valid 10-digit mobile number.');
       return;
     }
+    const formattedPhone = `+91 ${clean.slice(-10)}`;
     setError(null);
     setIsGettingOtp(true);
+
     try {
-      const res = await sendOtp(`+91 ${clean.slice(-10)}`);
-      setIsGettingOtp(false);
+      if (canUseFirebasePhoneAuth()) {
+        try {
+          const confirmation = await startFirebasePhoneSignIn(formattedPhone, 'recaptcha-container');
+          confirmationResultRef.current = confirmation;
+          setAuthMode('firebase');
+          setActiveStep(2);
+          setCountdown(30);
+          setDevOtp(null);
+          setOtp(['', '', '', '', '', '']);
+          return;
+        } catch (fbErr: any) {
+          const fbCode = String(fbErr?.code || '');
+          const isWebDevProjectFallback =
+            __DEV__ &&
+            Platform.OS === 'web' &&
+            (fbCode === 'auth/billing-not-enabled' ||
+              fbCode === 'auth/operation-not-allowed' ||
+              fbCode === 'auth/unauthorized-domain' ||
+              fbCode === 'auth/invalid-app-credential');
+          if (!isWebDevProjectFallback) {
+            throw fbErr;
+          }
+          clearRecaptchaVerifier();
+          console.warn('[Affordz Auth] Firebase web phone auth unavailable in local dev, falling back to dev OTP:', fbCode);
+        }
+      }
+
+      if (!__DEV__) {
+        setError(
+          Platform.OS === 'web'
+            ? 'Authentication service is not configured for this build.'
+            : 'Authentication service is not configured for this build (missing google-services.json).',
+        );
+        return;
+      }
+
+      const res = await sendOtp(formattedPhone);
       if (res && res.success) {
+        setAuthMode('backend_dev');
         setActiveStep(2);
         setCountdown(res.countdownSeconds || 30);
-        const code = res.devOtp || res.otp || '123456';
-        setDevOtp(code);
-        const digits = String(code).split('').slice(0, 6);
-        if (digits.length === 6) {
-          setOtp(digits);
+        const code = __DEV__ ? res.devOtp || res.otp : undefined;
+        if (code) {
+          setDevOtp(code);
+          const digits = String(code).split('').slice(0, 6);
+          if (digits.length === 6) {
+            setOtp(digits);
+          }
+        } else {
+          setDevOtp(null);
+          setOtp(['', '', '', '', '', '']);
         }
       } else {
-        setError('Unable to send OTP. Authentication service is unavailable.');
+        setError(useAuthStore.getState().error || 'Unable to send OTP. Authentication service is unavailable.');
       }
     } catch (err: any) {
-      setIsGettingOtp(false);
       setError(err?.message || 'Authentication service is unavailable. Please check your network.');
+    } finally {
+      setIsGettingOtp(false);
     }
   };
 
@@ -95,19 +153,26 @@ export function AuthModal({ visible, onClose, onSuccess }: AuthModalProps) {
     setError(null);
     setIsVerifying(true);
     try {
-      const success = await verifyOtp(`+91 ${clean.slice(-10)}`, code);
-      setIsVerifying(false);
+      let success = false;
+      if (authMode === 'firebase' && confirmationResultRef.current) {
+        const { idToken } = await verifyFirebasePhoneCode(confirmationResultRef.current, code);
+        success = await loginWithFirebase(idToken);
+      } else {
+        success = await verifyOtp(`+91 ${clean.slice(-10)}`, code);
+      }
+
       if (success) {
         setVerifiedSuccess(true);
         setTimeout(() => {
           onSuccess();
         }, 1000);
       } else {
-        setError('Invalid or expired OTP. Please enter the correct code.');
+        setError(useAuthStore.getState().error || 'Invalid or expired OTP. Please enter the correct code.');
       }
     } catch (err: any) {
-      setIsVerifying(false);
       setError(err?.message || 'Verification failed. Could not verify OTP with server.');
+    } finally {
+      setIsVerifying(false);
     }
   };
 
@@ -117,6 +182,7 @@ export function AuthModal({ visible, onClose, onSuccess }: AuthModalProps) {
         <Pressable className="flex-1" onPress={handleClose} />
         <Animated.View style={{ transform: [{ translateY: slideAnim }] }} className="bg-paper rounded-t-[32px] pt-[8px] px-[8px] pb-[40px]">
           <View className="bg-white rounded-[28px] p-[24px] border border-[#D9D9D5]">
+            <View nativeID="recaptcha-container" />
             <View className="flex-row justify-between items-center mb-[28px]">
               <Text className="text-[10px] uppercase tracking-[0.25em] font-extrabold text-[#6B6667]">CLIENT ACCESS</Text>
               <Pressable onPress={handleClose} className="w-[34px] h-[34px] bg-[#F7F7F5] border border-[#D9D9D5] rounded-full justify-center items-center">
@@ -157,7 +223,7 @@ export function AuthModal({ visible, onClose, onSuccess }: AuthModalProps) {
                   />
                 </View>
 
-                <AnimatedPressable className="flex-row items-center bg-[#111111] rounded-full pl-[24px] pr-[8px] py-[8px] justify-between" onPress={handleGetOtp}>
+                <AnimatedPressable className="flex-row items-center bg-[#111111] rounded-full pl-[24px] pr-[8px] py-[8px] justify-between" onPress={handleGetOtp} disabled={isGettingOtp}>
                   <Text className="text-[12px] font-extrabold text-white uppercase tracking-[0.18em]">{isGettingOtp ? 'SENDING...' : 'GET OTP'}</Text>
                   <View className="w-[42px] h-[42px] rounded-full bg-white flex items-center justify-center">
                     <ArrowRight size={18} color="#111111" />
@@ -166,9 +232,14 @@ export function AuthModal({ visible, onClose, onSuccess }: AuthModalProps) {
               </View>
             ) : (
               <View>
-                <Text className="text-[30px] leading-[34px] tracking-tight font-black text-[#111111] mb-[8px]">VERIFY OTP<Text style={{ color: '#FF5A1F' }}>.</Text></Text>
+                <View className="flex-row items-center justify-between mb-[8px]">
+                  <Text className="text-[30px] leading-[34px] tracking-tight font-black text-[#111111]">VERIFY OTP<Text style={{ color: '#FF5A1F' }}>.</Text></Text>
+                  <Pressable onPress={() => { setActiveStep(1); setError(null); }} hitSlop={8}>
+                    <Text className="text-[11px] font-bold text-[#FF5A1F] underline">Change</Text>
+                  </Pressable>
+                </View>
                 <Text className="text-[13.5px] text-[#6B6667] mb-[16px]">Enter the 6-digit verification code sent to +91 {phoneNumber.replace(/\D/g, '').slice(-10)}</Text>
-                {devOtp && (
+                {__DEV__ && devOtp && (
                   <View className="flex-row items-center justify-between bg-[#F7F7F5] border border-[#D9D9D5] rounded-[14px] px-3 py-2 mb-4">
                     <View className="flex-row items-center gap-1.5">
                       <CheckCircle2 size={13} color="#059669" />
@@ -188,26 +259,42 @@ export function AuthModal({ visible, onClose, onSuccess }: AuthModalProps) {
                   </View>
                 )}
 
-                <View className="flex-row justify-between mb-[28px]">
+                <View className="flex-row justify-between mb-[16px]">
                   {otp.map((digit, index) => (
                     <TextInput
                       key={index}
                       ref={(el: any) => (inputRefs.current[index] = el)}
+                      accessibilityLabel={`OTP digit ${index + 1}`}
                       className="w-[48px] h-[52px] bg-[#F7F7F5] border border-[#D9D9D5] rounded-[16px] text-center text-[20px] font-black text-[#111111]"
                       keyboardType="number-pad"
                       maxLength={1}
                       value={digit}
                       onChangeText={(val) => {
+                        const cleaned = val.replace(/\D/g, '');
                         const newOtp = [...otp];
-                        newOtp[index] = val;
+                        newOtp[index] = cleaned;
                         setOtp(newOtp);
-                        if (val && index < 5) inputRefs.current[index + 1]?.focus();
+                        if (cleaned && index < 5) inputRefs.current[index + 1]?.focus();
                       }}
                     />
                   ))}
                 </View>
 
-                <AnimatedPressable className="flex-row items-center bg-[#111111] rounded-full pl-[24px] pr-[8px] py-[8px] justify-between" onPress={handleVerifyOtp}>
+                <View className="flex-row items-center justify-between mb-[22px]">
+                  {countdown > 0 ? (
+                    <Text className="text-[12px] font-semibold text-[#6B6667]">
+                      Resend OTP in {countdown}s
+                    </Text>
+                  ) : (
+                    <Pressable onPress={handleGetOtp} disabled={isGettingOtp} hitSlop={8}>
+                      <Text className="text-[12px] font-black text-[#FF5A1F] underline">
+                        {isGettingOtp ? 'Resending...' : 'Resend OTP'}
+                      </Text>
+                    </Pressable>
+                  )}
+                </View>
+
+                <AnimatedPressable className="flex-row items-center bg-[#111111] rounded-full pl-[24px] pr-[8px] py-[8px] justify-between" onPress={handleVerifyOtp} disabled={isVerifying}>
                   <Text className="text-[12px] font-extrabold text-white uppercase tracking-[0.18em]">{isVerifying ? 'VERIFYING...' : 'VERIFY & PROCEED'}</Text>
                   <View className="w-[42px] h-[42px] rounded-full bg-white flex items-center justify-center">
                     <ShieldCheck size={18} color="#111111" />

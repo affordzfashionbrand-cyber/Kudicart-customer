@@ -32,7 +32,14 @@ yarn-error.*
 
 # local env files
 .env
+.env.production
 .env*.local
+.env.*.local
+!.env.production.example
+
+# native secrets
+google-services.json
+secrets/
 
 # typescript
 *.tsbuildinfo

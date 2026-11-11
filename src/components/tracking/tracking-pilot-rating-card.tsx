@@ -152,7 +152,7 @@ export const TrackingPilotRatingCard = React.memo(function TrackingPilotRatingCa
         </View>
 
         <Text style={{ fontSize: 12, color: '#4B5563', lineHeight: 17, marginTop: 4 }}>
-          Thank you! {driverName} and the Indiranagar Vault team have been notified of your review.
+          Thank you! {driverName} and the Affordz hub team have been notified of your review.
         </Text>
 
         {existingRating.tags.length > 0 && (
@@ -178,7 +178,7 @@ export const TrackingPilotRatingCard = React.memo(function TrackingPilotRatingCa
         {Boolean(existingRating.comment) && (
           <View style={{ marginTop: 10, padding: 10, backgroundColor: '#FAF8F5', borderRadius: 10, borderWidth: 1, borderColor: '#E8E5DF' }}>
             <Text style={{ fontSize: 11.5, color: '#374151', fontStyle: 'italic' }}>
-              "{existingRating.comment}"
+              &quot;{existingRating.comment}&quot;
             </Text>
           </View>
         )}

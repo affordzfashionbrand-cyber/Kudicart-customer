@@ -156,10 +156,10 @@ export function AddressModal({
       const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
       const { latitude, longitude } = pos.coords;
 
-      let line1 = 'Current Location';
-      let locality = 'Indiranagar';
-      let city = 'Bengaluru';
-      let pincode = '560038';
+      let line1 = '';
+      let locality = '';
+      let city = '';
+      let pincode = '';
 
       try {
         const rev = await Location.reverseGeocodeAsync({ latitude, longitude });
@@ -167,9 +167,9 @@ export function AddressModal({
           const r = rev[0];
           const parts = [r.streetNumber, r.street, r.name].filter(Boolean);
           if (parts.length > 0) line1 = parts.join(', ');
-          locality = r.district || r.subregion || r.city || locality;
-          city = r.city || r.region || city;
-          pincode = r.postalCode || pincode;
+          locality = r.district || r.subregion || r.city || '';
+          city = r.city || r.region || '';
+          pincode = r.postalCode || '';
         }
       } catch (e) {
         console.warn('Reverse geocode fallback:', e);
@@ -177,10 +177,10 @@ export function AddressModal({
 
       setNewAddress((prev) => ({
         ...prev,
-        line1,
-        locality,
-        city,
-        pincode,
+        line1: line1 || prev.line1,
+        locality: locality || prev.locality,
+        city: city || prev.city,
+        pincode: pincode || prev.pincode,
         latitude,
         longitude,
       }));
@@ -217,7 +217,7 @@ export function AddressModal({
       return;
     }
     if (!newAddress.locality.trim()) {
-      setFormError('Please enter street or locality (e.g. Indiranagar).');
+      setFormError('Please enter street or locality.');
       return;
     }
     if (!newAddress.city.trim()) {
@@ -532,7 +532,7 @@ export function AddressModal({
               </Text>
               <TextInput
                 className="h-[48px] bg-zinc-50 border border-zinc-200 rounded-[14px] px-4 text-[14px] text-zinc-900 mb-4"
-                placeholder="e.g. Near Indiranagar Metro Station"
+                placeholder="e.g. Near Metro Station"
                 placeholderTextColor="#A1A1AA"
                 value={newAddress.line2}
                 onChangeText={(t) => setNewAddress({ ...newAddress, line2: t })}
@@ -543,7 +543,7 @@ export function AddressModal({
               </Text>
               <TextInput
                 className="h-[48px] bg-zinc-50 border border-zinc-200 rounded-[14px] px-4 text-[14px] text-zinc-900 mb-4"
-                placeholder="e.g. 42 Westend Boulevard, Indiranagar"
+                placeholder="e.g. 42 Westend Boulevard"
                 placeholderTextColor="#A1A1AA"
                 value={newAddress.locality}
                 onChangeText={(t) => setNewAddress({ ...newAddress, locality: t })}

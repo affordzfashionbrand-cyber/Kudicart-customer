@@ -21,7 +21,7 @@ export function SplashScreenView({
   duration = 2400,
 }: SplashScreenProps) {
   const { width: windowWidth, height } = useWindowDimensions();
-  const width = Math.min(windowWidth, 440);
+  const width = Math.min(windowWidth, 480);
 
   // Animation values using stable useState initializers
   const [logoScale] = useState(() => new Animated.Value(0.6));
@@ -69,7 +69,7 @@ export function SplashScreenView({
     ]).start();
 
     // 3. Glow breathing animation
-    Animated.loop(
+    const glowLoop = Animated.loop(
       Animated.sequence([
         Animated.timing(glowPulse, {
           toValue: 1.14,
@@ -82,14 +82,16 @@ export function SplashScreenView({
           useNativeDriver: isNative,
         }),
       ])
-    ).start();
+    );
+    glowLoop.start();
 
     // 4. Progress bar loading animation
-    Animated.timing(progressAnim, {
+    const progressAnimRef = Animated.timing(progressAnim, {
       toValue: 1,
-      duration: duration - 600,
+      duration: Math.max(400, duration - 600),
       useNativeDriver: false,
-    }).start();
+    });
+    progressAnimRef.start();
 
     // Milestone text updates
     const t1 = setTimeout(() => {
@@ -107,16 +109,19 @@ export function SplashScreenView({
         duration: 500,
         useNativeDriver: isNative,
       }).start(() => {
+        glowLoop.stop();
         if (onFinish) onFinish();
       });
     }, duration);
 
     return () => {
+      glowLoop.stop();
+      progressAnimRef.stop();
       clearTimeout(t1);
       clearTimeout(t2);
       clearTimeout(exitTimer);
     };
-  }, [duration, onFinish]);
+  }, [duration, glowPulse, isNative, logoOpacity, logoScale, onFinish, progressAnim, screenOpacity, textOpacity, textTranslateY]);
 
   const handleSkip = () => {
     Animated.timing(screenOpacity, {

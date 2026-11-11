@@ -8,7 +8,7 @@ import { EditorialText } from '@/components/common/section-title';
 import { WishlistView } from '@/components/views/wishlist-view';
 import { useCatalogStore } from '@/store/useCatalogStore';
 import { useCartStore } from '@/store/useCartStore';
-import { DEFAULT_PRODUCTS, ProductItem } from '@/data/homeData';
+import { ProductItem } from '@/data/homeData';
 import { safeBack } from '@/utils/navigation';
 
 export default function WishlistScreen() {
@@ -21,7 +21,7 @@ export default function WishlistScreen() {
 
   // Active products catalog
   const activeProducts = useMemo<ProductItem[]>(() => {
-    const list: ProductItem[] = [...DEFAULT_PRODUCTS];
+    const list: ProductItem[] = [];
     if (storeProducts && storeProducts.length > 0) {
       storeProducts.forEach((p) => {
         if (!list.some((existing) => String(existing.id) === String(p.id))) {

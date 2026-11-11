@@ -66,6 +66,10 @@ export const ExploreCatalogView = React.memo(function ExploreCatalogView({
 
   const [searchQuery, setSearchQuery] = useState(initialQuery);
   const [isSearchOverlayVisible, setIsSearchOverlayVisible] = useState(false);
+
+  React.useEffect(() => {
+    setSearchQuery(initialQuery);
+  }, [initialQuery]);
   const [selectedGender, setSelectedGender] = useState<'All' | 'Men' | 'Women' | 'Kids'>(initialGender);
   const [selectedCategory, setSelectedCategory] = useState<string>(initialCategory);
   const [selectedSubcategory, setSelectedSubcategory] = useState<string>('All');
@@ -224,6 +228,7 @@ export const ExploreCatalogView = React.memo(function ExploreCatalogView({
 
       <ScrollView
         showsVerticalScrollIndicator={false}
+        scrollEventThrottle={16}
         contentContainerStyle={{ paddingBottom: 110 }}
         removeClippedSubviews={Platform.OS !== 'web'}
         overScrollMode="never"

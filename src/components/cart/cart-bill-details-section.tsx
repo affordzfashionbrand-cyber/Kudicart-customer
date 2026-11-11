@@ -6,6 +6,8 @@ import { AnimatedPriceTicker } from '@/components/common/animated-price-ticker';
 export interface CartBillDetailsSectionProps {
   items: any[];
   giftWrap: boolean;
+  giftWrapFee?: number;
+  splitOrderCount?: number;
   toggleGiftWrap: () => void;
   donationAmount: number;
   setDonation: (amount: number) => void;
@@ -22,6 +24,8 @@ export interface CartBillDetailsSectionProps {
 export const CartBillDetailsSection = React.memo(function CartBillDetailsSection({
   items,
   giftWrap,
+  giftWrapFee,
+  splitOrderCount,
   toggleGiftWrap,
   donationAmount,
   setDonation,
@@ -213,7 +217,11 @@ export const CartBillDetailsSection = React.memo(function CartBillDetailsSection
           </View>
 
           <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-            <Text style={{ fontSize: 13, color: '#4A4A4A' }}>18-Min Express Vault Delivery</Text>
+            <Text style={{ fontSize: 13, color: '#4A4A4A' }}>
+              {splitOrderCount && splitOrderCount > 1
+                ? `Delivery (${splitOrderCount} Shipments)`
+                : '18-Min Express Vault Delivery'}
+            </Text>
             <Text style={{ fontSize: 13, fontWeight: '800', color: deliveryFee === 0 ? '#15803D' : '#111111' }}>
               {deliveryFee === 0 ? 'FREE' : formatPrice(deliveryFee)}
             </Text>
@@ -222,7 +230,9 @@ export const CartBillDetailsSection = React.memo(function CartBillDetailsSection
           {giftWrap && (
             <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
               <Text style={{ fontSize: 13, color: '#4A4A4A' }}>Artisan Gift Wrap</Text>
-              <Text style={{ fontSize: 13, fontWeight: '700', color: '#111111' }}>₹35</Text>
+              <Text style={{ fontSize: 13, fontWeight: '700', color: '#111111' }}>
+                {formatPrice(giftWrapFee ?? 35)}
+              </Text>
             </View>
           )}
 

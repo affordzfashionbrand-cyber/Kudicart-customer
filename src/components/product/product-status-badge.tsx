@@ -11,7 +11,7 @@ interface ProductStatusBadgeProps {
 export function ProductStatusBadge({
   isDarkStoreProduct,
   brand,
-  darkStoreName = 'Indiranagar Dark Hub',
+  darkStoreName = 'Affordz Express Hub',
   distanceKm = 1.2,
 }: ProductStatusBadgeProps) {
   return (

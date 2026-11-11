@@ -9,7 +9,9 @@ export interface RazorpayCheckoutOptions {
   name: string;
   description: string;
   order_id: string; // Razorpay order id (e.g. order_xxx)
-  orderId: string; // Internal order id (e.g. ord-xxx)
+  orderId: string; // Internal order id or checkoutGroupId
+  checkoutSessionToken?: string | null;
+  checkoutSessionUrl?: string | null;
   prefill?: {
     name?: string;
     email?: string;
@@ -72,6 +74,62 @@ function loadRazorpayWebScript(): Promise<void> {
   return scriptLoadingPromise;
 }
 
+export function parsePaymentCallbackUrl(
+  callbackUrl: string,
+  fallbackOrderId = '',
+): RazorpayCheckoutResult {
+  try {
+    const parsedUrl = new URL(callbackUrl);
+    const orderId = parsedUrl.searchParams.get('orderId') || fallbackOrderId;
+    const status = parsedUrl.searchParams.get('status')?.toLowerCase();
+    const paymentId = parsedUrl.searchParams.get('razorpay_payment_id');
+    const razorpayOrderId = parsedUrl.searchParams.get('razorpay_order_id');
+    const signature = parsedUrl.searchParams.get('razorpay_signature');
+
+    if (status === 'cancelled' || status === 'dismissed' || status === 'failed') {
+      return {
+        type: 'cancelled',
+        orderId,
+        reason: 'Payment checkout was cancelled by the user',
+      };
+    }
+
+    if (paymentId && razorpayOrderId && signature) {
+      return {
+        type: 'genuine_callback',
+        orderId,
+        razorpay_payment_id: paymentId,
+        razorpay_order_id: razorpayOrderId,
+        razorpay_signature: signature,
+      };
+    }
+
+    return {
+      type: 'hosted_session_completed',
+      orderId,
+    };
+  } catch {
+    return {
+      type: 'hosted_session_completed',
+      orderId: fallbackOrderId,
+    };
+  }
+}
+
+export function buildHostedCheckoutUrl(options: Pick<RazorpayCheckoutOptions, 'orderId' | 'checkoutSessionUrl' | 'checkoutSessionToken'>): string {
+  const rawUrl = options.checkoutSessionUrl?.trim();
+  if (rawUrl) {
+    if (rawUrl.startsWith('http://') || rawUrl.startsWith('https://')) {
+      return rawUrl;
+    }
+    return `${API_BASE_URL}${rawUrl.startsWith('/') ? '' : '/'}${rawUrl}`;
+  }
+
+  const base = `${API_BASE_URL}/api/v1/payments/razorpay/checkout-session/${encodeURIComponent(options.orderId)}`;
+  const sessionToken = options.checkoutSessionToken?.trim();
+  return sessionToken ? `${base}?st=${encodeURIComponent(sessionToken)}` : base;
+}
+
 export async function launchRazorpayCheckout(
   options: RazorpayCheckoutOptions,
 ): Promise<RazorpayCheckoutResult> {
@@ -92,13 +150,13 @@ export async function launchRazorpayCheckout(
         key: options.key,
         amount: options.amount,
         currency: options.currency || 'INR',
-        name: options.name || 'Affordz Quick Commerce',
+        name: options.name || 'Affordz',
         description: options.description || 'Order Payment',
         order_id: options.order_id,
         prefill: {
           name: options.prefill?.name || 'Affordz Customer',
-          email: options.prefill?.email || 'customer@affordz.in',
-          contact: options.prefill?.contact || '+91 98450 12890',
+          email: options.prefill?.email || 'concierge@affordz.in',
+          contact: options.prefill?.contact || '',
         },
         theme: {
           color: options.theme?.color || '#0D9488',
@@ -135,40 +193,18 @@ export async function launchRazorpayCheckout(
     });
   }
 
-  // Native Platform (Android / iOS): Open authenticated hosted checkout session
-  // Deep-link redirect scheme is 'affordz://' as defined in app.json
-  const checkoutUrl = `${API_BASE_URL}/api/v1/payments/razorpay/checkout-session/${encodeURIComponent(options.orderId)}`;
+  // Native Platform (Android): Open HMAC-signed hosted checkout session
+  // Deep-link redirect scheme is 'affordz://payment-callback' as defined in app.json
+  const checkoutUrl = buildHostedCheckoutUrl(options);
 
   try {
     const authSessionResult = await WebBrowser.openAuthSessionAsync(
       checkoutUrl,
-      'affordz://',
+      'affordz://payment-callback',
     );
 
     if (authSessionResult.type === 'success' && authSessionResult.url) {
-      try {
-        const parsedUrl = new URL(authSessionResult.url);
-        const orderId = parsedUrl.searchParams.get('orderId') || options.orderId;
-        const status = parsedUrl.searchParams.get('status');
-
-        if (status === 'CANCELLED') {
-          return {
-            type: 'cancelled',
-            orderId,
-            reason: 'Payment checkout was cancelled by the user',
-          };
-        }
-
-        return {
-          type: 'hosted_session_completed',
-          orderId,
-        };
-      } catch {
-        return {
-          type: 'hosted_session_completed',
-          orderId: options.orderId,
-        };
-      }
+      return parsePaymentCallbackUrl(authSessionResult.url, options.orderId);
     } else if (authSessionResult.type === 'cancel' || authSessionResult.type === 'dismiss') {
       return {
         type: 'cancelled',

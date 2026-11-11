@@ -4,12 +4,14 @@ import { Zap } from 'lucide-react-native';
 
 export interface CartTryBuySectionProps {
   hasDarkStoreItems: boolean;
+  hasMixedCart?: boolean;
   tryAndBuyEnabled: boolean;
   onToggleTryAndBuy: () => void;
 }
 
 export const CartTryBuySection = React.memo(function CartTryBuySection({
   hasDarkStoreItems,
+  hasMixedCart = false,
   tryAndBuyEnabled,
   onToggleTryAndBuy,
 }: CartTryBuySectionProps) {
@@ -78,7 +80,9 @@ export const CartTryBuySection = React.memo(function CartTryBuySection({
               )}
             </View>
             <Text style={{ fontSize: 11, color: '#6B6667', marginTop: 2, lineHeight: 15 }}>
-              {hasDarkStoreItems
+              {hasMixedCart
+                ? 'Mixed bag split: Doorstep Try & Buy applies exclusively to your 18-min Dark Store items. Boutique items ship separately via standard courier.'
+                : hasDarkStoreItems
                 ? 'Rider waits 15 mins while you try sizes. Keep what fits, return the rest on the spot!'
                 : 'Doorstep Try & Buy is exclusive to 18-minute Dark Store items. Boutique vendor orders are delivered via standard shipping with 7-day doorstep returns.'}
             </Text>

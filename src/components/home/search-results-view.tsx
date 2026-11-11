@@ -169,7 +169,7 @@ export const SearchResultsView = React.memo(function SearchResultsView({
                 marginTop: 1,
               }}
             >
-              for "{query}"
+              for &quot;{query}&quot;
             </Text>
           </View>
         </View>
@@ -449,7 +449,7 @@ export const SearchResultsView = React.memo(function SearchResultsView({
               marginBottom: 24,
             }}
           >
-            We couldn't find any designs matching "{query}". Try checking your spelling or explore these trending searches:
+            We couldn&apos;t find any designs matching &quot;{query}&quot;. Try checking your spelling or explore these trending searches:
           </Text>
 
           {/* Quick Alternative Suggestions */}

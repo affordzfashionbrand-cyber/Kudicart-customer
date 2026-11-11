@@ -4,6 +4,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ArrowRight } from 'lucide-react-native';
 import { HERO_BANNERS, HeroBannerItem } from '@/data/homeData';
+import { Fonts } from '@/constants/theme';
 import { AnimatedPressable } from '@/components/common/animated-pressable';
 import { EditorialText } from '@/components/common/section-title';
 
@@ -19,23 +20,28 @@ export const HeroBannerSection = React.memo(function HeroBannerSection({
   const bannerHeight = 215;
 
   const [activeBannerIndex, setActiveBannerIndex] = useState(0);
+  const activeBannerIndexRef = useRef(0);
   const bannerFlatListRef = useRef<FlatList<HeroBannerItem>>(null);
   const isInteractingRef = useRef(false);
+  const resumeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
+    if (HERO_BANNERS.length <= 1) return;
     const timer = setInterval(() => {
       if (isInteractingRef.current) return;
-      setActiveBannerIndex((prev) => {
-        const next = (prev + 1) % HERO_BANNERS.length;
-        bannerFlatListRef.current?.scrollToOffset({
-          offset: next * bannerWidth,
-          animated: true,
-        });
-        return next;
+      const next = (activeBannerIndexRef.current + 1) % HERO_BANNERS.length;
+      activeBannerIndexRef.current = next;
+      setActiveBannerIndex(next);
+      bannerFlatListRef.current?.scrollToOffset({
+        offset: next * bannerWidth,
+        animated: true,
       });
     }, 4500);
 
-    return () => clearInterval(timer);
+    return () => {
+      clearInterval(timer);
+      if (resumeTimerRef.current) clearTimeout(resumeTimerRef.current);
+    };
   }, [bannerWidth]);
 
   return (
@@ -68,13 +74,15 @@ export const HeroBannerSection = React.memo(function HeroBannerSection({
             isInteractingRef.current = true;
           }}
           onScrollEndDrag={() => {
-            setTimeout(() => {
+            if (resumeTimerRef.current) clearTimeout(resumeTimerRef.current);
+            resumeTimerRef.current = setTimeout(() => {
               isInteractingRef.current = false;
             }, 3000);
           }}
           onMomentumScrollEnd={(e) => {
             const newIndex = Math.round(e.nativeEvent.contentOffset.x / bannerWidth);
             if (newIndex >= 0 && newIndex < HERO_BANNERS.length) {
+              activeBannerIndexRef.current = newIndex;
               setActiveBannerIndex(newIndex);
             }
           }}
@@ -103,6 +111,7 @@ export const HeroBannerSection = React.memo(function HeroBannerSection({
               />
               <View style={{ position: 'absolute', bottom: 22, left: 22, zIndex: 20, right: 85 }}>
                 <Text style={{
+                  fontFamily: Fonts.sansBold,
                   fontSize: 11,
                   fontWeight: '700',
                   letterSpacing: 2.5,
@@ -127,7 +136,7 @@ export const HeroBannerSection = React.memo(function HeroBannerSection({
                   className="flex-row items-center bg-black/40 backdrop-blur-md rounded-full pl-[20px] pr-[6px] py-[6px] self-start border border-white/20"
                   onPress={() => onBannerPress(item)}
                 >
-                  <Text style={{ fontSize: 10.5, color: '#ffffff', fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.8, marginRight: 12 }}>
+                  <Text style={{ fontFamily: Fonts.sansExtraBold, fontSize: 10.5, color: '#ffffff', fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.8, marginRight: 12 }}>
                     EXPLORE DROP
                   </Text>
                   <View style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: '#ffffff', alignItems: 'center', justifyContent: 'center' }}>

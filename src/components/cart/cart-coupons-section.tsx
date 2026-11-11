@@ -3,7 +3,7 @@ import { View, Text, Pressable, TextInput } from 'react-native';
 import { Tag } from 'lucide-react-native';
 
 export const AVAILABLE_COUPONS = [
-  { code: 'KUDI10', label: '10% OFF', desc: 'Flat 10% instant discount on orders above ₹1,999' },
+  { code: 'AFFORDZ10', label: '10% OFF', desc: 'Flat 10% instant discount on orders above ₹1,999' },
   { code: 'ATELIER500', label: '₹500 OFF', desc: 'Flat ₹500 off on designer luxury drop orders' },
   { code: 'EXPRESS18', label: 'FREE EXPRESS', desc: 'Complimentary 18-minute doorstep drop on dark store picks' },
 ];
@@ -72,7 +72,7 @@ export const CartCouponsSection = React.memo(function CartCouponsSection({
           }}
         >
           <TextInput
-            placeholder="Enter coupon code (e.g. KUDI10)"
+            placeholder="Enter coupon code (e.g. AFFORDZ10)"
             placeholderTextColor="#A0A0A0"
             value={couponInput}
             onChangeText={setCouponInput}

@@ -7,6 +7,7 @@ import {
   Linking,
   RefreshControl,
   BackHandler,
+  Alert,
 } from 'react-native';
 import {
   ArrowLeft,
@@ -17,11 +18,13 @@ import {
 } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useOrderStore } from '@/store/useOrderStore';
+import { useOrderStore, isOrderItemEligibleForReview } from '@/store/useOrderStore';
 import { safeBack } from '@/utils/navigation';
 import { OrderStatus } from '@/services/api';
 import { LiveTrackingMap, ALL_STAGES } from '@/components/tracking/live-tracking-map';
 import { trackingSocketService } from '@/services/trackingSocket';
+import { getAuthToken } from '@/services/api';
+import { TryAndBuySelectionCard } from '@/components/orders/try-and-buy-selection-card';
 import { FontStyles } from '@/constants/theme';
 import { AnimatedPressable } from '@/components/common/animated-pressable';
 
@@ -51,9 +54,9 @@ export default function TrackingScreen() {
   } = useOrderStore();
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Fallback target order ID
+  // Target order ID (honest resolution with no hardcoded fallback)
   const effectiveOrderId = useMemo(() => {
-    return params.orderId || activeOrder?.id || activeTracking?.orderId || orders[0]?.id || 'ord-1793086189135';
+    return params.orderId || activeOrder?.id || activeTracking?.orderId || orders[0]?.id || '';
   }, [params.orderId, activeOrder, activeTracking, orders]);
 
   // Rating & Review State
@@ -82,6 +85,11 @@ export default function TrackingScreen() {
 
   // Authoritative live status from backend tracking / order
   const activeStatus = (activeTracking?.status || currentOrder?.status || 'PLACED') as OrderStatus;
+  const isTerminalStatus =
+    activeStatus === 'DELIVERED' ||
+    activeStatus === 'CANCELLED' ||
+    activeStatus === 'RETURNED' ||
+    activeStatus === 'FAILED';
 
   // Initial and polling fetch for live tracking
   const loadTracking = useCallback(async () => {
@@ -91,13 +99,18 @@ export default function TrackingScreen() {
   }, [effectiveOrderId, fetchTracking]);
 
   useEffect(() => {
-    loadTracking();
-    if (activeStatus === 'DELIVERED' || activeStatus === 'CANCELLED') {
+    if (!effectiveOrderId) {
       trackingSocketService.disconnect();
       return;
     }
 
-    trackingSocketService.connect(effectiveOrderId);
+    loadTracking();
+    if (isTerminalStatus) {
+      trackingSocketService.disconnect();
+      return;
+    }
+
+    trackingSocketService.connect(effectiveOrderId, getAuthToken());
 
     const unsubLoc = trackingSocketService.subscribeLocation((loc, route) => {
       useOrderStore.getState().updateLiveLocation(effectiveOrderId, loc, route);
@@ -105,6 +118,16 @@ export default function TrackingScreen() {
 
     const unsubStatus = trackingSocketService.subscribeStatus((newStatus) => {
       useOrderStore.getState().updateLiveStatus(effectiveOrderId, newStatus as OrderStatus);
+      loadTracking();
+    });
+
+    const unsubTryBuy = trackingSocketService.subscribeTryAndBuy(() => {
+      loadTracking();
+    });
+
+    const unsubArrival = trackingSocketService.subscribeArrival((payload) => {
+      useOrderStore.getState().updateLiveArrival(effectiveOrderId, payload?.arrivedAt, payload);
+      loadTracking();
     });
 
     const interval = setInterval(() => {
@@ -114,10 +137,12 @@ export default function TrackingScreen() {
     return () => {
       unsubLoc();
       unsubStatus();
+      unsubTryBuy();
+      unsubArrival();
       clearInterval(interval);
       trackingSocketService.disconnect();
     };
-  }, [loadTracking, activeStatus, effectiveOrderId]);
+  }, [loadTracking, isTerminalStatus, effectiveOrderId]);
 
   // Android hardware back handler
   useEffect(() => {
@@ -189,13 +214,7 @@ export default function TrackingScreen() {
 
   // Authoritative Delivery Destination
   const deliveryAddress = useMemo(() => {
-    return activeTracking?.deliveryAddress || currentOrder?.address || {
-      label: 'Home Sanctuary',
-      line1: 'Apt 4B, Sunrise Heights, 42 Westend Boulevard',
-      locality: 'Indiranagar',
-      city: 'Bengaluru',
-      pincode: '560038',
-    };
+    return activeTracking?.deliveryAddress || currentOrder?.address || null;
   }, [activeTracking, currentOrder]);
 
   // Authoritative Ordered Items
@@ -206,47 +225,71 @@ export default function TrackingScreen() {
     if (currentOrder?.items && currentOrder.items.length > 0) {
       return currentOrder.items;
     }
-    return [
-      {
-        id: 'oi-1',
-        title: 'Embroidered Anarkali Kurta Set',
-        brand: 'Avanya Ethnic',
-        size: 'M',
-        price: 1299,
-        quantity: 1,
-        image: 'https://images.unsplash.com/photo-1539109136881-3be0616acf4b?auto=format&fit=crop&w=800&q=85',
-      },
-    ];
+    return [];
   }, [activeTracking, currentOrder]);
 
   // Authoritative Grand Total
   const displayGrandTotal = useMemo(() => {
-    return activeTracking?.grandTotal ?? currentOrder?.grandTotal ?? 1404;
+    return activeTracking?.grandTotal ?? currentOrder?.grandTotal ?? 0;
   }, [activeTracking, currentOrder]);
 
-  // Delivery Handshake OTP
+  // Authoritative server-generated Delivery Handshake OTP (never client-derived)
   const deliveryOtp = useMemo(() => {
-    const digits = (driver?.vehicle || effectiveOrderId).replace(/\D/g, '');
-    return digits.slice(-4) || '4821';
-  }, [driver, effectiveOrderId]);
+    return (
+      (activeTracking as any)?.handoverOtp ||
+      currentOrder?.handoverOtp ||
+      ''
+    );
+  }, [activeTracking, currentOrder]);
+
+  const canRateOrder = useMemo(
+    () => Boolean(currentOrder && isOrderItemEligibleForReview({ ...currentOrder, status: activeStatus })),
+    [currentOrder, activeStatus],
+  );
 
   const handleSubmitRating = useCallback(async () => {
-    if (isSubmittingReview) return;
+    if (isSubmittingReview || !effectiveOrderId || !canRateOrder) return;
     setIsSubmittingReview(true);
     try {
-      const targetProductId = (orderedItems[0] as any)?.productId || orderedItems[0]?.id || 'prod-1';
+      const orderSnapshot = currentOrder ? { ...currentOrder, status: activeStatus } : null;
+      const eligibleItem = orderedItems.find((it: any) =>
+        orderSnapshot
+          ? isOrderItemEligibleForReview(orderSnapshot, String(it.productId || it.id))
+          : false,
+      );
+      const targetProductId =
+        (eligibleItem as any)?.productId ||
+        eligibleItem?.id ||
+        (orderedItems[0] as any)?.productId ||
+        orderedItems[0]?.id;
       await submitOrderRating(
         effectiveOrderId,
         selectedRating,
         selectedTags,
         reviewComment,
-        targetProductId,
+        targetProductId || undefined,
       );
       setIsEditingRating(false);
+    } catch (err: any) {
+      Alert.alert(
+        'Could Not Save Rating',
+        err?.message || 'Unable to submit rating right now. Please try again.',
+      );
     } finally {
       setIsSubmittingReview(false);
     }
-  }, [effectiveOrderId, isSubmittingReview, orderedItems, reviewComment, selectedRating, selectedTags, submitOrderRating]);
+  }, [
+    activeStatus,
+    canRateOrder,
+    currentOrder,
+    effectiveOrderId,
+    isSubmittingReview,
+    orderedItems,
+    reviewComment,
+    selectedRating,
+    selectedTags,
+    submitOrderRating,
+  ]);
 
   const handleCallDriver = useCallback(() => {
     if (driver?.phone) {
@@ -259,7 +302,7 @@ export default function TrackingScreen() {
       pathname: '/support',
       params: {
         orderId: effectiveOrderId,
-        category: 'Delivery',
+        category: 'Delivery & Rider Help',
       },
     });
   }, [router, effectiveOrderId]);
@@ -268,25 +311,89 @@ export default function TrackingScreen() {
   const stageHeadline = useMemo(() => {
     switch (activeStatus) {
       case 'PLACED':
-        return 'Order placed. Awaiting merchant confirmation at Indiranagar Atelier.';
+        return 'Order placed. Awaiting merchant confirmation.';
       case 'ACCEPTED':
-        return 'Atelier confirmed garments. Hand-pressing & prep initiated.';
+        return 'Merchant confirmed your order. Hand-pressing & prep initiated.';
       case 'PREPARING':
-        return 'Garment hand-pressed, steamed & quality inspected in Vault.';
+        return 'Garment steamed, quality inspected & prepared for dispatch.';
       case 'READY_FOR_PICKUP':
-        return 'Sealed in tamper-evident breathable sleeve for pilot pickup.';
+        return 'Sealed in tamper-evident breathable sleeve for rider pickup.';
       case 'ASSIGNED':
-        return `${driver.name} assigned with Ather 450X EV fleet.`;
+        return `${driver.name} assigned for pickup.`;
       case 'PICKED_UP':
-        return 'Pilot collected garments from Indiranagar Vault counter.';
+        return 'Rider collected garments from dispatch counter.';
       case 'OUT_FOR_DELIVERY':
-        return `Pilot is cruising on 100ft Rd to ${deliveryAddress?.locality || 'your doorstep'} now.`;
+        return `Rider is en route to ${deliveryAddress?.locality || 'your doorstep'} now.`;
       case 'DELIVERED':
-        return 'Garment handover complete at your doorstep. Size verified and accepted.';
+        return 'Garment handover complete at your doorstep. Order delivered.';
+      case 'RETURNING':
+        return 'Return items collected. Rider returning items to hub.';
+      case 'RETURNED':
+        return 'Return completed and reconciled with merchant.';
+      case 'CANCELLED':
+        return 'Order cancelled.';
+      case 'FAILED':
+        return 'Payment failed or expired before confirmation.';
       default:
-        return 'Garments dispatched from Indiranagar Express Hub.';
+        return 'Garments dispatched from Affordz fulfillment hub.';
     }
   }, [activeStatus, driver.name, deliveryAddress?.locality]);
+
+  if (!effectiveOrderId) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#FAF8F5' }}>
+        <View
+          style={{
+            paddingTop,
+            backgroundColor: '#FFFFFF',
+            borderBottomWidth: 1,
+            borderBottomColor: '#E8E5DF',
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            paddingHorizontal: 16,
+            paddingBottom: 12,
+          }}
+        >
+          <AnimatedPressable
+            style={{
+              width: 38,
+              height: 38,
+              borderRadius: 19,
+              backgroundColor: '#FAF8F5',
+              borderWidth: 1,
+              borderColor: '#D9D9D5',
+              justifyContent: 'center',
+              alignItems: 'center',
+            }}
+            onPress={() => safeBack(router, '/orders')}
+          >
+            <ArrowLeft size={18} color="#111111" />
+          </AnimatedPressable>
+          <Text style={[FontStyles.sansBold, { fontSize: 15, color: '#111111' }]}>
+            Live Tracking
+          </Text>
+          <View style={{ width: 38 }} />
+        </View>
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 28 }}>
+          <Text style={[FontStyles.sansBold, { fontSize: 18, color: '#111111', marginBottom: 8, textAlign: 'center' }]}>
+            No Active Order Selected
+          </Text>
+          <Text style={{ fontSize: 13, color: '#6B6667', textAlign: 'center', lineHeight: 19, marginBottom: 22 }}>
+            Place an order or pick one from your order history to view live rider status and delivery milestones.
+          </Text>
+          <AnimatedPressable
+            onPress={() => router.replace('/orders')}
+            style={{ backgroundColor: '#111111', borderRadius: 999, paddingHorizontal: 22, paddingVertical: 13 }}
+          >
+            <Text style={[FontStyles.sansBold, { fontSize: 12, color: '#FFFFFF', letterSpacing: 0.8 }]}>
+              VIEW MY ORDERS
+            </Text>
+          </AnimatedPressable>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={{ flex: 1, backgroundColor: '#FAF8F5' }}>
@@ -359,6 +466,7 @@ export default function TrackingScreen() {
 
       {/* Main Single-Column Mobile-First Stream */}
       <ScrollView
+        scrollEventThrottle={16}
         contentContainerStyle={{
           paddingHorizontal: 16,
           paddingTop: 14,
@@ -383,13 +491,29 @@ export default function TrackingScreen() {
           status={activeStatus}
           etaMinutes={typeof displayEta === 'number' ? displayEta : 18}
           driver={driver}
-          hubName={(currentOrder as any)?.vendor?.storeName || 'Indiranagar Express Hub'}
-          destinationAddress={`${deliveryAddress.line1}, ${deliveryAddress.locality || ''}, ${deliveryAddress.city}`}
+          hubName={(currentOrder as any)?.vendor?.storeName || 'Affordz Express Hub'}
+          destinationAddress={
+            deliveryAddress
+              ? `${deliveryAddress.line1}, ${deliveryAddress.locality || ''}, ${deliveryAddress.city}`
+              : 'Delivery destination loading...'
+          }
           isDarkStore={isDarkStore}
           deliveryCoordinates={activeTracking?.deliveryCoordinates}
           pickupCoordinates={activeTracking?.pickupCoordinates}
           route={activeTracking?.route}
         />
+
+        {/* Doorstep Try & Buy Interactive Selection Card */}
+        {currentOrder && (
+          <TryAndBuySelectionCard
+            order={currentOrder}
+            formatPrice={formatPrice}
+            onUpdated={() => {
+              loadTracking();
+              fetchOrders();
+            }}
+          />
+        )}
 
         {/* 2. Hero Countdown / ETA Card */}
         <TrackingEtaCard
@@ -400,24 +524,26 @@ export default function TrackingScreen() {
           stageHeadline={stageHeadline}
         />
 
-        {/* 3. Luxury Drop & Pilot Rating Experience */}
-        <TrackingPilotRatingCard
-          existingRating={existingRating}
-          isEditingRating={isEditingRating}
-          setIsEditingRating={setIsEditingRating}
-          selectedRating={selectedRating}
-          setSelectedRating={setSelectedRating}
-          selectedTags={selectedTags}
-          setSelectedTags={setSelectedTags}
-          reviewComment={reviewComment}
-          setReviewComment={setReviewComment}
-          isSubmittingReview={isSubmittingReview}
-          isRatingExpanded={isRatingExpanded}
-          setIsRatingExpanded={setIsRatingExpanded}
-          handleSubmitRating={handleSubmitRating}
-          activeStatus={activeStatus}
-          driverName={driver.name}
-        />
+        {/* 3. Luxury Drop & Pilot Rating Experience (DCR-014 Eligible Delivered/Settled Drops Only) */}
+        {canRateOrder && (
+          <TrackingPilotRatingCard
+            existingRating={existingRating}
+            isEditingRating={isEditingRating}
+            setIsEditingRating={setIsEditingRating}
+            selectedRating={selectedRating}
+            setSelectedRating={setSelectedRating}
+            selectedTags={selectedTags}
+            setSelectedTags={setSelectedTags}
+            reviewComment={reviewComment}
+            setReviewComment={setReviewComment}
+            isSubmittingReview={isSubmittingReview}
+            isRatingExpanded={isRatingExpanded}
+            setIsRatingExpanded={setIsRatingExpanded}
+            handleSubmitRating={handleSubmitRating}
+            activeStatus={activeStatus}
+            driverName={driver.name}
+          />
+        )}
 
         {/* 4. Assigned Pilot EV Card */}
         <TrackingPilotCard
@@ -432,25 +558,27 @@ export default function TrackingScreen() {
         <TrackingProgressionStepper
           activeStatus={activeStatus}
           driverName={driver.name}
-          locality={deliveryAddress.locality}
+          locality={deliveryAddress?.locality}
           isCod={currentOrder?.paymentMethod === 'COD' || activeTracking?.paymentMethod === 'COD'}
         />
 
         {/* 6. Delivery Destination Card */}
-        <View style={{ backgroundColor: '#FFFFFF', borderRadius: 20, padding: 15, borderWidth: 1, borderColor: '#E8E5DF', marginBottom: 14 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-            <MapPin size={14} color="#FF5A1F" />
-            <Text style={{ fontSize: 10, fontWeight: '900', color: '#8E877E', letterSpacing: 1.2, textTransform: 'uppercase' }}>
-              DELIVERY DESTINATION
+        {deliveryAddress && (
+          <View style={{ backgroundColor: '#FFFFFF', borderRadius: 20, padding: 15, borderWidth: 1, borderColor: '#E8E5DF', marginBottom: 14 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+              <MapPin size={14} color="#FF5A1F" />
+              <Text style={{ fontSize: 10, fontWeight: '900', color: '#8E877E', letterSpacing: 1.2, textTransform: 'uppercase' }}>
+                DELIVERY DESTINATION
+              </Text>
+            </View>
+            <Text style={{ fontSize: 13.5, fontWeight: '900', color: '#111111' }}>
+              {deliveryAddress.label || 'Delivery Address'}
+            </Text>
+            <Text style={{ fontSize: 11.5, color: '#6B6667', marginTop: 2, lineHeight: 16 }}>
+              {deliveryAddress.line1}, {deliveryAddress.locality || ''}, {deliveryAddress.city} - {deliveryAddress.pincode}
             </Text>
           </View>
-          <Text style={{ fontSize: 13.5, fontWeight: '900', color: '#111111' }}>
-            {deliveryAddress.label || 'Home Sanctuary'}
-          </Text>
-          <Text style={{ fontSize: 11.5, color: '#6B6667', marginTop: 2, lineHeight: 16 }}>
-            {deliveryAddress.line1}, {deliveryAddress.locality || ''}, {deliveryAddress.city} - {deliveryAddress.pincode}
-          </Text>
-        </View>
+        )}
 
         {/* 7. Package Contents Card */}
         <TrackingPackageCard

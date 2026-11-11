@@ -14,32 +14,11 @@ export interface ProductItem {
   category: string;
   wear: string;
   image: string;
+  fulfillmentType?: 'DARK_STORE' | 'MARKETPLACE';
+  tryAndBuyEligible?: boolean;
+  fabric?: string;
+  description?: string;
 }
-
-export const DEFAULT_PRODUCTS: ProductItem[] = [
-  { id: 1, brand: 'AUREL', name: 'Relaxed Wool Coat', price: 12490, old: 15990, rating: '4.8', category: 'Women', wear: 'Western', image: 'https://images.unsplash.com/photo-1539109136881-3be0616acf4b?auto=format&fit=crop&w=800&q=85' },
-  { id: 2, brand: 'STUDIO 04', name: 'Structured Cotton Shirt', price: 3290, old: 4990, rating: '4.7', category: 'Men', wear: 'Tops', image: 'https://images.unsplash.com/photo-1603252110481-7ba873bf42ab?auto=format&fit=crop&w=800&q=85' },
-  { id: 3, brand: 'FORME', name: 'Minimal Leather Tote', price: 7890, old: 10990, rating: '4.9', category: 'Accessories', wear: 'Accessories', image: 'https://images.unsplash.com/photo-1584917865442-de89df76afd3?auto=format&fit=crop&w=800&q=85' },
-  { id: 4, brand: 'AUREL', name: 'Wide Leg Tailored Trousers', price: 5490, old: 7490, rating: '4.6', category: 'Women', wear: 'Bottoms', image: 'https://images.unsplash.com/photo-1506629905607-d9e08e2d3e8e?auto=format&fit=crop&w=800&q=85' },
-  { id: 5, brand: 'NORTHLINE', name: 'Everyday Overshirt', price: 4190, old: 5990, rating: '4.7', category: 'Men', wear: 'Tops', image: 'https://images.unsplash.com/photo-1610652492500-ded49ceeb378?auto=format&fit=crop&w=800&q=85' },
-  { id: 6, brand: 'FORME', name: 'Soft Ribbed Knit', price: 2990, old: 3990, rating: '4.8', category: 'Women', wear: 'Tops', image: 'https://images.unsplash.com/photo-1618932260643-eee4a2f652a6?auto=format&fit=crop&w=800&q=85' },
-  { id: 7, brand: 'NOVALIS', name: 'Raw Selvedge Denim', price: 5890, old: 7990, rating: '4.9', category: 'Men', wear: 'Bottoms', image: 'https://images.unsplash.com/photo-1541099649105-f69ad21f3246?auto=format&fit=crop&w=800&q=85' },
-  { id: 8, brand: 'STUDIO 04', name: 'Court Leather Sneaker', price: 6990, old: 9490, rating: '4.8', category: 'Men', wear: 'Footwear', image: 'https://images.unsplash.com/photo-1549298916-b41d501d3772?auto=format&fit=crop&w=800&q=85' },
-  { id: 9, brand: 'MAISON', name: 'Chanderi Silk Kurta Set', price: 8990, old: 12490, rating: '4.9', category: 'Women', wear: 'Ethnic', image: 'https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=800&q=85' },
-  { id: 10, brand: 'ROYAL', name: 'Men Raw Silk Kurta', price: 4990, old: 6990, rating: '4.8', category: 'Men', wear: 'Ethnic', image: 'https://images.unsplash.com/photo-1507679799987-c73779587ccf?auto=format&fit=crop&w=800&q=85' },
-  { id: 11, brand: 'L’ENFANT', name: 'Breton Organic Tee', price: 1690, old: 2490, rating: '4.7', category: 'Kids', wear: 'Tops', image: 'https://images.unsplash.com/photo-1519457431-44ccd64a579b?auto=format&fit=crop&w=800&q=85' },
-  { id: 12, brand: 'L’ENFANT', name: 'Linen Pull-On Trousers', price: 1990, old: 2890, rating: '4.8', category: 'Kids', wear: 'Bottoms', image: 'https://images.unsplash.com/photo-1503919545889-aef636e10ad4?auto=format&fit=crop&w=800&q=85' },
-  { id: 13, brand: 'L’ENFANT', name: 'Retro Mini Canvas Runner', price: 2490, old: 3490, rating: '4.9', category: 'Kids', wear: 'Footwear', image: 'https://images.unsplash.com/photo-1514989940723-e8e51635b782?auto=format&fit=crop&w=800&q=85' },
-  { id: 14, brand: 'L’EXTRACT', name: 'Botanical Hydrating Serum', price: 3490, old: 4500, rating: '4.9', category: 'Women', wear: 'Beauty', image: 'https://images.unsplash.com/photo-1522337360788-8b13dee7a37e?auto=format&fit=crop&w=800&q=85' },
-  { id: 101, brand: 'Varanasi Looms', name: 'Handloom Cotton Saree with Zari', price: 1849, old: 3190, rating: '4.9', category: 'Women', wear: 'Ethnic', image: 'https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=800&q=85' },
-  { id: 102, brand: 'Avanya Ethnic', name: 'Embroidered Anarkali Suit', price: 2499, old: 4999, rating: '4.8', category: 'Women', wear: 'Ethnic', image: 'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?auto=format&fit=crop&w=800&q=85' },
-  { id: 103, brand: 'Gulabi Studio', name: 'Tiered Floral Maxi Dress', price: 1599, old: 3499, rating: '4.6', category: 'Women', wear: 'Western', image: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=800&q=85' },
-  { id: 104, brand: 'Studio 04', name: 'Structured Linen Shirt', price: 2190, old: 3990, rating: '4.7', category: 'Men', wear: 'Tops', image: 'https://images.unsplash.com/photo-1603252110481-7ba873bf42ab?auto=format&fit=crop&w=800&q=85' },
-  { id: 105, brand: 'Aurel', name: 'Wide Leg Tailored Trousers', price: 2990, old: 5490, rating: '4.7', category: 'Women', wear: 'Bottoms', image: 'https://images.unsplash.com/photo-1506629905607-d9e08e2d3e8e?auto=format&fit=crop&w=800&q=85' },
-  { id: 106, brand: 'Maison', name: 'Chanderi Silk Kurta Set', price: 4990, old: 8990, rating: '4.9', category: 'Women', wear: 'Ethnic', image: 'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?auto=format&fit=crop&w=800&q=85' },
-  { id: 107, brand: 'Royal', name: 'Men Raw Silk Kurta Set', price: 3490, old: 5990, rating: '4.8', category: 'Men', wear: 'Ethnic', image: 'https://images.unsplash.com/photo-1507679799987-c73779587ccf?auto=format&fit=crop&w=800&q=85' },
-  { id: 108, brand: 'Novalis', name: 'Raw Selvedge Denim', price: 3690, old: 5890, rating: '4.8', category: 'Men', wear: 'Bottoms', image: 'https://images.unsplash.com/photo-1541099649105-f69ad21f3246?auto=format&fit=crop&w=800&q=85' },
-];
 
 export const SEARCH_PLACEHOLDERS = [
   'Handloom Silk Sarees',
@@ -220,136 +199,6 @@ export const HERO_BANNERS: HeroBannerItem[] = [
     image: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=1200&q=90',
     categoryTarget: 'Women',
     wearTarget: 'Western',
-  },
-];
-
-export interface AlgoProduct {
-  id: number | string;
-  brand: string;
-  name: string;
-  price: number;
-  old: number;
-  rating: string;
-  ratingCount: number;
-  priceDrop: number;
-  category: 'Men' | 'Women' | 'Kids' | 'Accessories';
-  wear: string;
-  image: string;
-}
-
-export type AlgoTabType = 'viewed' | 'searched' | 'favorites' | 'interested';
-
-export const ALGO_TABS: { id: AlgoTabType; label: string }[] = [
-  { id: 'viewed', label: "Styles You've Viewed" },
-  { id: 'searched', label: 'Recently Searched' },
-  { id: 'favorites', label: 'Your Favourites' },
-  { id: 'interested', label: 'Inspired For You' },
-];
-
-export const ALGO_PRODUCTS: AlgoProduct[] = [
-  {
-    id: 101,
-    brand: 'Varanasi Looms',
-    name: 'Handloom Cotton Saree with Zari',
-    price: 1849,
-    old: 3190,
-    rating: '4.9',
-    ratingCount: 98,
-    priceDrop: 1341,
-    category: 'Women',
-    wear: 'Ethnic',
-    image: 'https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=800&q=85',
-  },
-  {
-    id: 102,
-    brand: 'Avanya Ethnic',
-    name: 'Embroidered Anarkali Kurta Set',
-    price: 1299,
-    old: 2499,
-    rating: '4.8',
-    ratingCount: 142,
-    priceDrop: 1200,
-    category: 'Women',
-    wear: 'Ethnic',
-    image: 'https://images.unsplash.com/photo-1539109136881-3be0616acf4b?auto=format&fit=crop&w=800&q=85',
-  },
-  {
-    id: 103,
-    brand: 'Gulabi Studio',
-    name: 'Tiered Floral Rayon Maxi Dress',
-    price: 999,
-    old: 1999,
-    rating: '4.7',
-    ratingCount: 215,
-    priceDrop: 1000,
-    category: 'Women',
-    wear: 'Western',
-    image: 'https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?auto=format&fit=crop&w=800&q=85',
-  },
-  {
-    id: 104,
-    brand: 'Studio 04',
-    name: 'Structured Cotton Shirt',
-    price: 1890,
-    old: 3990,
-    rating: '4.8',
-    ratingCount: 89,
-    priceDrop: 2100,
-    category: 'Men',
-    wear: 'Tops',
-    image: 'https://images.unsplash.com/photo-1603252110481-7ba873bf42ab?auto=format&fit=crop&w=800&q=85',
-  },
-  {
-    id: 105,
-    brand: 'Aurel',
-    name: 'Wide Leg Tailored Trousers',
-    price: 2990,
-    old: 5490,
-    rating: '4.7',
-    ratingCount: 52,
-    priceDrop: 2500,
-    category: 'Women',
-    wear: 'Bottoms',
-    image: 'https://images.unsplash.com/photo-1506629905607-d9e08e2d3e8e?auto=format&fit=crop&w=800&q=85',
-  },
-  {
-    id: 106,
-    brand: 'Maison',
-    name: 'Chanderi Silk Kurta Set',
-    price: 4990,
-    old: 8990,
-    rating: '4.9',
-    ratingCount: 114,
-    priceDrop: 4000,
-    category: 'Women',
-    wear: 'Ethnic',
-    image: 'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?auto=format&fit=crop&w=800&q=85',
-  },
-  {
-    id: 107,
-    brand: 'Royal',
-    name: 'Men Raw Silk Kurta Set',
-    price: 3490,
-    old: 5990,
-    rating: '4.8',
-    ratingCount: 64,
-    priceDrop: 2500,
-    category: 'Men',
-    wear: 'Ethnic',
-    image: 'https://images.unsplash.com/photo-1507679799987-c73779587ccf?auto=format&fit=crop&w=800&q=85',
-  },
-  {
-    id: 108,
-    brand: 'Novalis',
-    name: 'Raw Selvedge Denim',
-    price: 3690,
-    old: 5890,
-    rating: '4.8',
-    ratingCount: 46,
-    priceDrop: 2200,
-    category: 'Men',
-    wear: 'Bottoms',
-    image: 'https://images.unsplash.com/photo-1541099649105-f69ad21f3246?auto=format&fit=crop&w=800&q=85',
   },
 ];
 

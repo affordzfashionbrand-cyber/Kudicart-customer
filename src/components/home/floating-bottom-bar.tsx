@@ -11,6 +11,7 @@ import {
   LayoutGrid,
   Heart,
   ShoppingCart,
+  UserRound,
   Zap,
 } from 'lucide-react-native';
 import { AnimatedPressable } from '@/components/common/animated-pressable';
@@ -25,11 +26,12 @@ interface FloatingBottomBarProps {
   onOpenDarkStoreModal?: () => void;
 }
 
-// 3 Regular Left Tabs (Home, Categories, Wishlist)
+// 4 Compact Left Tabs (Home, Shop, Wishlist, Account)
 const REGULAR_TABS = [
   { id: 'HOME', label: 'Home', Icon: Home },
-  { id: 'SHOP', label: 'Categories', Icon: LayoutGrid },
+  { id: 'SHOP', label: 'Shop', Icon: LayoutGrid },
   { id: 'WISHLIST', label: 'Wishlist', Icon: Heart },
+  { id: 'ACCOUNT', label: 'Account', Icon: UserRound },
 ];
 
 // Curated Dark Store Items that cycle in the animated pill showcase
@@ -69,6 +71,7 @@ export const FloatingBottomBar = React.memo(function FloatingBottomBar({
   onSelectTab,
   totalBagCount,
   wishlistCount = 0,
+  onOpenDarkStoreModal,
 }: FloatingBottomBarProps) {
   const { selectedDarkStore } = useDarkStore();
   const isNative = Platform.OS !== 'web';
@@ -376,12 +379,13 @@ export const FloatingBottomBar = React.memo(function FloatingBottomBar({
 
                   {/* Tab Label */}
                   <Text
+                    numberOfLines={1}
                     style={{
-                      fontSize: 9.5,
+                      fontSize: 8.5,
                       fontWeight: isActive ? '800' : '600',
                       color: isActive ? '#FFFFFF' : '#888888',
                       marginTop: 2.5,
-                      letterSpacing: 0.2,
+                      letterSpacing: 0.1,
                     }}
                   >
                     {label}
@@ -407,11 +411,18 @@ export const FloatingBottomBar = React.memo(function FloatingBottomBar({
 
         {/* Right Section: The 'select DARK STORE' Banner Pill */}
         <AnimatedPressable
-          onPress={() => onSelectTab('DARK_STORE')}
+          onPress={() => {
+            if (isDarkStoreActive && onOpenDarkStoreModal) {
+              onOpenDarkStoreModal();
+            } else {
+              onSelectTab('DARK_STORE');
+            }
+          }}
+          onLongPress={onOpenDarkStoreModal}
           style={{
             backgroundColor: isDarkStoreActive ? '#B3471A' : '#943813',
             height: 52,
-            width: 148,
+            width: 136,
             borderRadius: 18,
             borderWidth: 1.5,
             borderColor: isDarkStoreActive ? '#FFFFFF' : '#C45728',

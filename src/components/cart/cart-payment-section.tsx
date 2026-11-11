@@ -267,7 +267,7 @@ export const CartPaymentSection = React.memo(function CartPaymentSection({
               </Text>
             </View>
             <Text style={[{ fontSize: 11, color: '#71717A', lineHeight: 16 }, FontStyles.sansRegular]}>
-              You will complete your transaction inside Razorpay’s certified secure portal. KudiCart never stores or transmits sensitive payment credentials.
+              You will complete your transaction inside Razorpay’s certified secure portal. Affordz never stores or transmits sensitive payment credentials.
             </Text>
           </View>
         )}

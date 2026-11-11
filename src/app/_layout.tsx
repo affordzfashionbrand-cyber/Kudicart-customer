@@ -1,38 +1,10 @@
 import '../global.css';
-import { DefaultTheme, ThemeProvider, Stack } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import { DefaultTheme, ThemeProvider, Stack, useRouter } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { View, StyleSheet, Platform, LogBox } from 'react-native';
-
-LogBox.ignoreLogs([
-  '"shadow*" style props are deprecated',
-  '"textShadow*" style props are deprecated',
-  'props.pointerEvents is deprecated',
-  'Image: style.resizeMode is deprecated',
-  'Animated: `useNativeDriver` is not supported',
-  'Fetch request has been canceled',
-]);
-
-if (Platform.OS === 'web' && typeof console !== 'undefined') {
-  const _origWarn = console.warn;
-  console.warn = (...args: any[]) => {
-    const first = args[0];
-    if (
-      typeof first === 'string' &&
-      (first.includes('deprecated') ||
-        first.includes('useNativeDriver') ||
-        first.includes('pointerEvents') ||
-        first.includes('canceled') ||
-        first.includes('aborted'))
-    ) {
-      return;
-    }
-    _origWarn(...args);
-  };
-}
-import { useEffect, useState } from 'react';
-import { useAuthStore } from '@/store/useAuthStore';
-import { useSettingsStore } from '@/store/useSettingsStore';
-
+import * as Linking from 'expo-linking';
+import { View, Text, Pressable, StyleSheet, Platform, LogBox } from 'react-native';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useFonts } from 'expo-font';
 import {
   PlayfairDisplay_400Regular,
@@ -49,7 +21,69 @@ import {
   PlusJakartaSans_400Regular_Italic,
 } from '@expo-google-fonts/plus-jakarta-sans';
 
+import { useAuthStore } from '@/store/useAuthStore';
+import { useSettingsStore } from '@/store/useSettingsStore';
+import { useOrderStore } from '@/store/useOrderStore';
 import { SplashScreenView } from '@/components/splash-screen';
+import { initSentry, captureException } from '@/services/sentry';
+import { customerNotificationService } from '@/services/notificationService';
+import { parsePaymentCallbackUrl } from '@/services/razorpay';
+
+initSentry();
+
+LogBox.ignoreLogs([
+  '"shadow*" style props are deprecated',
+  '"textShadow*" style props are deprecated',
+  'props.pointerEvents is deprecated',
+  'Image: style.resizeMode is deprecated',
+]);
+
+class AppErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean; message?: string }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, message: error?.message };
+  }
+
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    captureException(error, { componentStack: info?.componentStack });
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorTitle}>Something went wrong</Text>
+          <Text style={styles.errorBody}>
+            {this.state.message || 'An unexpected error occurred. Please try again.'}
+          </Text>
+          <Pressable
+            onPress={() => this.setState({ hasError: false, message: undefined })}
+            style={styles.errorButton}
+          >
+            <Text style={styles.errorButtonText}>Retry</Text>
+          </Pressable>
+        </View>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      staleTime: 15_000,
+    },
+  },
+});
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -65,6 +99,7 @@ const BrandTheme = {
 };
 
 export default function RootLayout() {
+  const router = useRouter();
   const [showSplash, setShowSplash] = useState(true);
 
   const [fontsLoaded, fontError] = useFonts({
@@ -103,6 +138,51 @@ export default function RootLayout() {
   useEffect(() => {
     useAuthStore.getState().initializeAuth();
     useSettingsStore.getState().initializeSettings();
+
+    const unsubNotifs = customerNotificationService.setupNotificationListeners(
+      (pathname, params) => {
+        router.push({ pathname, params } as any);
+      },
+      (data) => {
+        if (data?.orderId) {
+          void useOrderStore.getState().fetchTracking(String(data.orderId)).catch(() => {});
+        }
+      },
+    );
+
+    const handleDeepLink = (url?: string | null) => {
+      if (!url) return;
+      if (url.includes('payment-callback')) {
+        const parsedPayment = parsePaymentCallbackUrl(url);
+        if (parsedPayment?.orderId) {
+          void useOrderStore
+            .getState()
+            .confirmPaymentStatus(parsedPayment.orderId)
+            .catch(() => {});
+        }
+        return;
+      }
+      const parsed = Linking.parse(url);
+      const targetPath = (parsed.path || parsed.hostname || '').replace(/^\/+/, '');
+      if (targetPath === 'tracking' && parsed.queryParams?.orderId) {
+        router.push({
+          pathname: '/tracking',
+          params: { orderId: String(parsed.queryParams.orderId) },
+        } as any);
+      } else if (targetPath === 'orders') {
+        router.push('/orders' as any);
+      }
+    };
+
+    const linkSub = Linking.addEventListener('url', ({ url }) => {
+      handleDeepLink(url);
+    });
+    Linking.getInitialURL()
+      .then((initialUrl) => {
+        handleDeepLink(initialUrl);
+      })
+      .catch(() => {});
+
     if (Platform.OS === 'web' && typeof document !== 'undefined') {
       const linkId = 'affordz-google-fonts';
       if (!document.getElementById(linkId)) {
@@ -113,72 +193,13 @@ export default function RootLayout() {
           'https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,600&family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600&family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap';
         document.head.appendChild(link);
       }
-
-      const styleId = 'affordz-font-enforcement';
-      if (!document.getElementById(styleId)) {
-        const style = document.createElement('style');
-        style.id = styleId;
-        style.innerHTML = `
-          html, body, #root {
-            font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
-          }
-
-          [dir="auto"],
-          div[dir="auto"],
-          span[dir="auto"],
-          [class*="css-text-"],
-          input,
-          textarea,
-          button,
-          select {
-            font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-          }
-
-          .font-serif,
-          .font-serif *,
-          .font-editorial,
-          .font-editorial *,
-          .font-display,
-          .font-display *,
-          .font-display-hero,
-          .font-display-hero *,
-          .font-headline-lg,
-          .font-headline-lg *,
-          .font-headline-md,
-          .font-headline-md *,
-          .font-headline-sm,
-          .font-headline-sm *,
-          .editorial-text,
-          .editorial-text *,
-          [data-font="serif"],
-          [data-font="editorial"],
-          [class*="font-serif"],
-          [class*="font-editorial"],
-          [class*="font-display"],
-          [class*="headline-"],
-          [class*="display-"],
-          [style*="serif"],
-          [style*="Georgia"],
-          [style*="Playfair"],
-          [style*="PlayfairDisplay"],
-          [dir="auto"][style*="serif"],
-          [dir="auto"][style*="Georgia"],
-          [dir="auto"][style*="Playfair"],
-          [dir="auto"][style*="PlayfairDisplay"],
-          [dir="auto"] [style*="serif"],
-          [dir="auto"] [style*="Georgia"],
-          [dir="auto"] [style*="Playfair"],
-          [dir="auto"] [style*="PlayfairDisplay"],
-          [class*="r-fontFamily-serif"],
-          [class*="r-fontFamily-Georgia"],
-          [class*="r-fontFamily-Playfair"] {
-            font-family: 'Playfair Display', Georgia, 'Times New Roman', serif !important;
-          }
-        `;
-        document.head.appendChild(style);
-      }
     }
-  }, []);
+
+    return () => {
+      unsubNotifs();
+      linkSub.remove();
+    };
+  }, [router]);
 
   useEffect(() => {
     if (fontsLoaded || fontError) {
@@ -191,29 +212,63 @@ export default function RootLayout() {
   }
 
   return (
-    <ThemeProvider value={BrandTheme}>
-      <View style={styles.outerContainer}>
-        <View style={styles.phoneContainer}>
-          <Stack
-            screenOptions={{
-              headerShown: false,
-              animation: 'fade',
-              contentStyle: { backgroundColor: '#FDFBF7' },
-            }}
-          />
-          {showSplash && (
-            <SplashScreenView
-              duration={1800}
-              onFinish={() => setShowSplash(false)}
-            />
-          )}
-        </View>
-      </View>
-    </ThemeProvider>
+    <AppErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider value={BrandTheme}>
+          <View style={styles.outerContainer}>
+            <View style={styles.phoneContainer}>
+              <Stack
+                screenOptions={{
+                  headerShown: false,
+                  animation: 'fade',
+                  contentStyle: { backgroundColor: '#FDFBF7' },
+                }}
+              />
+              {showSplash && (
+                <SplashScreenView
+                  duration={1800}
+                  onFinish={() => setShowSplash(false)}
+                />
+              )}
+            </View>
+          </View>
+        </ThemeProvider>
+      </QueryClientProvider>
+    </AppErrorBoundary>
   );
 }
 
 const styles = StyleSheet.create({
+  errorContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FDFBF7',
+    padding: 24,
+  },
+  errorTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111111',
+    marginBottom: 8,
+  },
+  errorBody: {
+    fontSize: 13,
+    color: '#6B6667',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  errorButton: {
+    backgroundColor: '#111111',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 999,
+  },
+  errorButtonText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
+  },
   outerContainer: {
     flex: 1,
     width: '100%',

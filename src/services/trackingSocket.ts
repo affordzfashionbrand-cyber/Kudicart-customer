@@ -1,130 +1,160 @@
-import { Platform } from 'react-native';
+import { API_BASE_URL, getAuthToken } from './api';
+import { TERMINAL_ORDER_STATUSES } from '@/contracts/order-contracts';
 
-export interface LocationPayload {
-  latitude: number;
-  longitude: number;
-  heading?: number;
-  accuracy?: number;
-  speed?: number;
-  updatedAt: string;
-  isStale?: boolean;
-}
-
-export interface RoutePayload {
-  encodedPolyline?: string;
-  coordinates?: [number, number][];
-  distanceMeters?: number;
-  distanceKm?: string;
-  durationSeconds?: number;
-  durationMinutes?: number;
-  travelMode?: string;
-}
-
-export type LocationListener = (location: LocationPayload, route?: RoutePayload | null) => void;
+export type LocationListener = (location: any, route?: any) => void;
 export type StatusListener = (status: string, payload?: any) => void;
+export type TryAndBuyListener = (payload: any) => void;
+export type ArrivalListener = (payload: any) => void;
 
 class TrackingSocketService {
   private ws: WebSocket | null = null;
   private currentOrderId: string | null = null;
-  private token: string = 'demo-customer-token';
-  private locationListeners = new Set<LocationListener>();
-  private statusListeners = new Set<StatusListener>();
-  private reconnectTimer: any = null;
-  private reconnectAttempts = 0;
-  private maxReconnectAttempts = 6;
+  private token: string | null = null;
   private isExplicitlyClosed = false;
+  private reconnectAttempts = 0;
+  private readonly maxReconnectAttempts = 6;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private lastSeq = 0;
 
-  private getWsUrl(): string {
-    if (process.env.EXPO_PUBLIC_WS_URL) {
-      return process.env.EXPO_PUBLIC_WS_URL;
-    }
-    if (typeof window !== 'undefined' && window.location && window.location.hostname) {
-      const host = window.location.hostname;
-      return `ws://${host}:8081/ws/tracking`;
-    }
-    // Android emulator reverse / local default
-    return 'ws://127.0.0.1:8081/ws/tracking';
+  private readonly locationListeners = new Set<LocationListener>();
+  private readonly statusListeners = new Set<StatusListener>();
+  private readonly tryAndBuyListeners = new Set<TryAndBuyListener>();
+  private readonly arrivalListeners = new Set<ArrivalListener>();
+
+  private getWebSocketUrl(token?: string | null): string {
+    const wsBase = API_BASE_URL.replace(/^https:/i, 'wss:')
+      .replace(/^http:/i, 'ws:')
+      .replace(/\/+$/, '');
+    const query = token ? `?token=${encodeURIComponent(token)}` : '';
+    return `${wsBase}/ws/tracking${query}`;
   }
 
-  public connect(orderId: string, token: string = 'demo-customer-token') {
-    if (this.currentOrderId === orderId && this.ws && this.ws.readyState === WebSocket.OPEN) {
+  public connect(orderId: string, token?: string | null) {
+    if (!orderId) return;
+
+    const resolvedToken = token || getAuthToken();
+    if (!resolvedToken) {
+      return;
+    }
+
+    if (
+      this.currentOrderId === orderId &&
+      this.ws &&
+      (this.ws.readyState === WebSocket.OPEN ||
+        this.ws.readyState === WebSocket.CONNECTING)
+    ) {
       return;
     }
 
     this.disconnect();
-    this.currentOrderId = orderId;
-    this.token = token;
     this.isExplicitlyClosed = false;
-    this.lastSeq = 0;
+    this.currentOrderId = orderId;
+    this.token = resolvedToken;
 
-    const url = `${this.getWsUrl()}?orderId=${encodeURIComponent(orderId)}&token=${encodeURIComponent(token)}`;
+    const wsUrl = this.getWebSocketUrl(resolvedToken);
 
     try {
-      this.ws = new WebSocket(url);
+      this.ws = new WebSocket(wsUrl);
 
       this.ws.onopen = () => {
         this.reconnectAttempts = 0;
-        console.log(`[CustomerTracking] WebSocket connected for order ${this.currentOrderId}`);
-        // Send initial auth packet
-        try {
-          this.ws?.send(
+        if (this.ws?.readyState === WebSocket.OPEN) {
+          this.ws.send(
             JSON.stringify({
-              type: 'auth',
-              token: this.token,
-              orderId: this.currentOrderId,
+              type: 'SUBSCRIBE',
+              orderId,
+              token: resolvedToken,
             }),
           );
-          console.log(`[CustomerTracking] Subscribed to live tracking room for order ${this.currentOrderId}`);
-        } catch {}
+        }
       };
 
       this.ws.onmessage = (event) => {
         try {
-          const data = JSON.parse(event.data);
-          if (data.type === 'DRIVER_LOCATION_UPDATE') {
-            // Sequence check: reject out-of-order packets
-            if (data.seq && data.seq < this.lastSeq) {
-              console.warn(`[CustomerTracking] Out-of-order location packet discarded: seq=${data.seq} < lastSeq=${this.lastSeq}`);
-              return;
-            }
-            if (data.seq) this.lastSeq = data.seq;
+          const data = JSON.parse(event.data as string);
+          const msgType = String(data?.type || '').toUpperCase();
 
-            console.log(
-              `[CustomerTracking] Location update received: orderId=${data.orderId}, updatedAt=${data.location?.updatedAt || 'unknown'}, isStale=${!!data.location?.isStale}, seq=${data.seq}`,
-            );
-
-            if (data.location?.isStale) {
-              console.warn(`[CustomerTracking] Signal stale notice received for order ${data.orderId}`);
+          if (msgType === 'SUBSCRIBED') {
+            if (data.status) {
+              this.statusListeners.forEach((listener) => {
+                try {
+                  listener(data.status, data);
+                } catch {}
+              });
             }
+            if (data.driverLocation) {
+              this.locationListeners.forEach((listener) => {
+                try {
+                  listener(data.driverLocation, data.route);
+                } catch {}
+              });
+            }
+          } else if (msgType === 'DRIVER_LOCATION') {
+            if (typeof data.seq === 'number' && data.seq <= this.lastSeq) return;
+            if (typeof data.seq === 'number') this.lastSeq = data.seq;
+
+            const loc = data.location || {
+              latitude: data.latitude,
+              longitude: data.longitude,
+              heading: data.heading,
+              accuracy: data.accuracy,
+              speed: data.speed,
+              updatedAt: data.updatedAt,
+              isStale: data.isStale,
+            };
 
             this.locationListeners.forEach((listener) => {
               try {
-                listener(data.location, data.route);
+                listener(loc, data.route);
               } catch {}
             });
-          } else if (data.type === 'ORDER_STATUS_UPDATE') {
-            if (data.seq && data.seq < this.lastSeq) {
-              return;
-            }
-            if (data.seq) this.lastSeq = data.seq;
-            console.log(`[CustomerTracking] Order status update received: ${data.status} for order ${data.orderId}`);
+          } else if (msgType === 'ORDER_STATUS_UPDATE') {
+            if (typeof data.seq === 'number' && data.seq <= this.lastSeq) return;
+            if (typeof data.seq === 'number') this.lastSeq = data.seq;
 
             this.statusListeners.forEach((listener) => {
               try {
-                listener(data.status, data.payload);
+                listener(data.status, data);
               } catch {}
             });
+
+            if (TERMINAL_ORDER_STATUSES.includes(data.status)) {
+              this.isExplicitlyClosed = true;
+              try {
+                this.ws?.close();
+              } catch {}
+            }
+          } else if (msgType === 'ORDER_ARRIVED') {
+            if (typeof data.seq === 'number' && data.seq <= this.lastSeq) return;
+            if (typeof data.seq === 'number') this.lastSeq = data.seq;
+
+            this.arrivalListeners.forEach((listener) => {
+              try {
+                listener(data);
+              } catch {}
+            });
+          } else if (msgType === 'TRY_AND_BUY_UPDATED') {
+            if (typeof data.seq === 'number' && data.seq <= this.lastSeq) return;
+            if (typeof data.seq === 'number') this.lastSeq = data.seq;
+
+            this.tryAndBuyListeners.forEach((listener) => {
+              try {
+                listener(data);
+              } catch {}
+            });
+          } else if (msgType === 'PING' && this.ws?.readyState === WebSocket.OPEN) {
+            this.ws.send(JSON.stringify({ type: 'PING' }));
           }
         } catch {}
       };
 
-      this.ws.onerror = (err: any) => {
-        console.warn(`[CustomerTracking] WebSocket connection notice:`, err?.message || 'Connection event');
-      };
+      this.ws.onerror = () => {};
 
-      this.ws.onclose = () => {
-        console.log(`[CustomerTracking] WebSocket closed (reconnect scheduled: ${!this.isExplicitlyClosed})`);
+      this.ws.onclose = (event: any) => {
+        if (event?.code === 4001 || event?.code === 4003) {
+          this.isExplicitlyClosed = true;
+          return;
+        }
         if (!this.isExplicitlyClosed && this.currentOrderId) {
           this.scheduleReconnect();
         }
@@ -135,8 +165,16 @@ class TrackingSocketService {
   }
 
   private scheduleReconnect() {
-    if (this.isExplicitlyClosed || this.reconnectAttempts >= this.maxReconnectAttempts) {
+    if (
+      this.isExplicitlyClosed ||
+      this.reconnectAttempts >= this.maxReconnectAttempts
+    ) {
       return;
+    }
+
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
     }
 
     const backoffDelay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 16000);
@@ -144,7 +182,9 @@ class TrackingSocketService {
 
     this.reconnectTimer = setTimeout(() => {
       if (!this.isExplicitlyClosed && this.currentOrderId) {
-        this.connect(this.currentOrderId, this.token);
+        const orderId = this.currentOrderId;
+        const latestToken = getAuthToken() || this.token;
+        this.connect(orderId, latestToken);
       }
     }, backoffDelay);
   }
@@ -163,6 +203,20 @@ class TrackingSocketService {
     };
   }
 
+  public subscribeTryAndBuy(listener: TryAndBuyListener): () => void {
+    this.tryAndBuyListeners.add(listener);
+    return () => {
+      this.tryAndBuyListeners.delete(listener);
+    };
+  }
+
+  public subscribeArrival(listener: ArrivalListener): () => void {
+    this.arrivalListeners.add(listener);
+    return () => {
+      this.arrivalListeners.delete(listener);
+    };
+  }
+
   public disconnect() {
     this.isExplicitlyClosed = true;
     if (this.reconnectTimer) {
@@ -176,9 +230,10 @@ class TrackingSocketService {
       this.ws = null;
     }
     this.currentOrderId = null;
+    this.token = null;
+    this.lastSeq = 0;
     this.reconnectAttempts = 0;
   }
 }
 
 export const trackingSocketService = new TrackingSocketService();
-

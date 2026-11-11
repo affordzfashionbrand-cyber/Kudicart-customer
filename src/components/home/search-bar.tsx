@@ -55,6 +55,7 @@ export const UniversalSearchBar = React.memo(function UniversalSearchBar({
   useEffect(() => {
     // If a custom static placeholder is provided, don't tick
     if (placeholder) return;
+    const isNative = Platform.OS !== 'web';
 
     const interval = setInterval(() => {
       Animated.parallel([
@@ -62,13 +63,13 @@ export const UniversalSearchBar = React.memo(function UniversalSearchBar({
           toValue: -14,
           duration: 250,
           easing: bespokeEasing,
-          useNativeDriver: true,
+          useNativeDriver: isNative,
         }),
         Animated.timing(placeholderOpacityAnim, {
           toValue: 0,
           duration: 200,
           easing: bespokeEasing,
-          useNativeDriver: true,
+          useNativeDriver: isNative,
         }),
       ]).start(() => {
         setPlaceholderIndex((prev) => (prev + 1) % SEARCH_PLACEHOLDERS.length);
@@ -78,13 +79,13 @@ export const UniversalSearchBar = React.memo(function UniversalSearchBar({
             toValue: 0,
             duration: 280,
             easing: bespokeEasing,
-            useNativeDriver: true,
+            useNativeDriver: isNative,
           }),
           Animated.timing(placeholderOpacityAnim, {
             toValue: 1,
             duration: 260,
             easing: bespokeEasing,
-            useNativeDriver: true,
+            useNativeDriver: isNative,
           }),
         ]).start();
       });

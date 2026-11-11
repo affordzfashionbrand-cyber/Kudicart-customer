@@ -28,14 +28,24 @@ interface SelectDarkStoreModalProps {
   onSelectStore?: (store: DarkStore) => void;
 }
 
-export function SelectDarkStoreModal({
+export const SelectDarkStoreModal = React.memo(function SelectDarkStoreModal({
   visible,
   onClose,
   onSelectStore,
 }: SelectDarkStoreModalProps) {
-  const { darkStores, selectedDarkStore, setSelectedDarkStore } = useDarkStore();
+  const { darkStores, selectedDarkStore, setSelectedDarkStore, syncFromCatalog } = useDarkStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState<'ALL' | 'FAST' | 'LUXE'>('ALL');
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  React.useEffect(() => {
+    if (visible && darkStores.length === 0) {
+      setIsSyncing(true);
+      syncFromCatalog()
+        .catch(() => {})
+        .finally(() => setIsSyncing(false));
+    }
+  }, [visible, darkStores.length, syncFromCatalog]);
 
   const filteredStores = useMemo(() => {
     return darkStores.filter((store) => {
@@ -302,8 +312,19 @@ export function SelectDarkStoreModal({
           {/* Store List */}
           <ScrollView
             showsVerticalScrollIndicator={false}
+            scrollEventThrottle={16}
             contentContainerStyle={{ paddingBottom: 16, gap: 12 }}
           >
+            {filteredStores.length === 0 && (
+              <View style={{ paddingVertical: 28, alignItems: 'center' }}>
+                <Text style={{ fontSize: 13, fontWeight: '700', color: '#E5E5E5', marginBottom: 4 }}>
+                  {isSyncing ? 'Loading active hubs...' : 'No matching Dark Store hubs'}
+                </Text>
+                <Text style={{ fontSize: 11.5, color: '#888888', textAlign: 'center' }}>
+                  {isSyncing ? 'Checking nearby express hubs.' : 'Try clearing your search or filter.'}
+                </Text>
+              </View>
+            )}
             {filteredStores.map((store) => {
               const isSelected = selectedDarkStore?.id === store.id;
 
@@ -541,4 +562,4 @@ export function SelectDarkStoreModal({
       </View>
     </Modal>
   );
-}
+});

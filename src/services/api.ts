@@ -1,5 +1,9 @@
 import { Platform } from 'react-native';
-import { COMPLETE_CATEGORY_HIERARCHY } from '@/data/category-hierarchy-data';
+import {
+  OrderStatus as CanonicalOrderStatus,
+  CheckoutResponseContract,
+  TryAndBuySessionContract,
+} from '@/contracts/order-contracts';
 
 export const API_BASE_URL =
   process.env.EXPO_PUBLIC_API_URL ||
@@ -37,7 +41,13 @@ export const PRODUCT_ID_MAP: Record<string, string> = {
 // Token management in-memory (fails closed to null)
 let authToken: string | null = null;
 let onUnauthorizedCallback: (() => void) | null = null;
+let tokenRefresherCallback: (() => Promise<string | null>) | null = null;
 let isHandlingUnauthorized = false;
+let refreshPromise: Promise<string | null> | null = null;
+
+export function setTokenRefresher(cb: (() => Promise<string | null>) | null) {
+  tokenRefresherCallback = cb;
+}
 
 export const setOnUnauthorizedCallback = (callback: (() => void) | null) => {
   onUnauthorizedCallback = callback;
@@ -49,8 +59,24 @@ export const setAuthToken = (token: string | null) => {
 
 export const getAuthToken = () => authToken;
 
-// Generic request helper with timeout and offline-resilience
-export async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+export interface ApiError extends Error {
+  status?: number;
+}
+
+function createApiError(message: string, status?: number): ApiError {
+  const err = new Error(message) as ApiError;
+  if (typeof status === 'number') {
+    err.status = status;
+  }
+  return err;
+}
+
+// Generic request helper with timeout, single 401 refresh retry, and strict 403 non-logout
+export async function request<T>(
+  endpoint: string,
+  options: RequestInit = {},
+  isRetry = false,
+): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`;
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -71,26 +97,57 @@ export async function request<T>(endpoint: string, options: RequestInit = {}): P
     clearTimeout(timeoutId);
 
     if (!res.ok) {
-      if (res.status === 401 || res.status === 403) {
-        setAuthToken(null);
-        if (!isHandlingUnauthorized && typeof onUnauthorizedCallback === 'function') {
-          isHandlingUnauthorized = true;
-          try {
-            onUnauthorizedCallback();
-          } catch {
-            // ignore
-          } finally {
-            setTimeout(() => {
-              isHandlingUnauthorized = false;
-            }, 1000);
+      if (res.status === 401) {
+        const isAuthExchangeEndpoint =
+          endpoint.includes('/auth/login-firebase') ||
+          endpoint.includes('/auth/firebase/login') ||
+          endpoint.includes('/auth/phone/');
+
+        if (!isRetry && !isAuthExchangeEndpoint && typeof tokenRefresherCallback === 'function') {
+          if (!refreshPromise) {
+            refreshPromise = tokenRefresherCallback().finally(() => {
+              refreshPromise = null;
+            });
+          }
+          const refreshedToken = await refreshPromise;
+          if (refreshedToken) {
+            setAuthToken(refreshedToken);
+            return request<T>(endpoint, options, true);
+          }
+        }
+
+        if (!isAuthExchangeEndpoint) {
+          setAuthToken(null);
+          if (!isHandlingUnauthorized && typeof onUnauthorizedCallback === 'function') {
+            isHandlingUnauthorized = true;
+            try {
+              onUnauthorizedCallback();
+            } catch {
+              // ignore
+            } finally {
+              setTimeout(() => {
+                isHandlingUnauthorized = false;
+              }, 1000);
+            }
           }
         }
       }
       const errorData = await res.json().catch(() => ({}));
-      throw new Error(errorData.message || `Request failed with status ${res.status}`);
+      throw createApiError(
+        errorData.message || `Request failed with status ${res.status}`,
+        res.status,
+      );
     }
 
-    return await res.json();
+    if (res.status === 204) {
+      return undefined as T;
+    }
+
+    const text = await res.text();
+    if (!text) {
+      return undefined as T;
+    }
+    return JSON.parse(text) as T;
   } catch (error: any) {
     clearTimeout(timeoutId);
     const isAborted =
@@ -109,9 +166,9 @@ export async function request<T>(endpoint: string, options: RequestInit = {}): P
 // -------------------------------------------------------------
 export interface AuthUser {
   id: string;
-  phone: string;
+  phone: string | null;
   name: string;
-  email: string;
+  email: string | null;
   avatar: string | null;
   role: 'CUSTOMER' | 'DRIVER' | 'VENDOR' | 'ADMIN';
 }
@@ -176,38 +233,51 @@ export const authApi = {
     }
   },
 
-  updateProfile: async (data: Partial<AuthUser>): Promise<AuthUser> => {
+  verifyProfileSession: async (): Promise<AuthUser | null> => {
+    if (!authToken) return null;
+    return await request<AuthUser>('/api/v1/users/me');
+  },
+
+  updateProfile: async (data: {
+    name?: string;
+    email?: string | null;
+    phone?: string | null;
+    avatar?: string | null;
+  }): Promise<AuthUser> => {
+    if (!authToken) {
+      throw createApiError('Please sign in to update your profile.', 401);
+    }
+
     const payload: Record<string, any> = {};
-    if (data.name !== undefined && data.name.trim()) payload.name = data.name.trim();
+    if (data.name !== undefined && data.name.trim()) {
+      payload.name = data.name.trim();
+    }
     if (data.email !== undefined) {
-      const emailTrim = data.email.trim();
+      const emailTrim = data.email === null ? '' : data.email.trim();
       payload.email = emailTrim ? emailTrim.toLowerCase() : null;
     }
-    if (data.phone !== undefined && data.phone.trim()) payload.phone = data.phone.trim();
-    if (data.avatar !== undefined) payload.avatar = data.avatar;
+    if (data.phone !== undefined) {
+      const phoneTrim = data.phone === null ? '' : data.phone.trim();
+      payload.phone = phoneTrim ? phoneTrim : null;
+    }
+    if (data.avatar !== undefined) {
+      payload.avatar = data.avatar;
+    }
 
-    const fallbackUser: AuthUser = {
-      id: 'usr-local',
-      name: payload.name || data.name || 'Affordz Customer',
-      email: payload.email || data.email || '',
-      phone: payload.phone || data.phone || '',
-      avatar: payload.avatar || null,
-      role: 'CUSTOMER',
-    };
+    return await request<AuthUser>('/api/v1/users/me', {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+  },
 
+  deleteAccount: async (): Promise<{ deleted?: boolean; success?: boolean; message?: string }> => {
     if (!authToken) {
-      return fallbackUser;
+      throw createApiError('Please sign in to delete your account.', 401);
     }
-
-    try {
-      const res = await request<AuthUser>('/api/v1/users/me', {
-        method: 'PATCH',
-        body: JSON.stringify(payload),
-      });
-      return res || fallbackUser;
-    } catch {
-      return fallbackUser;
-    }
+    return await request<{ deleted?: boolean; success?: boolean; message?: string }>(
+      '/api/v1/users/me',
+      { method: 'DELETE' },
+    );
   },
 };
 
@@ -294,54 +364,26 @@ export interface ApiSearchSuggestionsResponse {
 
 export const catalogApi = {
   getCategories: async (params?: { tree?: boolean; parentId?: string; level?: number; gender?: string }): Promise<CategoryItem[]> => {
-    try {
-      const q = new URLSearchParams();
-      if (params?.tree) q.append('tree', 'true');
-      if (params?.parentId) q.append('parentId', params.parentId);
-      if (params?.level) q.append('level', String(params.level));
-      if (params?.gender && params.gender !== 'All') q.append('gender', params.gender);
-      const qs = q.toString() ? `?${q.toString()}` : '';
-      return await request<CategoryItem[]>(`/api/v1/categories${qs}`);
-    } catch {
-      return COMPLETE_CATEGORY_HIERARCHY as any;
-    }
+    const q = new URLSearchParams();
+    if (params?.tree) q.append('tree', 'true');
+    if (params?.parentId) q.append('parentId', params.parentId);
+    if (params?.level) q.append('level', String(params.level));
+    if (params?.gender && params.gender !== 'All') q.append('gender', params.gender);
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    return await request<CategoryItem[]>(`/api/v1/categories${qs}`);
   },
 
   getCategoriesHierarchy: async (gender?: string): Promise<CategoryItem[]> => {
-    try {
-      const q = gender && gender !== 'All' ? `?gender=${encodeURIComponent(gender)}` : '';
-      return await request<CategoryItem[]>(`/api/v1/categories/hierarchy${q}`);
-    } catch {
-      if (!gender || gender === 'All') return COMPLETE_CATEGORY_HIERARCHY as any;
-      const g = gender.toLowerCase();
-      return COMPLETE_CATEGORY_HIERARCHY.filter(
-        (c) => c.gender.toLowerCase() === g || c.gender.toLowerCase() === 'unisex',
-      ) as any;
-    }
+    const q = gender && gender !== 'All' ? `?gender=${encodeURIComponent(gender)}` : '';
+    return await request<CategoryItem[]>(`/api/v1/categories/hierarchy${q}`);
   },
 
   getDarkStores: async (): Promise<any[]> => {
-    try {
-      return await request<any[]>('/api/v1/dark-stores');
-    } catch {
-      return [
-        { id: 'hub-indiranagar', name: 'Indiranagar Express Hub', locality: 'Indiranagar', deliveryMinutes: 18, isActive: true },
-        { id: 'hub-koramangala', name: 'Koramangala Fashion Vault', locality: 'Koramangala', deliveryMinutes: 20, isActive: true },
-        { id: 'hub-lavelle', name: 'Lavelle Concierge Hub', locality: 'Lavelle Road', deliveryMinutes: 15, isActive: true },
-        { id: 'hub-whitefield', name: 'Whitefield Prestige Hub', locality: 'Whitefield', deliveryMinutes: 25, isActive: true },
-      ];
-    }
+    return await request<any[]>('/api/v1/dark-stores');
   },
 
   getActiveCoupons: async (): Promise<any[]> => {
-    try {
-      return await request<any[]>('/api/v1/coupons/active');
-    } catch {
-      return [
-        { id: 'cpn-1', code: 'AFFORDZ10', discountType: 'PERCENTAGE', discountValue: 10, minOrderValue: 999, maxDiscount: 300, isActive: true },
-        { id: 'cpn-2', code: 'FIRSTDROP', discountType: 'FLAT', discountValue: 200, minOrderValue: 799, maxDiscount: 200, isActive: true },
-      ];
-    }
+    return await request<any[]>('/api/v1/coupons/active');
   },
 
   getProducts: async (params?: {
@@ -356,211 +398,35 @@ export const catalogApi = {
     page?: number;
     limit?: number;
   }): Promise<ApiProduct[]> => {
-    try {
-      const query = new URLSearchParams();
-      if (params?.category && params.category !== 'All') query.append('category', params.category);
-      if (params?.search) query.append('search', params.search);
-      if (params?.sort) query.append('sort', params.sort);
-      if (params?.sortBy) query.append('sortBy', params.sortBy);
-      if (params?.fulfillmentType) query.append('fulfillmentType', params.fulfillmentType);
-      if (params?.tryAndBuyOnly) query.append('tryAndBuyOnly', String(params.tryAndBuyOnly));
-      if (params?.minPrice !== undefined) query.append('minPrice', String(params.minPrice));
-      if (params?.maxPrice !== undefined) query.append('maxPrice', String(params.maxPrice));
-      if (params?.page) query.append('page', String(params.page));
-      if (params?.limit) query.append('limit', String(params.limit));
-
-      const qs = query.toString() ? `?${query.toString()}` : '';
-      return await request<ApiProduct[]>(`/api/v1/products${qs}`);
-    } catch {
-      // Resilient fallback products
-      return [
-        {
-          id: 'prod-1',
-          brand: 'Avanya Ethnic',
-          title: 'Embroidered Anarkali Kurta Set',
-          description: 'Intricate Zardozi thread embroidery on chanderi silk with matching dupatta.',
-          price: 1299,
-          originalPrice: 2499,
-          discount: '48% OFF',
-          rating: 4.8,
-          reviewsCount: 142,
-          stockQuantity: 12,
-          stockBadge: 'Ready in 35m',
-          readyToShip: true,
-          sizes: ['S', 'M', 'L', 'XL'],
-          fabric: 'Chanderi Silk Blend',
-          origin: 'Handcrafted in Jaipur',
-          image: 'https://images.unsplash.com/photo-1539109136881-3be0616acf4b?auto=format&fit=crop&w=800&q=85',
-          altText: 'Anarkali Kurta Set',
-          galleryImages: [
-            'https://images.unsplash.com/photo-1539109136881-3be0616acf4b?auto=format&fit=crop&w=800&q=85',
-            'https://images.unsplash.com/photo-1506629905607-d9e08e2d3e8e?auto=format&fit=crop&w=800&q=85',
-          ],
-          category: 'Kurtis',
-          vendor: {
-            id: 'vend-1',
-            storeName: 'Avanya Ethnic Boutique',
-            address: 'Shop 14, 100ft Road, Indiranagar, Bengaluru',
-            phone: '+91 80 4123 9988',
-          },
-        },
-        {
-          id: 'prod-2',
-          brand: 'Varanasi Looms',
-          title: 'Handloom Cotton Saree with Zari',
-          description: 'Traditional Kaddi border handloom cotton saree woven by master artisans.',
-          price: 1849,
-          originalPrice: 3190,
-          discount: '42% OFF',
-          rating: 4.9,
-          reviewsCount: 88,
-          stockQuantity: 8,
-          stockBadge: 'Express Dispatch',
-          readyToShip: true,
-          sizes: ['Free Size'],
-          fabric: '100% Breathable Mulmul Cotton',
-          origin: 'Varanasi, Uttar Pradesh',
-          image: 'https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=800&q=85',
-          altText: 'Cotton Saree with Zari',
-          galleryImages: ['https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=800&q=85'],
-          category: 'Sarees',
-          vendor: {
-            id: 'vend-1',
-            storeName: 'Avanya Ethnic Boutique',
-            address: 'Shop 14, 100ft Road, Indiranagar, Bengaluru',
-            phone: '+91 80 4123 9988',
-          },
-        },
-        {
-          id: 'prod-3',
-          brand: 'Gulabi Studio',
-          title: 'Tiered Floral Rayon Maxi Dress',
-          description: 'Flowy botanical silhouette with flutter sleeves and waist tie sash.',
-          price: 999,
-          originalPrice: 1999,
-          discount: '50% OFF',
-          rating: 4.6,
-          reviewsCount: 65,
-          stockQuantity: 15,
-          stockBadge: 'Only 3 left in M',
-          readyToShip: true,
-          sizes: ['S', 'M', 'L'],
-          fabric: '100% Rayon',
-          origin: 'Sanganer, Rajasthan',
-          image: 'https://images.unsplash.com/photo-1596462502278-27bfdc403348?auto=format&fit=crop&w=800&q=85',
-          altText: 'Floral Rayon Maxi Dress',
-          galleryImages: ['https://images.unsplash.com/photo-1596462502278-27bfdc403348?auto=format&fit=crop&w=800&q=85'],
-          category: 'Dresses',
-          vendor: {
-            id: 'vend-2',
-            storeName: 'Gulabi Studio',
-            address: '42 Commercial Street, Bengaluru',
-            phone: '+91 80 2558 7711',
-          },
-        },
-        {
-          id: 'prod-4',
-          brand: 'Suta Weaves',
-          title: 'Indigo Dabu Print Cotton Fabric',
-          description: 'Mud resist printed natural indigo organic fabric, sold per metre.',
-          price: 450,
-          originalPrice: 650,
-          discount: '30% OFF',
-          rating: 4.7,
-          reviewsCount: 39,
-          stockQuantity: 40,
-          stockBadge: 'Cut-to-Length',
-          readyToShip: true,
-          sizes: ['1 Metre', '2 Metres', '5 Metres'],
-          fabric: 'Organic Cotton (60s count)',
-          origin: 'Bagru, Rajasthan',
-          image: 'https://images.unsplash.com/photo-1584917865442-de89df76afd3?auto=format&fit=crop&w=800&q=85',
-          altText: 'Indigo Dabu Print',
-          galleryImages: ['https://images.unsplash.com/photo-1584917865442-de89df76afd3?auto=format&fit=crop&w=800&q=85'],
-          category: 'Fabrics',
-          vendor: {
-            id: 'vend-2',
-            storeName: 'Gulabi Studio',
-            address: '42 Commercial Street, Bengaluru',
-            phone: '+91 80 2558 7711',
-          },
-        },
-      ];
-    }
+    const query = new URLSearchParams();
+    if (params?.category && params.category !== 'All') query.append('category', params.category);
+    if (params?.search) query.append('search', params.search);
+    if (params?.sort) query.append('sort', params.sort);
+    if (params?.sortBy) query.append('sortBy', params.sortBy);
+    if (params?.fulfillmentType) query.append('fulfillmentType', params.fulfillmentType);
+    if (params?.tryAndBuyOnly) query.append('tryAndBuyOnly', String(params.tryAndBuyOnly));
+    if (params?.minPrice !== undefined) query.append('minPrice', String(params.minPrice));
+    if (params?.maxPrice !== undefined) query.append('maxPrice', String(params.maxPrice));
+    if (params?.page) query.append('page', String(params.page));
+    if (params?.limit) query.append('limit', String(params.limit));
+    const qs = query.toString() ? `?${query.toString()}` : '';
+    return await request<ApiProduct[]>(`/api/v1/products${qs}`);
   },
 
   getProductById: async (id: string): Promise<ApiProduct> => {
-    try {
-      const rawId = String(id).trim();
-      const mappedId =
-        PRODUCT_ID_MAP[rawId] ||
-        (rawId.startsWith('prod-') || rawId.startsWith('deal-') ? rawId : `prod-${rawId}`);
-      return await request<ApiProduct>(`/api/v1/products/${mappedId}`);
-    } catch {
-      const all = await catalogApi.getProducts().catch(() => []);
-      const fallbackId = PRODUCT_ID_MAP[String(id)] || String(id);
-      return all.find((p) => p.id === id || p.id === fallbackId) || all[0];
-    }
+    const rawId = String(id).trim();
+    const mappedId =
+      PRODUCT_ID_MAP[rawId] ||
+      (rawId.startsWith('prod-') || rawId.startsWith('deal-') ? rawId : `prod-${rawId}`);
+    return await request<ApiProduct>(`/api/v1/products/${encodeURIComponent(mappedId)}`);
   },
 
   getSearchSuggestions: async (q?: string, limit?: number): Promise<ApiSearchSuggestionsResponse> => {
-    try {
-      const params = new URLSearchParams();
-      if (q) params.append('q', q);
-      if (limit) params.append('limit', String(limit));
-      const qs = params.toString() ? `?${params.toString()}` : '';
-      return await request<ApiSearchSuggestionsResponse>(`/api/v1/search/suggestions${qs}`);
-    } catch {
-      const cleanQ = (q || '').trim().toLowerCase();
-      const trending = [
-        'Handloom Silk Sarees',
-        'Embroidered Anarkali Sets',
-        'Chanderi Silk Tunics',
-        'Tiered Floral Maxi Dresses',
-        'Structured Linen Shirts',
-        'Raw Selvedge Denim',
-        'Court Leather Sneakers',
-        'Minimal Leather Totes',
-      ];
-      const all = await catalogApi.getProducts();
-      if (!cleanQ) {
-        return {
-          query: '',
-          suggestions: trending.map((text) => ({ text, type: 'keyword' })),
-          categories: [
-            { id: 'kurtis', name: 'Kurtis', count: 12 },
-            { id: 'sarees', name: 'Sarees', count: 8 },
-            { id: 'dresses', name: 'Dresses', count: 15 },
-          ],
-          brands: [
-            { name: 'Avanya Ethnic', count: 6 },
-            { name: 'Gulabi Studio', count: 5 },
-          ],
-          trending,
-          recentPicks: all.slice(0, 4),
-        };
-      }
-
-      const matchingSuggestions = trending
-        .filter((t) => t.toLowerCase().includes(cleanQ))
-        .map((text) => ({ text, type: 'keyword' as const }));
-
-      const matchingProducts = all.filter(
-        (p) =>
-          p.title.toLowerCase().includes(cleanQ) ||
-          p.brand.toLowerCase().includes(cleanQ) ||
-          (p.category && p.category.toLowerCase().includes(cleanQ)),
-      );
-
-      return {
-        query: q || '',
-        suggestions: matchingSuggestions,
-        categories: [],
-        brands: [],
-        trending,
-        recentPicks: matchingProducts.slice(0, 4),
-      };
-    }
+    const params = new URLSearchParams();
+    if (q) params.append('q', q);
+    if (limit) params.append('limit', String(limit));
+    const qs = params.toString() ? `?${params.toString()}` : '';
+    return await request<ApiSearchSuggestionsResponse>(`/api/v1/search/suggestions${qs}`);
   },
 
   searchProducts: async (params?: {
@@ -575,24 +441,20 @@ export const catalogApi = {
     page?: number;
     limit?: number;
   }): Promise<ApiProduct[]> => {
-    try {
-      const query = new URLSearchParams();
-      if (params?.category && params.category !== 'All') query.append('category', params.category);
-      if (params?.search) query.append('search', params.search);
-      if (params?.sort) query.append('sort', params.sort);
-      if (params?.sortBy) query.append('sortBy', params.sortBy);
-      if (params?.fulfillmentType) query.append('fulfillmentType', params.fulfillmentType);
-      if (params?.tryAndBuyOnly) query.append('tryAndBuyOnly', String(params.tryAndBuyOnly));
-      if (params?.minPrice !== undefined) query.append('minPrice', String(params.minPrice));
-      if (params?.maxPrice !== undefined) query.append('maxPrice', String(params.maxPrice));
-      if (params?.page) query.append('page', String(params.page));
-      if (params?.limit) query.append('limit', String(params.limit));
+    const query = new URLSearchParams();
+    if (params?.category && params.category !== 'All') query.append('category', params.category);
+    if (params?.search) query.append('search', params.search);
+    if (params?.sort) query.append('sort', params.sort);
+    if (params?.sortBy) query.append('sortBy', params.sortBy);
+    if (params?.fulfillmentType) query.append('fulfillmentType', params.fulfillmentType);
+    if (params?.tryAndBuyOnly) query.append('tryAndBuyOnly', String(params.tryAndBuyOnly));
+    if (params?.minPrice !== undefined) query.append('minPrice', String(params.minPrice));
+    if (params?.maxPrice !== undefined) query.append('maxPrice', String(params.maxPrice));
+    if (params?.page) query.append('page', String(params.page));
+    if (params?.limit) query.append('limit', String(params.limit));
 
-      const qs = query.toString() ? `?${query.toString()}` : '';
-      return await request<ApiProduct[]>(`/api/v1/search${qs}`);
-    } catch {
-      return catalogApi.getProducts(params);
-    }
+    const qs = query.toString() ? `?${query.toString()}` : '';
+    return await request<ApiProduct[]>(`/api/v1/search${qs}`);
   },
 };
 
@@ -619,6 +481,19 @@ export interface CartItemModel {
   image?: string;
 }
 
+export interface CartSplitBucketModel {
+  bucketKey: string;
+  vendorId: string;
+  vendorName: string;
+  fulfillmentType: 'DARK_STORE' | 'VENDOR';
+  darkStoreHubId?: string | null;
+  itemTotal: number;
+  itemCount: number;
+  tryAndBuyEligible: boolean;
+  deliveryFee: number;
+  items: CartItemModel[];
+}
+
 export interface CartModel {
   id: string;
   userId?: string;
@@ -627,6 +502,9 @@ export interface CartModel {
   deliveryFee: number;
   taxes: number;
   discountAmount?: number;
+  giftWrap?: boolean;
+  giftWrapFee?: number;
+  donationAmount?: number;
   coupon?: {
     id: string;
     code: string;
@@ -636,6 +514,8 @@ export interface CartModel {
   } | null;
   couponCode?: string | null;
   grandTotal: number;
+  splitOrderCount?: number;
+  splitBuckets?: CartSplitBucketModel[];
   count?: number;
 }
 
@@ -649,22 +529,25 @@ export const cartApi = {
         itemTotal: 0,
         deliveryFee: 0,
         taxes: 0,
+        giftWrap: false,
+        giftWrapFee: 0,
+        donationAmount: 0,
+        splitOrderCount: 0,
+        splitBuckets: [],
         grandTotal: 0,
       };
     }
-    try {
-      return await request<CartModel>('/api/v1/cart');
-    } catch {
-      return {
-        id: '',
-        userId: '',
-        items: [],
-        itemTotal: 0,
-        deliveryFee: 0,
-        taxes: 0,
-        grandTotal: 0,
-      };
-    }
+    return await request<CartModel>('/api/v1/cart');
+  },
+
+  updatePreferences: async (prefs: {
+    giftWrap?: boolean;
+    donationAmount?: number;
+  }): Promise<CartModel> => {
+    return await request<CartModel>('/api/v1/cart/preferences', {
+      method: 'PATCH',
+      body: JSON.stringify(prefs),
+    });
   },
 
   addItem: async (
@@ -755,168 +638,99 @@ export const addressApi = {
     if (!authToken) {
       return [];
     }
-    try {
-      return await request<AddressModel[]>('/api/v1/addresses');
-    } catch {
-      return [];
-    }
+    return await request<AddressModel[]>('/api/v1/addresses');
   },
 
   addAddress: async (data: Omit<AddressModel, 'id' | 'userId'>): Promise<AddressModel> => {
-    const createLocal = (): AddressModel => ({
-      id: `addr-local-${Date.now()}`,
-      userId: 'guest',
-      label: data.label || 'Delivery Location',
-      recipientName: data.recipientName || 'Guest User',
-      recipientPhone: data.recipientPhone || '',
-      line1: data.line1 || '',
-      line2: data.line2 || '',
-      locality: data.locality || '',
-      city: data.city || 'Bengaluru',
-      state: data.state || 'Karnataka',
-      pincode: data.pincode || '',
-      latitude: data.latitude,
-      longitude: data.longitude,
-      isDefault: data.isDefault ?? true,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    });
-
     if (!authToken) {
-      return createLocal();
+      throw createApiError('Please sign in to save a delivery address.', 401);
     }
-
-    try {
-      return await request<AddressModel>('/api/v1/addresses', {
-        method: 'POST',
-        body: JSON.stringify(data),
-      });
-    } catch {
-      return createLocal();
-    }
+    return await request<AddressModel>('/api/v1/addresses', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
   },
 
   updateAddress: async (id: string, data: Partial<AddressModel>): Promise<AddressModel> => {
-    if (!authToken || id.startsWith('addr-local-')) {
-      return {
-        id,
-        userId: 'guest',
-        label: data.label || 'Delivery Location',
-        line1: data.line1 || '',
-        locality: data.locality || '',
-        city: data.city || 'Bengaluru',
-        pincode: data.pincode || '',
-        isDefault: data.isDefault ?? false,
-        ...data,
-      } as AddressModel;
+    if (!authToken) {
+      throw createApiError('Please sign in to update a delivery address.', 401);
     }
-    try {
-      return await request<AddressModel>(`/api/v1/addresses/${id}`, {
-        method: 'PATCH',
-        body: JSON.stringify(data),
-      });
-    } catch {
-      return {
-        id,
-        userId: 'guest',
-        label: data.label || 'Delivery Location',
-        line1: data.line1 || '',
-        locality: data.locality || '',
-        city: data.city || 'Bengaluru',
-        pincode: data.pincode || '',
-        isDefault: data.isDefault ?? false,
-        ...data,
-      } as AddressModel;
-    }
+    return await request<AddressModel>(`/api/v1/addresses/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
   },
 
   deleteAddress: async (id: string): Promise<boolean> => {
-    if (!authToken || id.startsWith('addr-local-')) {
-      return true;
+    if (!authToken) {
+      throw createApiError('Please sign in to remove a delivery address.', 401);
     }
-    try {
-      await request<{ success: boolean }>(`/api/v1/addresses/${id}`, {
-        method: 'DELETE',
-      });
-      return true;
-    } catch {
-      return true;
-    }
+    await request<{ success: boolean }>(`/api/v1/addresses/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+    return true;
   },
 
   setDefault: async (id: string): Promise<AddressModel> => {
-    if (!authToken || id.startsWith('addr-local-')) {
-      return {
-        id,
-        userId: 'guest',
-        label: 'Delivery Location',
-        line1: '',
-        locality: '',
-        city: 'Bengaluru',
-        pincode: '',
-        isDefault: true,
-      };
+    if (!authToken) {
+      throw createApiError('Please sign in to select a default delivery address.', 401);
     }
-    try {
-      return await request<AddressModel>(`/api/v1/addresses/${id}/default`, {
-        method: 'PATCH',
-      });
-    } catch {
-      return {
-        id,
-        userId: 'guest',
-        label: 'Delivery Location',
-        line1: '',
-        locality: '',
-        city: 'Bengaluru',
-        pincode: '',
-        isDefault: true,
-      };
-    }
+    return await request<AddressModel>(`/api/v1/addresses/${encodeURIComponent(id)}/default`, {
+      method: 'PATCH',
+    });
   },
 };
 
 // -------------------------------------------------------------
 // ORDERS & TRACKING API
 // -------------------------------------------------------------
-export type OrderStatus =
-  | 'PLACED'
-  | 'ACCEPTED'
-  | 'PREPARING'
-  | 'READY_FOR_PICKUP'
-  | 'ASSIGNED'
-  | 'PICKED_UP'
-  | 'OUT_FOR_DELIVERY'
-  | 'DELIVERED'
-  | 'CANCELLED';
+export type OrderStatus = CanonicalOrderStatus;
 
 export interface OrderItemModel {
   id: string;
+  productId?: string;
   title: string;
   brand: string;
   size: string;
+  color?: string;
+  trialSize?: string;
   price: number;
   quantity: number;
   image: string;
+  fulfillmentType?: string;
+  isTryAndBuy?: boolean;
+  tryAndBuyDecision?: 'KEEP' | 'RETURN' | string | null;
 }
 
 export interface OrderModel {
   id: string;
   orderNumber: string;
+  version?: number;
   customerId: string;
+  checkoutGroupId?: string | null;
+  groupNumber?: string | null;
+  fulfillmentType?: string;
   status: OrderStatus;
   paymentMethod: 'RAZORPAY' | 'COD';
-  paymentStatus: 'PENDING' | 'COMPLETED' | 'FAILED' | 'REFUNDED';
+  paymentStatus: 'PENDING' | 'COMPLETED' | 'FAILED' | 'REFUND_PENDING' | 'REFUNDED' | 'PARTIAL';
   itemTotal: number;
   deliveryFee: number;
   taxes: number;
+  taxAmount?: number;
+  giftWrapFee?: number;
+  donationAmount?: number;
   discountAmount?: number;
   couponCode?: string | null;
   isTryAndBuy?: boolean;
+  isArrived?: boolean;
+  arrivedAt?: string | null;
+  handoverOtp?: string;
+  tryAndBuySession?: TryAndBuySessionContract | null;
   grandTotal: number;
   etaMinutes: number;
   createdAt: string;
-  address: AddressModel;
+  address?: AddressModel;
+  deliveryAddress?: AddressModel;
   items: OrderItemModel[];
   driver?: {
     id: string;
@@ -928,6 +742,10 @@ export interface OrderModel {
   razorpayOrderId?: string;
   razorpayPaymentId?: string;
   razorpayKeyId?: string;
+  checkoutSessionToken?: string;
+  checkoutSessionUrl?: string;
+  splitOrders?: OrderModel[];
+  checkoutGroup?: CheckoutResponseContract;
 }
 
 export interface OrderTrackingMilestone {
@@ -941,18 +759,40 @@ export interface OrderTrackingMilestone {
 export interface TrackingModel {
   orderId: string;
   orderNumber: string;
+  version?: number;
   status: OrderStatus;
+  trackingActive?: boolean;
+  isArrived?: boolean;
+  arrivedAt?: string | null;
   etaMinutes: number;
   itemTotal?: number;
   deliveryFee?: number;
   taxes?: number;
+  giftWrapFee?: number;
+  donationAmount?: number;
   discountAmount?: number;
   couponCode?: string | null;
   isTryAndBuy?: boolean;
+  tryAndBuySession?: TryAndBuySessionContract | null;
+  handoverOtp?: string | null;
+  deliveryInstructions?: string | null;
   grandTotal?: number;
   paymentMethod?: string;
   paymentStatus?: string;
   deliveryAddress?: AddressModel;
+  driverLocation?: {
+    latitude: number;
+    longitude: number;
+    heading?: number;
+  } | null;
+  driverCoords?: {
+    latitude: number;
+    longitude: number;
+  } | null;
+  customerCoords?: {
+    latitude: number;
+    longitude: number;
+  } | null;
   deliveryCoordinates?: {
     latitude: number;
     longitude: number;
@@ -1006,30 +846,130 @@ export interface CheckoutPayload {
   deliveryFee?: number;
   taxes?: number;
   grandTotal?: number;
+  giftWrap?: boolean;
+  donationAmount?: number;
+  deliveryInstructions?: string;
+  idempotencyKey?: string;
 }
 
-const inMemoryOrders: OrderModel[] = [];
+function mapRawOrder(raw: any): OrderModel {
+  return {
+    ...raw,
+    taxes: raw.taxes ?? raw.taxAmount ?? 0,
+    taxAmount: raw.taxAmount ?? raw.taxes ?? 0,
+    discountAmount: raw.discountAmount ?? 0,
+    address: raw.address || raw.deliveryAddress,
+    deliveryAddress: raw.deliveryAddress || raw.address,
+    driver:
+      raw.driver ||
+      (raw.driverName
+        ? {
+            id: raw.driverId || '',
+            name: raw.driverName,
+            phone: raw.driverPhone || '',
+            vehicle: raw.driverVehicle || '',
+          }
+        : undefined),
+    items: (raw.items || []).map((it: any) => ({
+      ...it,
+      brand: it.brand || 'Affordz',
+      size: it.size || 'Free',
+      quantity: it.quantity || 1,
+    })),
+  } as OrderModel;
+}
 
 export const ordersApi = {
   checkout: async (
     payloadOrAddressId: string | CheckoutPayload,
     paymentMethodArg?: 'RAZORPAY' | 'COD',
   ): Promise<OrderModel> => {
-    const payload: CheckoutPayload =
+    const rawPayload: CheckoutPayload =
       typeof payloadOrAddressId === 'string'
         ? { addressId: payloadOrAddressId, paymentMethod: paymentMethodArg || 'COD' }
         : payloadOrAddressId;
 
-    const order = await request<OrderModel>('/api/v1/orders/checkout', {
+    const idempotencyKey =
+      rawPayload.idempotencyKey ||
+      `chk-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+
+    const requestBody = {
+      addressId: rawPayload.addressId,
+      paymentMethod: rawPayload.paymentMethod,
+      couponCode: rawPayload.couponCode || undefined,
+      isTryAndBuy: Boolean(rawPayload.isTryAndBuy),
+      isBuyNow: Boolean(rawPayload.isBuyNow),
+      giftWrap: Boolean(rawPayload.giftWrap),
+      donationAmount: Number(rawPayload.donationAmount || 0),
+      deliveryInstructions: rawPayload.deliveryInstructions || undefined,
+      items: rawPayload.items?.map((it: any) => ({
+        productId: it.productId || it.id,
+        title: it.title,
+        size: it.size,
+        trialSize: it.trialSize,
+        quantity: it.quantity || 1,
+        fulfillmentType: it.fulfillmentType,
+        isTryAndBuy: it.isTryAndBuy,
+      })),
+    };
+
+    const res = await request<CheckoutResponseContract>('/api/v1/orders/checkout', {
       method: 'POST',
-      body: JSON.stringify(payload),
+      headers: { 'Idempotency-Key': idempotencyKey },
+      body: JSON.stringify(requestBody),
     });
-    inMemoryOrders.unshift(order);
-    return order;
+
+    const gatewayKeyId =
+      (res as any).razorpayKeyId ||
+      process.env.EXPO_PUBLIC_RAZORPAY_KEY_ID ||
+      null;
+
+    const splitOrders = (res.orders || []).map((o) =>
+      mapRawOrder({
+        ...o,
+        checkoutGroupId: res.checkoutGroupId,
+        groupNumber: res.groupNumber,
+        razorpayOrderId: res.razorpayOrderId || o.razorpayOrderId,
+        razorpayKeyId: gatewayKeyId,
+      }),
+    );
+
+    const primary =
+      splitOrders[0] ||
+      mapRawOrder({
+        id: res.checkoutGroupId,
+        orderNumber: res.groupNumber,
+        customerId: '',
+        status: 'PLACED',
+        paymentMethod: res.paymentMethod,
+        paymentStatus: res.paymentStatus,
+        itemTotal: res.itemTotal,
+        deliveryFee: res.deliveryFeeTotal,
+        taxAmount: res.taxesTotal,
+        grandTotal: res.grandTotal,
+        etaMinutes: 18,
+        razorpayOrderId: res.razorpayOrderId,
+        razorpayKeyId: gatewayKeyId,
+        checkoutGroupId: res.checkoutGroupId,
+        groupNumber: res.groupNumber,
+        items: [],
+      });
+
+    return {
+      ...primary,
+      grandTotal: res.grandTotal ?? primary.grandTotal,
+      razorpayOrderId: res.razorpayOrderId || primary.razorpayOrderId,
+      razorpayKeyId: gatewayKeyId || primary.razorpayKeyId,
+      checkoutSessionToken: (res as any).checkoutSessionToken || primary.checkoutSessionToken,
+      checkoutSessionUrl: (res as any).checkoutSessionUrl || primary.checkoutSessionUrl,
+      checkoutGroup: res,
+      splitOrders,
+    };
   },
 
   verifyPayment: async (data: {
     orderId: string;
+    checkoutGroupId?: string;
     paymentId: string;
     signature: string;
     razorpayOrderId?: string;
@@ -1038,140 +978,93 @@ export const ordersApi = {
       method: 'POST',
       body: JSON.stringify(data),
     });
-    const ord = inMemoryOrders.find((o) => o.id === data.orderId);
-    if (ord && res.verified) ord.paymentStatus = 'COMPLETED';
-    return res;
+    return {
+      ...res,
+      orders: Array.isArray(res?.orders) ? res.orders.map(mapRawOrder) : undefined,
+    };
   },
 
   getOrderById: async (orderId: string): Promise<OrderModel> => {
-    try {
-      return await request<OrderModel>(`/api/v1/orders/${encodeURIComponent(orderId)}`);
-    } catch {
-      const ord = inMemoryOrders.find((o) => o.id === orderId || o.orderNumber === orderId);
-      if (ord) return ord;
-      throw new Error(`Order ${orderId} not found`);
-    }
+    const raw = await request<any>(`/api/v1/orders/${encodeURIComponent(orderId)}`);
+    return mapRawOrder(raw);
   },
 
   getOrders: async (): Promise<OrderModel[]> => {
     if (!authToken) {
-      return [...inMemoryOrders];
+      return [];
     }
-    try {
-      return await request<OrderModel[]>('/api/v1/orders');
-    } catch {
-      return [...inMemoryOrders];
-    }
+    const rawList = await request<any[]>('/api/v1/orders');
+    return Array.isArray(rawList) ? rawList.map(mapRawOrder) : [];
   },
 
-  updateOrderStatus: async (orderId: string, status: OrderStatus, note?: string): Promise<any> => {
-    try {
-      return await request(`/api/v1/orders/${orderId}/status`, {
-        method: 'PATCH',
-        body: JSON.stringify({ status, note: note || `Status updated to ${status}` }),
-      });
-    } catch {
-      const ord = inMemoryOrders.find((o) => o.id === orderId || o.orderNumber === orderId);
-      if (ord) {
-        ord.status = status;
-      }
-      return { success: true, status };
-    }
+  cancelOrder: async (orderId: string, reason?: string): Promise<OrderModel> => {
+    const raw = await request<any>(
+      `/api/v1/orders/${encodeURIComponent(orderId)}/cancel`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ reason: reason || 'Cancelled by customer' }),
+      },
+    );
+    return mapRawOrder(raw?.order || raw);
   },
+
+  submitTryAndBuySelections: async (
+    orderId: string,
+    selections: Record<string, 'KEEP' | 'RETURN'>,
+  ): Promise<OrderModel> => {
+    const res = await request<any>(
+      `/api/v1/orders/${encodeURIComponent(orderId)}/try-and-buy/customer-selections`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ selections }),
+      },
+    );
+    return mapRawOrder(res?.order || res);
+  },
+
   trackOrder: async (orderId: string): Promise<TrackingModel> => {
-    try {
-      return await request<TrackingModel>(`/api/v1/orders/${orderId}/track`);
-    } catch (err: any) {
-      const targetOrder = inMemoryOrders.find((o) => o.id === orderId || o.orderNumber === orderId);
-      if (!targetOrder) {
-        throw new Error(err?.message || `Order ${orderId} tracking unavailable`);
-      }
+    const res = await request<any>(
+      `/api/v1/orders/${encodeURIComponent(orderId)}/track`,
+    );
+    return {
+      ...res,
+      deliveryCoordinates: res.deliveryCoordinates || res.customerCoords || undefined,
+      driver: res.driver
+        ? {
+            ...res.driver,
+            vehicle: res.driver.vehicle || res.driver.vehicleRegistration || '',
+            currentLocation: res.driver.currentLocation || res.driverLocation || null,
+          }
+        : null,
+    };
+  },
 
-      const isCod = targetOrder.paymentMethod === 'COD';
-      const locality = targetOrder.address?.locality || 'your destination';
+  getOrderRoute: async (orderId: string): Promise<any> => {
+    return await request<any>(
+      `/api/v1/orders/${encodeURIComponent(orderId)}/route`,
+    );
+  },
+};
 
-      return {
-        orderId: targetOrder.id,
-        orderNumber: targetOrder.orderNumber,
-        status: targetOrder.status,
-        etaMinutes: targetOrder.status === 'DELIVERED' ? 0 : targetOrder.etaMinutes || 14,
-        milestones: [
-          {
-            key: 'PLACED',
-            label: 'Order Placed',
-            description: isCod ? 'Order confirmed via Cash on Delivery (COD)' : 'Order verified via Razorpay Secure UPI',
-            status: 'completed',
-          },
-          {
-            key: 'ACCEPTED',
-            label: 'Vendor Accepted',
-            description: 'Affordz Atelier confirmed garments',
-            status: 'completed',
-          },
-          {
-            key: 'PREPARING',
-            label: 'Preparing Garment',
-            description: 'Quality inspection & iron press completed',
-            status: 'completed',
-          },
-          {
-            key: 'READY_FOR_PICKUP',
-            label: 'Ready for Pickup',
-            description: 'Packed in eco-seal garment sleeve',
-            status: 'completed',
-          },
-          {
-            key: 'ASSIGNED',
-            label: 'Delivery Partner Assigned',
-            description: targetOrder.driver?.name ? `${targetOrder.driver.name} assigned` : 'Rajesh Kumar assigned',
-            status: 'completed',
-          },
-          {
-            key: 'PICKED_UP',
-            label: 'Picked Up',
-            description: 'Collected from Express Hub',
-            status: 'completed',
-          },
-          {
-            key: 'OUT_FOR_DELIVERY',
-            label: 'Out for Delivery',
-            description: `Rider is en route to ${locality}`,
-            status: targetOrder.status === 'DELIVERED' ? 'completed' : 'active',
-          },
-          {
-            key: 'DELIVERED',
-            label: 'Delivered',
-            description: 'Handover & OTP confirmation',
-            status: targetOrder.status === 'DELIVERED' ? 'completed' : 'upcoming',
-          },
-        ],
-        driver: targetOrder.driver
-          ? {
-              id: targetOrder.driver.id,
-              name: targetOrder.driver.name,
-              phone: targetOrder.driver.phone,
-              vehicle: targetOrder.driver.vehicle,
-              rating: 4.9,
-              currentLocation: {
-                latitude: 12.9789,
-                longitude: 77.6408,
-                heading: 45,
-              },
-            }
-          : {
-              id: 'drv-1',
-              name: 'Rajesh Kumar',
-              phone: '+91 98765 43210',
-              vehicle: 'Ather 450X EV • KA 03 EV 4821',
-              rating: 4.9,
-              currentLocation: {
-                latitude: 12.9789,
-                longitude: 77.6408,
-                heading: 45,
-              },
-            },
-      };
-    }
+export const notificationsApi = {
+  list: async (limit = 50): Promise<{ items: any[]; unreadCount: number; total: number }> => {
+    if (!authToken) return { items: [], unreadCount: 0, total: 0 };
+    return await request<{ items: any[]; unreadCount: number; total: number }>(
+      `/api/v1/notifications?limit=${limit}`,
+    );
+  },
+
+  markRead: async (id: string) => {
+    return await request<{ success: boolean }>(
+      `/api/v1/notifications/${encodeURIComponent(id)}/read`,
+      { method: 'PATCH' },
+    );
+  },
+
+  markAllRead: async () => {
+    return await request<{ success: boolean }>('/api/v1/notifications/read-all', {
+      method: 'PATCH',
+    });
   },
 };
 
@@ -1224,8 +1117,11 @@ export interface SupportTicketModel {
   userId: string;
   orderId?: string | null;
   title: string;
+  description?: string | null;
   category: string;
-  status: 'OPEN' | 'IN_PROGRESS' | 'RESOLVED';
+  priority?: 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT' | string;
+  status: 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED' | string;
+  resolutionRemarks?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -1235,65 +1131,51 @@ export const supportApi = {
     title: string;
     category: string;
     description: string;
+    priority?: 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
     orderId?: string;
   }): Promise<SupportTicketModel> => {
-    try {
-      return await request<SupportTicketModel>('/api/v1/support/tickets', {
-        method: 'POST',
-        body: JSON.stringify(data),
-      });
-    } catch {
-      return {
-        id: `TCK-${Math.floor(1000 + Math.random() * 9000)}`,
-        userId: 'usr-1',
-        title: data.title,
-        category: data.category,
-        status: 'OPEN',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
+    if (!authToken) {
+      throw createApiError('Please sign in to submit a support ticket.', 401);
     }
+    return await request<SupportTicketModel>('/api/v1/support/tickets', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
   },
 
   getTickets: async (): Promise<SupportTicketModel[]> => {
-    try {
-      return await request<SupportTicketModel[]>('/api/v1/support/tickets');
-    } catch {
-      return [
-        {
-          id: 'TCK-4819',
-          userId: 'usr-1',
-          title: 'Fitting & Sizing Guidance',
-          category: 'Sizing Issue',
-          status: 'OPEN',
-          createdAt: '2026-03-20T10:30:00Z',
-          updatedAt: '2026-03-20T10:30:00Z',
-        },
-      ];
+    if (!authToken) {
+      return [];
     }
+    return await request<SupportTicketModel[]>('/api/v1/support/tickets');
   },
 };
 
 export interface RazorpayOrderResponse {
-  success: boolean;
+  success?: boolean;
+  orderId?: string;
   razorpayOrderId: string;
   amountInPaisa: number;
   amount: number;
   currency: string;
-  keyId: string;
+  keyId: string | null;
+  checkoutSessionToken?: string;
+  checkoutSessionUrl?: string;
   notes?: Record<string, any>;
 }
 
 export interface PaymentStatusResponse {
-  orderId: string;
-  orderNumber: string;
-  paymentStatus: 'PENDING' | 'COMPLETED' | 'FAILED' | string;
-  orderStatus: string;
+  orderId: string | null;
+  orderNumber: string | null;
+  paymentStatus: 'PENDING' | 'COMPLETED' | 'FAILED' | 'REFUNDED' | string;
+  orderStatus: string | null;
+  checkoutGroupId?: string | null;
   paymentMethod: string;
   razorpayPaymentId?: string | null;
   razorpayOrderId?: string | null;
   grandTotal: number;
   updatedAt?: string;
+  transactions?: any[];
 }
 
 export const paymentsApi = {

@@ -1,37 +1,34 @@
 import { create } from 'zustand';
 import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
-import { authApi, AuthUser, setAuthToken, getAuthToken, setOnUnauthorizedCallback } from '@/services/api';
+import {
+  authApi,
+  AuthUser,
+  setAuthToken,
+  getAuthToken,
+  setOnUnauthorizedCallback,
+  setTokenRefresher,
+} from '@/services/api';
+import {
+  getFirebaseIdToken,
+  signOutFirebase,
+  subscribeFirebaseTokenRefresh,
+} from '@/services/firebase';
 import { customerNotificationService } from '@/services/notificationService';
+import { trackingSocketService } from '@/services/trackingSocket';
+import { useSupportStore } from './useSupportStore';
 
 const TOKEN_KEY = 'affordz_token';
 const USER_KEY = 'affordz_user';
-const GUEST_PROFILE_KEY = 'affordz_guest_profile';
 
-async function saveGuestProfile(user: AuthUser) {
-  try {
-    if (Platform.OS !== 'web') {
-      await SecureStore.setItemAsync(GUEST_PROFILE_KEY, JSON.stringify(user));
-    } else if (typeof window !== 'undefined' && window.localStorage) {
-      window.localStorage.setItem(GUEST_PROFILE_KEY, JSON.stringify(user));
-    }
-  } catch (e) {
-    console.warn('Failed to save guest profile', e);
-  }
-}
+let firebaseRefreshUnsubscribe: (() => void) | null = null;
+let storeResetHandlers: (() => void)[] = [];
 
-async function loadGuestProfile(): Promise<AuthUser | null> {
-  try {
-    let str: string | null = null;
-    if (Platform.OS !== 'web') {
-      str = await SecureStore.getItemAsync(GUEST_PROFILE_KEY);
-    } else if (typeof window !== 'undefined' && window.localStorage) {
-      str = window.localStorage.getItem(GUEST_PROFILE_KEY);
-    }
-    return str ? JSON.parse(str) : null;
-  } catch {
-    return null;
-  }
+export function registerAuthLogoutReset(resetFn: () => void): () => void {
+  storeResetHandlers.push(resetFn);
+  return () => {
+    storeResetHandlers = storeResetHandlers.filter((fn) => fn !== resetFn);
+  };
 }
 
 async function saveSession(token: string, user: AuthUser) {
@@ -62,6 +59,51 @@ async function clearSession() {
   }
 }
 
+function attachFirebaseRefreshListener() {
+  if (firebaseRefreshUnsubscribe) {
+    firebaseRefreshUnsubscribe();
+    firebaseRefreshUnsubscribe = null;
+  }
+
+  firebaseRefreshUnsubscribe = subscribeFirebaseTokenRefresh(async (freshIdToken) => {
+    try {
+      const res = await authApi.loginFirebase(freshIdToken);
+      if (res?.success && res?.token) {
+        await saveSession(res.token, res.user);
+        setAuthToken(res.token);
+        useAuthStore.setState({
+          token: res.token,
+          user: res.user,
+          isAuthenticated: true,
+        });
+      }
+    } catch {
+      // ignore transient token exchange errors; API 401 handler triggers refresh/logout
+    }
+  });
+}
+
+setTokenRefresher(async () => {
+  try {
+    const freshIdToken = await getFirebaseIdToken(true);
+    if (!freshIdToken) return null;
+    const res = await authApi.loginFirebase(freshIdToken);
+    if (res?.success && res?.token) {
+      await saveSession(res.token, res.user);
+      setAuthToken(res.token);
+      useAuthStore.setState({
+        token: res.token,
+        user: res.user,
+        isAuthenticated: true,
+      });
+      return res.token;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+});
+
 interface AuthState {
   user: AuthUser | null;
   token: string | null;
@@ -75,7 +117,13 @@ interface AuthState {
   verifyOtp: (phone: string, otp: string) => Promise<boolean>;
   loginWithFirebase: (idToken: string) => Promise<boolean>;
   loadProfile: () => Promise<void>;
-  updateProfile: (data: Partial<AuthUser>) => Promise<void>;
+  updateProfile: (data: {
+    name?: string;
+    email?: string | null;
+    phone?: string | null;
+    avatar?: string | null;
+  }) => Promise<AuthUser>;
+  deleteAccount: () => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -114,16 +162,48 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           storedToken !== 'undefined'
         ) {
           try {
-            const user: AuthUser = JSON.parse(storedUserStr);
+            const cachedUser: AuthUser = JSON.parse(storedUserStr);
             setAuthToken(storedToken);
-            set({
-              token: storedToken,
-              user,
-              isAuthenticated: true,
-              isInitialized: true,
-            });
-            customerNotificationService.registerDeviceToken().catch(() => {});
-            return;
+
+            // Verify stored session against live backend /api/v1/users/me
+            try {
+              const verifiedUser = await authApi.verifyProfileSession();
+              if (verifiedUser) {
+                const activeToken = getAuthToken() || storedToken;
+                await saveSession(activeToken, verifiedUser);
+                set({
+                  token: activeToken,
+                  user: verifiedUser,
+                  isAuthenticated: true,
+                  isInitialized: true,
+                });
+                attachFirebaseRefreshListener();
+                customerNotificationService.registerDeviceToken().catch(() => {});
+                return;
+              }
+            } catch (verifyErr: any) {
+              const status = verifyErr?.status;
+              if (status === 401 || status === 404) {
+                await clearSession();
+                setAuthToken(null);
+                set({
+                  isInitialized: true,
+                  isAuthenticated: false,
+                  token: null,
+                  user: null,
+                });
+                return;
+              }
+              // Transient network outage during launch: retain cached session until next API check
+              set({
+                token: storedToken,
+                user: cachedUser,
+                isAuthenticated: true,
+                isInitialized: true,
+              });
+              attachFirebaseRefreshListener();
+              return;
+            }
           } catch {
             await clearSession();
             setAuthToken(null);
@@ -133,15 +213,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           setAuthToken(null);
         }
       } else if (storedUserStr || storedToken) {
-        // Clear invalid partial session
         await clearSession();
         setAuthToken(null);
       }
     } catch (e) {
       console.warn('Error reading stored session:', e);
     }
-    const guestUser = await loadGuestProfile();
-    set({ isInitialized: true, isAuthenticated: false, token: null, user: guestUser });
+    set({ isInitialized: true, isAuthenticated: false, token: null, user: null });
   },
 
   sendOtp: async (phone: string) => {
@@ -149,11 +227,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const res = await authApi.sendOtp(phone);
       set({ isLoading: false });
+      const devOtpCode = __DEV__ ? res.devOtp || res.otp : undefined;
       return {
         success: res.success,
         countdownSeconds: res.countdownSeconds,
-        devOtp: res.devOtp || res.otp,
-        otp: res.devOtp || res.otp,
+        ...(devOtpCode ? { devOtp: devOtpCode, otp: devOtpCode } : {}),
       };
     } catch (err: any) {
       set({ isLoading: false, error: err?.message || 'Failed to send OTP' });
@@ -198,6 +276,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           isAuthenticated: true,
           isLoading: false,
         });
+        attachFirebaseRefreshListener();
         customerNotificationService.registerDeviceToken().catch(() => {});
         return true;
       }
@@ -223,62 +302,84 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  updateProfile: async (data: Partial<AuthUser>) => {
+  updateProfile: async (data) => {
+    const token = get().token;
+    if (!token) {
+      const authErr = new Error('Please sign in to update your profile.');
+      set({ isLoading: false, error: authErr.message });
+      throw authErr;
+    }
+
     set({ isLoading: true, error: null });
     try {
-      const serverUser = await authApi.updateProfile({
+      const payload = {
         name: data.name !== undefined ? data.name.trim() : undefined,
-        email: data.email !== undefined ? (data.email.trim() || undefined) : undefined,
-        phone: data.phone !== undefined ? data.phone.trim() : undefined,
-        avatar: data.avatar || undefined,
-      });
-
-      const currentUser = get().user;
-      const updatedUser: AuthUser = serverUser || {
-        id: currentUser?.id || 'guest',
-        name: data.name !== undefined ? data.name.trim() : (currentUser?.name || 'Affordz Customer'),
-        email: data.email !== undefined ? data.email.trim() : (currentUser?.email || ''),
-        phone: data.phone !== undefined ? data.phone.trim() : (currentUser?.phone || ''),
-        avatar: data.avatar !== undefined ? data.avatar : (currentUser?.avatar || null),
-        role: currentUser?.role || 'CUSTOMER',
+        email:
+          data.email !== undefined
+            ? data.email === null
+              ? null
+              : data.email.trim() || null
+            : undefined,
+        phone:
+          data.phone !== undefined
+            ? data.phone === null
+              ? null
+              : data.phone.trim() || null
+            : undefined,
+        avatar: data.avatar !== undefined ? data.avatar : undefined,
       };
 
-      const token = get().token;
-      if (token) {
-        await saveSession(token, updatedUser);
-      } else {
-        await saveGuestProfile(updatedUser);
-      }
-
+      const updatedUser = await authApi.updateProfile(payload);
+      await saveSession(token, updatedUser);
       set({ user: updatedUser, isLoading: false, error: null });
+      return updatedUser;
     } catch (err: any) {
-      const currentUser = get().user;
-      const fallbackUser: AuthUser = {
-        id: currentUser?.id || 'guest',
-        name: data.name !== undefined ? data.name.trim() : (currentUser?.name || 'Affordz Customer'),
-        email: data.email !== undefined ? data.email.trim() : (currentUser?.email || ''),
-        phone: data.phone !== undefined ? data.phone.trim() : (currentUser?.phone || ''),
-        avatar: data.avatar !== undefined ? data.avatar : (currentUser?.avatar || null),
-        role: currentUser?.role || 'CUSTOMER',
-      };
-      if (get().token) {
-        await saveSession(get().token!, fallbackUser);
-      } else {
-        await saveGuestProfile(fallbackUser);
-      }
-      set({ user: fallbackUser, isLoading: false, error: null });
+      const msg = err?.message || 'Unable to update profile details.';
+      set({ isLoading: false, error: msg });
+      throw err;
+    }
+  },
+
+  deleteAccount: async () => {
+    set({ isLoading: true, error: null });
+    try {
+      await authApi.deleteAccount();
+      await get().logout();
+    } catch (err: any) {
+      const msg = err?.message || 'Unable to delete account right now.';
+      set({ isLoading: false, error: msg });
+      throw err;
     }
   },
 
   logout: async () => {
+    if (firebaseRefreshUnsubscribe) {
+      firebaseRefreshUnsubscribe();
+      firebaseRefreshUnsubscribe = null;
+    }
+
     const hasActiveSession = !!get().token || !!getAuthToken();
     if (hasActiveSession) {
       await customerNotificationService.unregisterDeviceToken().catch(() => {});
     } else {
       customerNotificationService.clearLocalToken();
     }
+
+    await signOutFirebase();
+    trackingSocketService.disconnect();
+
     await clearSession();
     setAuthToken(null);
-    set({ user: null, token: null, isAuthenticated: false });
+
+    useSupportStore.getState().resetSupport();
+    for (const resetFn of storeResetHandlers) {
+      try {
+        resetFn();
+      } catch {
+        // ignore store reset errors during logout cleanup
+      }
+    }
+
+    set({ user: null, token: null, isAuthenticated: false, isLoading: false, error: null });
   },
 }));

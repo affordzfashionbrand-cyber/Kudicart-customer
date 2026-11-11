@@ -30,9 +30,11 @@ import {
 } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { useCartStore } from '@/store/useCartStore';
+import { useOrderStore, isOrderItemEligibleForReview } from '@/store/useOrderStore';
 import { OrderModel, reviewsApi, ordersApi } from '@/services/api';
 import { LazyImage } from '@/components/common/lazy-image';
 import { AnimatedPressable } from '@/components/common/animated-pressable';
+import { TryAndBuySelectionCard } from '@/components/orders/try-and-buy-selection-card';
 
 export interface OrderDetailViewProps {
   order: OrderModel;
@@ -51,11 +53,14 @@ export const OrderDetailView = React.memo(function OrderDetailView({
   const paddingTop = Platform.OS === 'android' ? insets.top + 10 : insets.top;
   const [currentStatus, setCurrentStatus] = useState(order.status);
   const [isCancelling, setIsCancelling] = useState(false);
+  const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
 
   const isDelivered = currentStatus === 'DELIVERED';
-  const isCancelled = currentStatus === 'CANCELLED';
+  const isCancelled = currentStatus === 'CANCELLED' || currentStatus === 'FAILED' || currentStatus === 'RETURNED';
   const canCancel = (currentStatus === 'PLACED' || currentStatus === 'ACCEPTED') && !isCancelled;
+  const orderWithCurrentStatus: OrderModel = { ...order, status: currentStatus };
+  const canReviewOrder = isOrderItemEligibleForReview(orderWithCurrentStatus);
 
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const [selectedRating, setSelectedRating] = useState(5);
@@ -64,30 +69,28 @@ export const OrderDetailView = React.memo(function OrderDetailView({
   const [reviewSubmitted, setReviewSubmitted] = useState(false);
 
   const handleCancelOrder = () => {
-    Alert.alert(
-      'Cancel Drop?',
-      'Are you sure you want to cancel this order? Any online payment will be refunded to your original payment method in 5-7 business days per RBI regulations.',
-      [
-        { text: 'Keep Order', style: 'cancel' },
-        {
-          text: 'Confirm Cancellation',
-          style: 'destructive',
-          onPress: async () => {
-            setIsCancelling(true);
-            try {
-              await ordersApi.updateOrderStatus(order.id, 'CANCELLED', 'Cancelled by customer');
-              setCurrentStatus('CANCELLED');
-              Alert.alert('Drop Cancelled', 'Your order has been cancelled and refund initiated.');
-            } catch {
-              setCurrentStatus('CANCELLED');
-              Alert.alert('Drop Cancelled', 'Your order status has been updated.');
-            } finally {
-              setIsCancelling(false);
-            }
-          },
-        },
-      ],
-    );
+    setIsCancelModalOpen(true);
+  };
+
+  const confirmCancelOrder = async () => {
+    setIsCancelling(true);
+    try {
+      const updated = await useOrderStore.getState().cancelOrder(
+        order.id,
+        'Cancelled by customer',
+      );
+      setCurrentStatus(updated.status);
+      setIsCancelModalOpen(false);
+      Alert.alert('Drop Cancelled', 'Your order has been cancelled and any eligible refund initiated.');
+    } catch (err: any) {
+      setIsCancelModalOpen(false);
+      Alert.alert(
+        'Unable to Cancel',
+        err?.message || 'This order can no longer be cancelled.',
+      );
+    } finally {
+      setIsCancelling(false);
+    }
   };
 
   const handleDownloadInvoice = async () => {
@@ -95,7 +98,7 @@ export const OrderDetailView = React.memo(function OrderDetailView({
       setIsInvoiceModalOpen(true);
     } else {
       try {
-        const invoiceSummary = `AFFORDZ ATELIER — OFFICIAL TAX INVOICE
+        const invoiceSummary = `AFFORDZ — OFFICIAL TAX INVOICE
 Invoice No: INV-${order.orderNumber || order.id}
 Date: ${new Date(order.createdAt).toLocaleDateString('en-IN')}
 GSTIN: 29AABCU9603R1ZM
@@ -124,17 +127,25 @@ Payment Method: ${order.paymentMethod} (PAID)`;
     try {
       const cartStore = useCartStore.getState();
       for (const item of order.items) {
-        await cartStore.addItem({
-          id: item.id,
-          title: item.title,
-          brand: item.brand,
-          price: item.price,
-          size: item.size,
-          image: item.image,
-          quantity: item.quantity,
-          fulfillmentType: 'DARK_STORE',
-          tryAndBuyEligible: order.isTryAndBuy,
-        } as any);
+        const resolvedProductId = String((item as any).productId || item.id);
+        const resolvedFulfillment =
+          (item as any).fulfillmentType ||
+          order.fulfillmentType ||
+          (order.isTryAndBuy ? 'DARK_STORE' : 'VENDOR');
+        await cartStore.addItem(
+          {
+            id: resolvedProductId,
+            title: item.title,
+            brand: item.brand,
+            price: item.price,
+            image: item.image,
+            fulfillmentType: resolvedFulfillment,
+            tryAndBuyEligible: resolvedFulfillment === 'DARK_STORE' && Boolean(order.isTryAndBuy),
+          } as any,
+          item.size || 'M',
+          (item as any).color || 'Default',
+          item.quantity || 1,
+        );
       }
       Alert.alert(
         'Bag Updated',
@@ -154,7 +165,7 @@ Payment Method: ${order.paymentMethod} (PAID)`;
       pathname: '/support',
       params: {
         orderId: order.id,
-        category: 'Order Issue',
+        category: 'Delivery & Rider Help',
       },
     });
   };
@@ -164,22 +175,34 @@ Payment Method: ${order.paymentMethod} (PAID)`;
       Alert.alert('Incomplete Review', 'Please write a brief comment describing your fitting experience.');
       return;
     }
+    if (!canReviewOrder) {
+      Alert.alert(
+        'Review Unavailable',
+        'Reviews unlock once your order is delivered or your Try & Buy selection is settled.',
+      );
+      return;
+    }
+    const eligibleItem = (order.items || []).find((it: any) =>
+      isOrderItemEligibleForReview(orderWithCurrentStatus, String(it.productId || it.id)),
+    );
+    const targetProductId = (eligibleItem as any)?.productId || eligibleItem?.id;
+    if (!targetProductId) {
+      Alert.alert('Unable to Submit', 'No eligible kept garment found for this review.');
+      return;
+    }
     setIsSubmittingReview(true);
     try {
-      const firstItem = order.items && order.items[0];
       await reviewsApi.createReview({
         orderId: order.id,
-        productId: firstItem?.id || 'prod-1',
+        productId: String(targetProductId),
         rating: selectedRating,
         comment: reviewComment.trim(),
       });
       setReviewSubmitted(true);
       setIsReviewModalOpen(false);
       Alert.alert('Review Submitted', 'Thank you for rating your atelier garments! Your feedback helps our artisans.');
-    } catch {
-      setReviewSubmitted(true);
-      setIsReviewModalOpen(false);
-      Alert.alert('Review Recorded', 'Your review has been saved.');
+    } catch (err: any) {
+      Alert.alert('Submission Failed', err?.message || 'Unable to submit review right now. Please try again.');
     } finally {
       setIsSubmittingReview(false);
     }
@@ -261,7 +284,7 @@ Payment Method: ${order.paymentMethod} (PAID)`;
         </View>
 
         {/* Live Track CTA for Active Orders */}
-        {!isDelivered && (
+        {!isDelivered && !isCancelled && (
           <AnimatedPressable
             style={{
               flexDirection: 'row',
@@ -295,8 +318,8 @@ Payment Method: ${order.paymentMethod} (PAID)`;
           </AnimatedPressable>
         )}
 
-        {/* Rate & Review Garments Action (Available for Delivered Orders) */}
-        {isDelivered && (
+        {/* Rate & Review Garments Action (DCR-014 Eligible Delivered/Settled Orders) */}
+        {canReviewOrder && (
           <AnimatedPressable
             style={{
               flexDirection: 'row',
@@ -322,20 +345,14 @@ Payment Method: ${order.paymentMethod} (PAID)`;
           </AnimatedPressable>
         )}
 
-        {/* Try & Buy Indicator */}
-        {order.isTryAndBuy && (
-          <View style={{ backgroundColor: '#FFF7ED', borderWidth: 1, borderColor: '#FFEDD5', borderRadius: 16, padding: 14, marginBottom: 16, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-            <Sparkles size={18} color="#C2410C" />
-            <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 12, fontWeight: '900', color: '#9A3412', textTransform: 'uppercase' }}>
-                TRY & BUY DOORSTEP DROP
-              </Text>
-              <Text style={{ fontSize: 11, color: '#7C2D12', marginTop: 2 }}>
-                10-minute trial window included with our delivery concierge.
-              </Text>
-            </View>
-          </View>
-        )}
+        {/* Try & Buy Doorstep Selection & OTP */}
+        {order.isTryAndBuy ? (
+          <TryAndBuySelectionCard
+            order={order}
+            formatPrice={formatPrice}
+            onUpdated={() => useOrderStore.getState().fetchOrders()}
+          />
+        ) : null}
 
         {/* Ordered Garments Card */}
         <View style={{ backgroundColor: '#FFFFFF', borderRadius: 20, padding: 16, borderWidth: 1, borderColor: '#E8E5DF', marginBottom: 14 }}>
@@ -369,7 +386,7 @@ Payment Method: ${order.paymentMethod} (PAID)`;
 
               <View style={{ flex: 1 }}>
                 <Text style={{ fontSize: 10, fontWeight: '900', color: '#8E877E', textTransform: 'uppercase' }}>
-                  {item.brand || 'AFFORDZ ATELIER'}
+                  {item.brand || 'AFFORDZ'}
                 </Text>
                 <Text style={{ fontSize: 13, fontWeight: '800', color: '#111111', marginTop: 2 }} numberOfLines={1}>
                   {item.title}
@@ -547,7 +564,7 @@ Payment Method: ${order.paymentMethod} (PAID)`;
             <ScrollView showsVerticalScrollIndicator={false} style={{ flexGrow: 0 }}>
               {/* Seller & GST Details */}
               <View style={{ backgroundColor: '#FAF8F5', borderRadius: 12, padding: 12, marginBottom: 12, borderWidth: 1, borderColor: '#E8E5DF' }}>
-                <Text style={{ fontSize: 12, fontWeight: '900', color: '#111111' }}>AFFORDZ ATELIER INDIA PVT LTD</Text>
+                <Text style={{ fontSize: 12, fontWeight: '900', color: '#111111' }}>AFFORDZ COMMERCE PVT LTD</Text>
                 <Text style={{ fontSize: 10.5, color: '#6B6667', marginTop: 2 }}>GSTIN: 29AABCU9603R1ZM • Registered Bengaluru Atelier</Text>
                 <Text style={{ fontSize: 10.5, color: '#6B6667' }}>Place of Supply: Karnataka (29)</Text>
               </View>
@@ -687,6 +704,43 @@ Payment Method: ${order.paymentMethod} (PAID)`;
                 {isSubmittingReview ? 'SUBMITTING...' : 'SUBMIT VERIFIED REVIEW'}
               </Text>
             </Pressable>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Cross-platform Cancel Order Confirmation Modal */}
+      <Modal
+        visible={isCancelModalOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => !isCancelling && setIsCancelModalOpen(false)}
+      >
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+          <View style={{ width: '100%', maxWidth: 400, backgroundColor: '#FFFFFF', borderRadius: 24, padding: 22 }}>
+            <Text style={{ fontSize: 18, fontWeight: '900', color: '#111111', marginBottom: 8 }}>
+              Cancel Drop?
+            </Text>
+            <Text style={{ fontSize: 13, color: '#6B6667', lineHeight: 19, marginBottom: 20 }}>
+              Are you sure you want to cancel this order? Any online payment will be refunded to your original payment method in 5-7 business days per RBI regulations.
+            </Text>
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <Pressable
+                onPress={() => setIsCancelModalOpen(false)}
+                disabled={isCancelling}
+                style={{ flex: 1, backgroundColor: '#FAF8F5', borderWidth: 1, borderColor: '#E8E5DF', borderRadius: 999, paddingVertical: 13, alignItems: 'center' }}
+              >
+                <Text style={{ fontSize: 12, fontWeight: '800', color: '#111111' }}>Keep Order</Text>
+              </Pressable>
+              <Pressable
+                onPress={confirmCancelOrder}
+                disabled={isCancelling}
+                style={{ flex: 1, backgroundColor: isCancelling ? '#FCA5A5' : '#DC2626', borderRadius: 999, paddingVertical: 13, alignItems: 'center' }}
+              >
+                <Text style={{ fontSize: 12, fontWeight: '900', color: '#FFFFFF' }}>
+                  {isCancelling ? 'CANCELLING...' : 'Confirm Cancellation'}
+                </Text>
+              </Pressable>
+            </View>
           </View>
         </View>
       </Modal>

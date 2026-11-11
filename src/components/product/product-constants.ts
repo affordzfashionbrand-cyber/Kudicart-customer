@@ -17,26 +17,7 @@ export interface AtelierOffer {
   tag: string;
 }
 
-export const ATELIER_OFFERS: AtelierOffer[] = [
-  {
-    code: 'KUDI100',
-    title: 'Flat ₹100 Off',
-    desc: 'On your first Doorstep Try & Buy fitting (Min order ₹1,499)',
-    tag: 'FIRST TRY',
-  },
-  {
-    code: 'LUXE15',
-    title: '15% Instant Off',
-    desc: 'On HDFC / ICICI Credit & Debit cards (Up to ₹500 discount)',
-    tag: 'BANK OFFER',
-  },
-  {
-    code: 'RUNWAYPASS',
-    title: 'Free Concierge Pass',
-    desc: 'Zero doorstep trial fee on all runway pieces',
-    tag: 'TRIAL PASS',
-  },
-];
+export const ATELIER_OFFERS: AtelierOffer[] = [];
 
 export const POPULAR_PINCODES = [
   { pin: '560038', locality: 'Indiranagar' },
@@ -45,18 +26,7 @@ export const POPULAR_PINCODES = [
   { pin: '560043', locality: 'Kalyan Nagar' },
 ];
 
-export const PRODUCT_SPECIFICATIONS = [
-  { label: 'Fabric Composition', value: '100% Pure Handloom Chanderi' },
-  { label: 'Weave Technique', value: 'Banarasi Zari Kadwa Weft' },
-  { label: 'Silhouette & Fit', value: 'Straight Couture Regular Fit' },
-  { label: 'Neckline', value: 'Mandarin Collar with V-Placket' },
-  { label: 'Sleeve Length', value: 'Three-Quarter Churidar Sleeves' },
-  { label: 'Lining Material', value: 'Pure Mulmul Cotton (Breathable)' },
-  { label: 'Transparency', value: 'Opaque (Fully Pre-Lined)' },
-  { label: 'Ornamentation', value: 'Hand Zari Work & Zardozi Placket' },
-  { label: 'Occasion', value: 'Festive, Sangeet & Intimate Weddings' },
-  { label: 'Care Protocol', value: 'Dry Clean Recommended' },
-];
+export const PRODUCT_SPECIFICATIONS: { label: string; value: string }[] = [];
 
 export const CUSTOMER_LOOKS: {
   id: string;
@@ -72,8 +42,8 @@ export const CUSTOMER_LOOKS: {
 export const TRUST_PILLARS = [
   {
     icon: ShieldCheck,
-    title: 'Silk Mark Certified',
-    desc: '100% Genuine Handloom',
+    title: 'Authenticity Verified',
+    desc: '100% Genuine Designer Wear',
     color: '#10B981',
   },
   {

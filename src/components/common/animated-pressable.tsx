@@ -6,6 +6,7 @@ export interface AnimatedPressableProps {
   style?: StyleProp<ViewStyle>;
   className?: string;
   onPress?: (e?: any) => void;
+  onLongPress?: (e?: any) => void;
   scaleTo?: number;
   containerStyle?: StyleProp<ViewStyle>;
   disabled?: boolean;
@@ -17,6 +18,7 @@ export const AnimatedPressable = React.memo(function AnimatedPressable({
   style,
   className,
   onPress,
+  onLongPress,
   scaleTo = 0.975,
   containerStyle,
   disabled,
@@ -52,6 +54,7 @@ export const AnimatedPressable = React.memo(function AnimatedPressable({
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
       onPress={onPress}
+      onLongPress={onLongPress}
       hitSlop={hitSlop}
       style={[
         isFullWidth ? { width: '100%' } : null,

@@ -26,7 +26,6 @@ import {
   useAddressStore,
   checkAddressServiceability,
   DARK_STORE_HUB,
-  KNOWN_PINCODES,
 } from '@/store/useAddressStore';
 import { AddressModel } from '@/services/api';
 import { FontStyles } from '@/constants/theme';
@@ -112,7 +111,7 @@ export const LocationOnboardingModal: React.FC<LocationOnboardingModalProps> = (
     selectedAddressId,
     setSelectedAddressId,
     setHasLocationConfirmed,
-    addAddress,
+    confirmLocation,
   } = useAddressStore();
 
   const [pincodeInput, setPincodeInput] = useState('');
@@ -130,6 +129,7 @@ export const LocationOnboardingModal: React.FC<LocationOnboardingModalProps> = (
     latitude?: number;
     longitude?: number;
   }) => {
+    setLocationError(null);
     // Check if matching address already exists in store
     const existing = addresses.find(
       (a) =>
@@ -144,7 +144,7 @@ export const LocationOnboardingModal: React.FC<LocationOnboardingModalProps> = (
         targetAddr = existing;
         setSelectedAddressId(existing.id);
       } else {
-        const created = await addAddress({
+        targetAddr = await confirmLocation({
           label: item.label,
           line1: item.line1,
           locality: item.locality,
@@ -154,29 +154,13 @@ export const LocationOnboardingModal: React.FC<LocationOnboardingModalProps> = (
           longitude: item.longitude,
           isDefault: true,
         });
-        targetAddr = created;
       }
 
       setHasLocationConfirmed(true);
       onConfirm?.(targetAddr);
       onClose();
-    } catch {
-      const fallbackAddr: AddressModel = {
-        id: `addr-local-${Date.now()}`,
-        userId: 'guest',
-        label: item.label,
-        line1: item.line1,
-        locality: item.locality,
-        city: item.city,
-        pincode: item.pincode,
-        latitude: item.latitude,
-        longitude: item.longitude,
-        isDefault: true,
-      };
-      setSelectedAddressId(fallbackAddr.id);
-      setHasLocationConfirmed(true);
-      onConfirm?.(fallbackAddr);
-      onClose();
+    } catch (err: any) {
+      setLocationError(err?.message || 'Unable to save selected location. Please try again.');
     }
   };
 
@@ -352,10 +336,9 @@ export const LocationOnboardingModal: React.FC<LocationOnboardingModalProps> = (
 
             <ScrollView showsVerticalScrollIndicator={false} style={{ marginTop: 14 }}>
               <Text style={[FontStyles.sansRegular, { fontSize: 12, color: '#6B6667', lineHeight: 17, marginBottom: 16 }]}>
-                Affordz delivers luxury fashion & Try & Buy within{' '}
-                <Text style={[FontStyles.sansBold, { color: '#111111' }]}>18 minutes</Text> inside our{' '}
-                <Text style={[FontStyles.sansBold, { color: '#FF5A1F' }]}>8-km Dark Store radius</Text>{' '}
-                from Indiranagar Hub. Select your location to verify availability.
+                Affordz delivers curated fashion & Try & Buy from{' '}
+                <Text style={[FontStyles.sansBold, { color: '#FF5A1F' }]}>nearby dark store hubs</Text>.
+                Select your location to verify availability.
               </Text>
 
               {/* 1. Detect Current Location Button */}
