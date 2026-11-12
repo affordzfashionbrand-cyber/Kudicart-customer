@@ -40,6 +40,9 @@ yarn-error.*
 # native secrets
 google-services.json
 secrets/
+android/local.properties
+*.keystore
+*.jks
 
 # typescript
 *.tsbuildinfo

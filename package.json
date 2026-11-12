@@ -62,9 +62,15 @@
     "android": "expo run:android",
     "web": "expo start --web",
     "lint": "expo lint",
-    "test": "jest"
+    "test": "jest",
+    "validate:deps": "node scripts/validate-dependencies.js"
   },
   "private": true,
+  "engines": {
+    "node": ">=20.0.0 <23.0.0",
+    "npm": ">=10.0.0"
+  },
+  "packageManager": "npm@10.9.2",
   "allowScripts": {
     "@firebase/util@1.12.1": true,
     "@sentry/cli@2.58.4": true,

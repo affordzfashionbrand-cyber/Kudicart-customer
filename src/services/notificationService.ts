@@ -54,12 +54,26 @@ export const customerNotificationService = {
       }
 
       if (Platform.OS === 'android') {
-        await Notifications.setNotificationChannelAsync('affordz_orders', {
-          name: 'Order Updates & Try & Buy Alerts',
-          importance: Notifications.AndroidImportance.MAX,
-          vibrationPattern: [0, 250, 250, 250],
-          lightColor: '#FF5A1F',
-        }).catch(() => {});
+        await Promise.all([
+          Notifications.setNotificationChannelAsync('affordz_critical_alerts', {
+            name: 'Urgent Alerts & Order Delivery',
+            importance: Notifications.AndroidImportance.MAX,
+            vibrationPattern: [0, 250, 250, 250],
+            lightColor: '#FF5A1F',
+            sound: 'default',
+            enableVibrate: true,
+            showBadge: true,
+          }),
+          Notifications.setNotificationChannelAsync('affordz_orders', {
+            name: 'Order Updates & Try & Buy Alerts',
+            importance: Notifications.AndroidImportance.MAX,
+            vibrationPattern: [0, 250, 250, 250],
+            lightColor: '#FF5A1F',
+            sound: 'default',
+            enableVibrate: true,
+            showBadge: true,
+          }),
+        ]).catch(() => {});
       }
 
       const existingPerm = await Notifications.getPermissionsAsync();
@@ -72,7 +86,18 @@ export const customerNotificationService = {
         return null;
       }
 
-      const fcmToken = await acquireNativeFcmToken();
+      let fcmToken = await acquireNativeFcmToken();
+      if (!fcmToken && Platform.OS === 'android') {
+        try {
+          const deviceToken = await Notifications.getDevicePushTokenAsync();
+          if (deviceToken && deviceToken.data) {
+            fcmToken = deviceToken.data;
+          }
+        } catch {
+          // ignore fallback retrieval error
+        }
+      }
+
       if (!fcmToken) {
         return null;
       }
