@@ -40,6 +40,7 @@ import { BankOffersModal } from '@/components/home/bank-offers-modal';
 import { TryBuyModal } from '@/components/home/try-buy-modal';
 import { FloatingBottomBar } from '@/components/home/floating-bottom-bar';
 import { EditorialText } from '@/components/common/section-title';
+import { Fonts, FontStyles } from '@/constants/theme';
 import { SearchSuggestionsOverlay } from '@/components/home/search-suggestions-overlay';
 import { SearchResultsView } from '@/components/home/search-results-view';
 
@@ -557,22 +558,22 @@ export default function Page() {
                     <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: '#FEE2E2', alignItems: 'center', justifyContent: 'center' }}>
                       <AlertTriangle size={15} color="#DC2626" />
                     </View>
-                    <Text style={{ fontSize: 11.5, fontWeight: '900', color: '#DC2626', letterSpacing: 0.8, textTransform: 'uppercase' }}>
+                    <Text style={[FontStyles.sansBold, { fontSize: 11.5, color: '#DC2626', letterSpacing: 0.8, textTransform: 'uppercase' }]}>
                       NOT AVAILABLE FOR THIS PLACE
                     </Text>
                   </View>
 
                   <View style={{ backgroundColor: '#FFFFFF', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10, borderWidth: 1, borderColor: '#FECACA' }}>
-                    <Text style={{ fontSize: 10, fontWeight: '900', color: '#B91C1C' }}>
+                    <Text style={[FontStyles.sansBold, { fontSize: 10, color: '#B91C1C' }]}>
                       {serviceability.distanceKm} KM (MAX 8.0 KM)
                     </Text>
                   </View>
                 </View>
 
-                <Text style={{ fontSize: 13, fontWeight: '800', color: '#991B1B', lineHeight: 18 }}>
+                <Text style={[FontStyles.sansBold, { fontSize: 13, color: '#991B1B', lineHeight: 18 }]}>
                   Instant 18-minute delivery is not available at {selectedAddress?.locality || selectedAddress?.city || 'this location'}.
                 </Text>
-                <Text style={{ fontSize: 11, color: '#7F1D1D', marginTop: 3, lineHeight: 16 }}>
+                <Text style={[FontStyles.sansRegular, { fontSize: 11, color: '#7F1D1D', marginTop: 3, lineHeight: 16 }]}>
                   Our Ather 450X EV quick-commerce fleet operates within 8.0 km of our Express Hub. Items can only be ordered via Standard Boutique Dispatch (2-4 Days) or choose another location.
                 </Text>
 
@@ -591,7 +592,7 @@ export default function Page() {
                   }}
                 >
                   <MapPin size={13} color="#FFFFFF" />
-                  <Text style={{ fontSize: 11.5, fontWeight: '900', color: '#FFFFFF', letterSpacing: 0.5 }}>
+                  <Text style={[FontStyles.sansBold, { fontSize: 11.5, color: '#FFFFFF', letterSpacing: 0.5 }]}>
                     SELECT SERVICEABLE LOCATION
                   </Text>
                 </Pressable>
@@ -615,11 +616,11 @@ export default function Page() {
               >
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   <Zap size={13} color="#15803D" fill="#15803D" />
-                  <Text style={{ fontSize: 11, fontWeight: '900', color: '#15803D' }}>
+                  <Text style={[FontStyles.sansBold, { fontSize: 11, color: '#15803D' }]}>
                     ⚡ 18-Min Instant Drop Available at {selectedAddress?.locality || selectedAddress?.city || 'Your Area'}
                   </Text>
                 </View>
-                <Text style={{ fontSize: 10, fontWeight: '800', color: '#166534' }}>
+                <Text style={[FontStyles.sansBold, { fontSize: 10, color: '#166534' }]}>
                   {serviceability.distanceKm} km from Hub
                 </Text>
               </View>
@@ -671,7 +672,7 @@ export default function Page() {
                     lineHeight={16}
                     singleLine={true}
                   />
-                  <Text style={{ fontSize: 9.5, color: '#6B6667', marginTop: 1.5 }} numberOfLines={1}>
+                  <Text style={[FontStyles.sansRegular, { fontSize: 9.5, color: '#6B6667', marginTop: 1.5 }]} numberOfLines={1}>
                     Try sizes • Keep what fits
                   </Text>
                 </View>
@@ -833,7 +834,7 @@ export default function Page() {
         <View className="w-[24px] h-[24px] bg-white/10 rounded-full items-center justify-center">
           <ShoppingBag size={13} color="#ffffff" />
         </View>
-        <Text className="text-white text-[12px] font-bold tracking-wide">{toast}</Text>
+        <Text style={[FontStyles.sansBold, { color: '#FFFFFF', fontSize: 12, letterSpacing: 0.3 }]}>{toast}</Text>
       </Animated.View>
 
       {/* Hyper-Local Fashion Dark Store Selection Modal */}

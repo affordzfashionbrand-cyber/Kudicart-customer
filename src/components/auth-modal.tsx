@@ -4,6 +4,7 @@ import { X, ArrowRight, ShieldCheck, CheckCircle2, AlertCircle } from 'lucide-re
 import type { FirebasePhoneConfirmation } from '@/services/firebase';
 import { useAuthStore } from '@/store/useAuthStore';
 import { AnimatedPressable } from '@/components/common/animated-pressable';
+import { Fonts } from '@/constants/theme';
 import {
   canUseFirebasePhoneAuth,
   clearRecaptchaVerifier,
@@ -12,6 +13,40 @@ import {
 } from '@/services/firebase';
 
 const bespokeEasing = Easing.bezier(0.32, 0.72, 0, 1);
+
+function formatFirebaseAuthError(err: any): string {
+  const code = String(err?.code || '');
+  const message = String(err?.message || '');
+  if (message.includes('reCAPTCHA Timeout') || message.includes('Timeout') || code === 'auth/timeout') {
+    return 'Security verification (reCAPTCHA) timed out. Please try sending OTP again.';
+  }
+  switch (code) {
+    case 'auth/invalid-phone-number':
+      return 'Please enter a valid 10-digit mobile number.';
+    case 'auth/quota-exceeded':
+      return 'SMS quota exceeded for this project. Please try again later.';
+    case 'auth/too-many-requests':
+      return 'Too many attempts. Please wait a moment before requesting a new OTP.';
+    case 'auth/captcha-check-failed':
+      return 'Security verification (reCAPTCHA) failed. Please try again.';
+    case 'auth/invalid-app-credential':
+      return 'App verification failed. Please try again or use 127.0.0.1 in the address bar.';
+    case 'auth/invalid-verification-code':
+      return 'Invalid verification code. Please check the code received via SMS.';
+    case 'auth/code-expired':
+      return 'Verification code has expired. Please request a new OTP.';
+    case 'auth/missing-verification-code':
+      return 'Please enter the 6-digit verification code.';
+    case 'auth/user-disabled':
+      return 'This account has been disabled. Please contact support.';
+    case 'auth/network-request-failed':
+      return 'Network error. Please check your internet connection and try again.';
+    case 'auth/operation-not-allowed':
+      return 'Phone authentication is not enabled for this region.';
+    default:
+      return err?.message || 'Authentication error. Please try again.';
+  }
+}
 
 interface AuthModalProps {
   visible: boolean;
@@ -52,7 +87,7 @@ export function AuthModal({ visible, onClose, onSuccess }: AuthModalProps) {
       confirmationResultRef.current = null;
       clearRecaptchaVerifier();
     }
-  }, [visible, isNative]);
+  }, [visible, isNative, slideAnim]);
 
   useEffect(() => {
     let timer: any;
@@ -92,19 +127,10 @@ export function AuthModal({ visible, onClose, onSuccess }: AuthModalProps) {
           setOtp(['', '', '', '', '', '']);
           return;
         } catch (fbErr: any) {
-          const fbCode = String(fbErr?.code || '');
-          const isWebDevProjectFallback =
-            __DEV__ &&
-            Platform.OS === 'web' &&
-            (fbCode === 'auth/billing-not-enabled' ||
-              fbCode === 'auth/operation-not-allowed' ||
-              fbCode === 'auth/unauthorized-domain' ||
-              fbCode === 'auth/invalid-app-credential');
-          if (!isWebDevProjectFallback) {
-            throw fbErr;
-          }
           clearRecaptchaVerifier();
-          console.warn('[Affordz Auth] Firebase web phone auth unavailable in local dev, falling back to dev OTP:', fbCode);
+          console.error('[Affordz Auth] Firebase Phone Auth error:', fbErr);
+          setError(formatFirebaseAuthError(fbErr));
+          return;
         }
       }
 
@@ -154,7 +180,10 @@ export function AuthModal({ visible, onClose, onSuccess }: AuthModalProps) {
     setIsVerifying(true);
     try {
       let success = false;
-      if (authMode === 'firebase' && confirmationResultRef.current) {
+      if (authMode === 'firebase') {
+        if (!confirmationResultRef.current) {
+          throw new Error('Verification session expired. Please request a new OTP.');
+        }
         const { idToken } = await verifyFirebasePhoneCode(confirmationResultRef.current, code);
         success = await loginWithFirebase(idToken);
       } else {
@@ -170,7 +199,8 @@ export function AuthModal({ visible, onClose, onSuccess }: AuthModalProps) {
         setError(useAuthStore.getState().error || 'Invalid or expired OTP. Please enter the correct code.');
       }
     } catch (err: any) {
-      setError(err?.message || 'Verification failed. Could not verify OTP with server.');
+      console.error('[Affordz Auth] Verify OTP error:', err);
+      setError(formatFirebaseAuthError(err));
     } finally {
       setIsVerifying(false);
     }
@@ -184,7 +214,7 @@ export function AuthModal({ visible, onClose, onSuccess }: AuthModalProps) {
           <View className="bg-white rounded-[28px] p-[24px] border border-[#D9D9D5]">
             <View nativeID="recaptcha-container" />
             <View className="flex-row justify-between items-center mb-[28px]">
-              <Text className="text-[10px] uppercase tracking-[0.25em] font-extrabold text-[#6B6667]">CLIENT ACCESS</Text>
+              <Text style={{ fontFamily: Fonts.sansExtraBold }} className="text-[10px] uppercase tracking-[0.25em] text-[#6B6667]">CLIENT ACCESS</Text>
               <Pressable onPress={handleClose} className="w-[34px] h-[34px] bg-[#F7F7F5] border border-[#D9D9D5] rounded-full justify-center items-center">
                 <X size={16} color="#111111" />
               </Pressable>
@@ -193,7 +223,7 @@ export function AuthModal({ visible, onClose, onSuccess }: AuthModalProps) {
             {error && (
               <View className="flex-row items-center gap-2 bg-[#FFF0EA] border border-[#FF5A1F]/30 rounded-[14px] p-3 mb-4">
                 <AlertCircle size={16} color="#FF5A1F" />
-                <Text className="flex-1 text-[12px] font-bold text-[#FF5A1F] leading-[16px]">{error}</Text>
+                <Text style={{ fontFamily: Fonts.sansBold }} className="flex-1 text-[12px] text-[#FF5A1F] leading-[16px]">{error}</Text>
               </View>
             )}
 
@@ -202,19 +232,20 @@ export function AuthModal({ visible, onClose, onSuccess }: AuthModalProps) {
                 <View className="w-[84px] h-[84px] rounded-full bg-[#111111] justify-center items-center mb-[20px]">
                   <CheckCircle2 size={40} color="#FFFFFF" />
                 </View>
-                <Text className="text-[28px] tracking-tight font-black text-[#111111] mb-[6px]">WELCOME BACK<Text style={{ color: '#FF5A1F' }}>.</Text></Text>
-                <Text className="text-[13px] text-[#6B6667]">STYLE TODAY. DELIVERED NOW.</Text>
+                <Text style={{ fontFamily: Fonts.sansBold }} className="text-[28px] tracking-tight text-[#111111] mb-[6px]">WELCOME BACK<Text style={{ color: '#FF5A1F' }}>.</Text></Text>
+                <Text style={{ fontFamily: Fonts.sansMedium }} className="text-[13px] text-[#6B6667]">STYLE TODAY. DELIVERED NOW.</Text>
               </View>
             ) : activeStep === 1 ? (
               <View>
-                <Text className="text-[30px] leading-[34px] tracking-tight font-black text-[#111111] mb-[8px]">SIGN IN<Text style={{ color: '#FF5A1F' }}>.</Text></Text>
-                <Text className="text-[13.5px] text-[#6B6667] mb-[28px]">Enter your mobile number for rapid checkout and live drop tracking.</Text>
+                <Text style={{ fontFamily: Fonts.sansBold }} className="text-[30px] leading-[34px] tracking-tight text-[#111111] mb-[8px]">SIGN IN<Text style={{ color: '#FF5A1F' }}>.</Text></Text>
+                <Text style={{ fontFamily: Fonts.sansMedium }} className="text-[13.5px] text-[#6B6667] mb-[28px]">Enter your mobile number for rapid checkout and live drop tracking.</Text>
 
                 <View className="h-[52px] bg-[#F7F7F5] border border-[#D9D9D5] rounded-[16px] flex-row items-center px-[16px] mb-[28px]">
-                  <Text className="text-[15px] font-bold text-[#111111] mr-[12px]">+91</Text>
+                  <Text style={{ fontFamily: Fonts.sansBold }} className="text-[15px] text-[#111111] mr-[12px]">+91</Text>
                   <View className="w-[1px] h-[20px] bg-[#D9D9D5] mr-[12px]" />
                   <TextInput 
-                    className="flex-1 text-[15px] font-bold text-[#111111]"
+                    style={{ fontFamily: Fonts.sansBold }}
+                    className="flex-1 text-[15px] text-[#111111]"
                     keyboardType="phone-pad"
                     value={phoneNumber}
                     onChangeText={setPhoneNumber}
@@ -224,7 +255,7 @@ export function AuthModal({ visible, onClose, onSuccess }: AuthModalProps) {
                 </View>
 
                 <AnimatedPressable className="flex-row items-center bg-[#111111] rounded-full pl-[24px] pr-[8px] py-[8px] justify-between" onPress={handleGetOtp} disabled={isGettingOtp}>
-                  <Text className="text-[12px] font-extrabold text-white uppercase tracking-[0.18em]">{isGettingOtp ? 'SENDING...' : 'GET OTP'}</Text>
+                  <Text style={{ fontFamily: Fonts.sansExtraBold }} className="text-[12px] text-white uppercase tracking-[0.18em]">{isGettingOtp ? 'SENDING...' : 'GET OTP'}</Text>
                   <View className="w-[42px] h-[42px] rounded-full bg-white flex items-center justify-center">
                     <ArrowRight size={18} color="#111111" />
                   </View>
@@ -233,18 +264,18 @@ export function AuthModal({ visible, onClose, onSuccess }: AuthModalProps) {
             ) : (
               <View>
                 <View className="flex-row items-center justify-between mb-[8px]">
-                  <Text className="text-[30px] leading-[34px] tracking-tight font-black text-[#111111]">VERIFY OTP<Text style={{ color: '#FF5A1F' }}>.</Text></Text>
+                  <Text style={{ fontFamily: Fonts.sansBold }} className="text-[30px] leading-[34px] tracking-tight text-[#111111]">VERIFY OTP<Text style={{ color: '#FF5A1F' }}>.</Text></Text>
                   <Pressable onPress={() => { setActiveStep(1); setError(null); }} hitSlop={8}>
-                    <Text className="text-[11px] font-bold text-[#FF5A1F] underline">Change</Text>
+                    <Text style={{ fontFamily: Fonts.sansBold }} className="text-[11px] text-[#FF5A1F] underline">Change</Text>
                   </Pressable>
                 </View>
-                <Text className="text-[13.5px] text-[#6B6667] mb-[16px]">Enter the 6-digit verification code sent to +91 {phoneNumber.replace(/\D/g, '').slice(-10)}</Text>
-                {__DEV__ && devOtp && (
+                <Text style={{ fontFamily: Fonts.sansMedium }} className="text-[13.5px] text-[#6B6667] mb-[16px]">Enter the 6-digit verification code sent to +91 {phoneNumber.replace(/\D/g, '').slice(-10)}</Text>
+                {__DEV__ && authMode === 'backend_dev' && devOtp && (
                   <View className="flex-row items-center justify-between bg-[#F7F7F5] border border-[#D9D9D5] rounded-[14px] px-3 py-2 mb-4">
                     <View className="flex-row items-center gap-1.5">
                       <CheckCircle2 size={13} color="#059669" />
-                      <Text className="text-[11.5px] text-[#111111] font-bold">
-                        Dev OTP: <Text className="font-black text-[#FF5A1F]">{devOtp}</Text>
+                      <Text style={{ fontFamily: Fonts.sansBold }} className="text-[11.5px] text-[#111111]">
+                        Dev OTP: <Text style={{ fontFamily: Fonts.sansBold }} className="text-[#FF5A1F]">{devOtp}</Text>
                       </Text>
                     </View>
                     <Pressable
@@ -254,7 +285,7 @@ export function AuthModal({ visible, onClose, onSuccess }: AuthModalProps) {
                       }}
                       hitSlop={8}
                     >
-                      <Text className="text-[11.5px] font-black text-[#111111] underline">Auto-fill</Text>
+                      <Text style={{ fontFamily: Fonts.sansBold }} className="text-[11.5px] text-[#111111] underline">Auto-fill</Text>
                     </Pressable>
                   </View>
                 )}
@@ -265,7 +296,8 @@ export function AuthModal({ visible, onClose, onSuccess }: AuthModalProps) {
                       key={index}
                       ref={(el: any) => (inputRefs.current[index] = el)}
                       accessibilityLabel={`OTP digit ${index + 1}`}
-                      className="w-[48px] h-[52px] bg-[#F7F7F5] border border-[#D9D9D5] rounded-[16px] text-center text-[20px] font-black text-[#111111]"
+                      style={{ fontFamily: Fonts.sansBold }}
+                      className="w-[48px] h-[52px] bg-[#F7F7F5] border border-[#D9D9D5] rounded-[16px] text-center text-[20px] text-[#111111]"
                       keyboardType="number-pad"
                       maxLength={1}
                       value={digit}
@@ -282,12 +314,12 @@ export function AuthModal({ visible, onClose, onSuccess }: AuthModalProps) {
 
                 <View className="flex-row items-center justify-between mb-[22px]">
                   {countdown > 0 ? (
-                    <Text className="text-[12px] font-semibold text-[#6B6667]">
+                    <Text style={{ fontFamily: Fonts.sansSemiBold }} className="text-[12px] text-[#6B6667]">
                       Resend OTP in {countdown}s
                     </Text>
                   ) : (
                     <Pressable onPress={handleGetOtp} disabled={isGettingOtp} hitSlop={8}>
-                      <Text className="text-[12px] font-black text-[#FF5A1F] underline">
+                      <Text style={{ fontFamily: Fonts.sansBold }} className="text-[12px] text-[#FF5A1F] underline">
                         {isGettingOtp ? 'Resending...' : 'Resend OTP'}
                       </Text>
                     </Pressable>
@@ -295,7 +327,7 @@ export function AuthModal({ visible, onClose, onSuccess }: AuthModalProps) {
                 </View>
 
                 <AnimatedPressable className="flex-row items-center bg-[#111111] rounded-full pl-[24px] pr-[8px] py-[8px] justify-between" onPress={handleVerifyOtp} disabled={isVerifying}>
-                  <Text className="text-[12px] font-extrabold text-white uppercase tracking-[0.18em]">{isVerifying ? 'VERIFYING...' : 'VERIFY & PROCEED'}</Text>
+                  <Text style={{ fontFamily: Fonts.sansExtraBold }} className="text-[12px] text-white uppercase tracking-[0.18em]">{isVerifying ? 'VERIFYING...' : 'VERIFY & PROCEED'}</Text>
                   <View className="w-[42px] h-[42px] rounded-full bg-white flex items-center justify-center">
                     <ShieldCheck size={18} color="#111111" />
                   </View>

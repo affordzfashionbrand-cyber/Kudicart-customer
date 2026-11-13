@@ -51,7 +51,25 @@ function getWebFirebaseApp(): FirebaseApp | null {
 
 function getWebFirebaseAuth(): Auth | null {
   const webApp = getWebFirebaseApp();
-  return webApp ? getAuth(webApp) : null;
+  if (!webApp) return null;
+  const auth = getAuth(webApp);
+  // NOTE: Do NOT set appVerificationDisabledForTesting = true here.
+  // That flag causes a MALFORMED reCAPTCHA token to be sent to Google,
+  // which works only with Firebase test phone numbers. For real phone
+  // numbers it breaks OTP delivery with CAPTCHA_CHECK_FAILED.
+  return auth;
+}
+
+export const FIREBASE_TEST_NUMBERS = [
+  '+919840888866',
+  '+919876543210',
+  '+918124188999',
+  '+919845012890',
+];
+
+export function isFirebaseTestNumber(phone: string): boolean {
+  const normalized = normalizePhoneToE164(phone);
+  return FIREBASE_TEST_NUMBERS.includes(normalized);
 }
 
 export function normalizePhoneToE164(phone: string): string {
@@ -95,6 +113,26 @@ export function clearRecaptchaVerifier(): void {
     }
     activeRecaptchaVerifier = null;
   }
+
+  // Also reset the DOM element so grecaptcha doesn't complain that
+  // "reCAPTCHA has already been rendered in this element" on subsequent attempts
+  if (typeof document !== 'undefined' && typeof document.getElementById === 'function') {
+    const el = document.getElementById('recaptcha-container');
+    if (el) {
+      try {
+        if (el.parentNode && typeof document.createElement === 'function') {
+          const fresh = document.createElement('div');
+          fresh.id = el.id;
+          fresh.className = el.className;
+          el.parentNode.replaceChild(fresh, el);
+        } else {
+          el.innerHTML = '';
+        }
+      } catch {
+        el.innerHTML = '';
+      }
+    }
+  }
 }
 
 export async function startFirebasePhoneSignIn(
@@ -124,16 +162,127 @@ export async function startFirebasePhoneSignIn(
     throw new Error('Firebase Web Phone Auth requires a browser DOM environment.');
   }
 
-  clearRecaptchaVerifier();
-  activeRecaptchaVerifier = new RecaptchaVerifier(webAuth, containerId, {
-    size: 'invisible',
-  });
+  let containerEl: any = null;
+  if (typeof document !== 'undefined') {
+    let existing: any = null;
+    if (typeof document.getElementById === 'function') {
+      existing = document.getElementById(containerId);
+    }
+    // If a container exists but has child elements (stale grecaptcha iframe), replace with a clean node
+    if (
+      existing &&
+      existing.childNodes &&
+      existing.childNodes.length > 0 &&
+      !activeRecaptchaVerifier &&
+      typeof document.createElement === 'function'
+    ) {
+      try {
+        const fresh = document.createElement('div');
+        fresh.id = containerId;
+        fresh.className = existing.className;
+        if (existing.parentNode) {
+          existing.parentNode.replaceChild(fresh, existing);
+          containerEl = fresh;
+        } else {
+          existing.innerHTML = '';
+          containerEl = existing;
+        }
+      } catch {
+        existing.innerHTML = '';
+        containerEl = existing;
+      }
+    } else if (existing) {
+      containerEl = existing;
+    }
+
+    if (!containerEl && document.body && typeof document.createElement === 'function') {
+      containerEl = document.createElement('div');
+      containerEl.id = containerId;
+      containerEl.style.position = 'fixed';
+      containerEl.style.bottom = '0';
+      containerEl.style.right = '0';
+      containerEl.style.zIndex = '99999';
+      document.body.appendChild(containerEl);
+    }
+  }
+
+  if (!activeRecaptchaVerifier) {
+    activeRecaptchaVerifier = new RecaptchaVerifier(webAuth, containerEl || containerId, {
+      size: 'invisible',
+      callback: () => {
+        // reCAPTCHA solved
+      },
+      'expired-callback': () => {
+        try {
+          if (typeof window !== 'undefined' && (window as any).grecaptcha?.reset) {
+            (window as any).grecaptcha.reset();
+          }
+        } catch {}
+      },
+      'error-callback': (error: any) => {
+        console.warn('[Affordz Auth] reCAPTCHA error callback:', error);
+      },
+    });
+  }
 
   try {
-    await activeRecaptchaVerifier.render();
-    return await signInWithPhoneNumber(webAuth, e164Phone, activeRecaptchaVerifier);
-  } catch (err) {
-    clearRecaptchaVerifier();
+    if (activeRecaptchaVerifier && typeof activeRecaptchaVerifier.render === 'function') {
+      await activeRecaptchaVerifier.render();
+    }
+  } catch (renderErr: any) {
+    const msg = String(renderErr?.message || renderErr);
+    if (msg.includes('already been rendered')) {
+      // Container already has the widget rendered; reset grecaptcha if available and proceed
+      try {
+        if (typeof window !== 'undefined' && (window as any).grecaptcha?.reset) {
+          (window as any).grecaptcha.reset();
+        }
+      } catch {}
+    } else {
+      clearRecaptchaVerifier();
+      containerEl = document.getElementById(containerId);
+      if (!containerEl && document.body) {
+        containerEl = document.createElement('div');
+        containerEl.id = containerId;
+        document.body.appendChild(containerEl);
+      }
+      activeRecaptchaVerifier = new RecaptchaVerifier(webAuth, containerEl || containerId, {
+        size: 'invisible',
+        callback: () => {},
+        'expired-callback': () => {},
+        'error-callback': () => {},
+      });
+      try {
+        await activeRecaptchaVerifier.render();
+      } catch {
+        // Continue if render fails due to already-rendered check
+      }
+    }
+  }
+
+  try {
+    if (webAuth && (webAuth as any).settings) {
+      if (isFirebaseTestNumber(e164Phone)) {
+        (webAuth as any).settings.appVerificationDisabledForTesting = true;
+      } else {
+        (webAuth as any).settings.appVerificationDisabledForTesting = false;
+      }
+    }
+
+    const confirmationPromise = signInWithPhoneNumber(webAuth, e164Phone, activeRecaptchaVerifier);
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      const timer = setTimeout(() => {
+        reject(new Error('reCAPTCHA Timeout. Verification took too long, please try again.'));
+      }, 25000);
+      confirmationPromise.then(() => clearTimeout(timer), () => clearTimeout(timer));
+    });
+    return await Promise.race([confirmationPromise, timeoutPromise]);
+  } catch (err: any) {
+    try {
+      if (typeof window !== 'undefined' && (window as any).grecaptcha?.reset) {
+        (window as any).grecaptcha.reset();
+      }
+    } catch {}
     throw err;
   }
 }

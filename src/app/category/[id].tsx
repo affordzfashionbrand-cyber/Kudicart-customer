@@ -40,6 +40,7 @@ import { useCatalogStore } from '@/store/useCatalogStore';
 import { catalogApi, ApiProduct } from '@/services/api';
 import { getEnrichedProductCatalog, sortProductList } from '@/utils/product-catalog';
 import { safeBack } from '@/utils/navigation';
+import { Fonts, FontStyles } from '@/constants/theme';
 
 type SortOption = 'featured' | 'price_asc' | 'price_desc' | 'rating';
 type PriceFilter = 'all' | 'under2k' | 'under5k' | 'above5k';
@@ -500,7 +501,7 @@ export default function CategoryResultsScreen() {
         {isLoading && page === 1 ? (
           <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingTop: 60 }}>
             <ActivityIndicator size="large" color="#FF5A1F" />
-            <Text style={{ marginTop: 12, fontSize: 13, color: '#6B6667', fontWeight: '600' }}>
+            <Text style={[{ marginTop: 12, fontSize: 13, color: '#6B6667' }, FontStyles.sansSemiBold]}>
               Curating Runway Catalog...
             </Text>
           </View>
@@ -628,12 +629,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#FDFBF7',
   },
   headerTitle: {
+    fontFamily: Fonts.sansBold,
     fontSize: 18,
     fontWeight: '900',
     color: '#111111',
     letterSpacing: -0.3,
   },
   headerSubtitle: {
+    fontFamily: Fonts.sansMedium,
     fontSize: 11,
     fontWeight: '500',
     color: '#6B6667',
@@ -664,6 +667,7 @@ const styles = StyleSheet.create({
     borderColor: '#FFFFFF',
   },
   badgeText: {
+    fontFamily: Fonts.sansBold,
     color: '#FFFFFF',
     fontSize: 9,
     fontWeight: '900',
@@ -683,6 +687,7 @@ const styles = StyleSheet.create({
     height: 40,
   },
   searchInput: {
+    fontFamily: Fonts.sansMedium,
     flex: 1,
     marginLeft: 8,
     fontSize: 13,
@@ -722,6 +727,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   bannerTagText: {
+    fontFamily: Fonts.sansBold,
     color: '#FF5A1F',
     fontSize: 9.5,
     fontWeight: '900',
@@ -729,6 +735,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   bannerSubtext: {
+    fontFamily: Fonts.sansMedium,
     fontSize: 11,
     fontWeight: '500',
     color: '#E5E7EB',
@@ -749,13 +756,16 @@ const styles = StyleSheet.create({
     borderColor: '#D9D9D5',
   },
   chipText: {
+    fontFamily: Fonts.sansMedium,
     fontSize: 11,
   },
   chipTextActive: {
+    fontFamily: Fonts.sansBold,
     color: '#FFFFFF',
     fontWeight: '800',
   },
   chipTextInactive: {
+    fontFamily: Fonts.sansMedium,
     color: '#33383F',
     fontWeight: '600',
   },
@@ -773,6 +783,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   sortIndicatorText: {
+    fontFamily: Fonts.sansBold,
     fontSize: 10,
     fontWeight: '800',
     color: '#111111',
@@ -791,11 +802,13 @@ const styles = StyleSheet.create({
     borderColor: '#FF5A1F',
   },
   filterPillText: {
+    fontFamily: Fonts.sansMedium,
     fontSize: 11,
     fontWeight: '600',
     color: '#4A4647',
   },
   filterPillTextActive: {
+    fontFamily: Fonts.sansBold,
     color: '#FFFFFF',
     fontWeight: '800',
   },
@@ -817,10 +830,12 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   summaryCount: {
+    fontFamily: Fonts.sansMedium,
     fontSize: 11.5,
     color: '#6B6667',
   },
   summaryExpress: {
+    fontFamily: Fonts.sansBold,
     fontSize: 11,
     fontWeight: '800',
     color: '#FF5A1F',
@@ -858,12 +873,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   cartBarTitle: {
+    fontFamily: Fonts.sansBold,
     fontSize: 12,
     fontWeight: '800',
     color: '#FFFFFF',
     letterSpacing: 0.5,
   },
   cartBarTotal: {
+    fontFamily: Fonts.sansMedium,
     fontSize: 11,
     color: '#A09C9D',
     marginTop: 1,
@@ -875,6 +892,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   cartBarCtaText: {
+    fontFamily: Fonts.sansBold,
     color: '#FFFFFF',
     fontSize: 11,
     fontWeight: '900',

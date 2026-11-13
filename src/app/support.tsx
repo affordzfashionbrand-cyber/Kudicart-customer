@@ -130,16 +130,16 @@ export default function SupportScreen() {
           </View>
 
           <View style={{ backgroundColor: '#FFF7ED', borderWidth: 1, borderColor: '#FFEDD5', paddingHorizontal: 12, paddingVertical: 4, borderRadius: 20, marginBottom: 10 }}>
-            <Text style={{ fontSize: 10, fontWeight: '900', color: '#C2410C', letterSpacing: 1.2, textTransform: 'uppercase' }}>
+            <Text style={[FontStyles.sansBold, { fontSize: 10, fontWeight: '900', color: '#C2410C', letterSpacing: 1.2, textTransform: 'uppercase' }]}>
               CONCIERGE TICKET LOGGED
             </Text>
           </View>
 
-          <Text style={{ fontSize: 26, fontWeight: '900', color: '#111111', letterSpacing: -0.5, marginBottom: 8, textAlign: 'center' }}>
+          <Text style={[FontStyles.sansBold, { fontSize: 26, fontWeight: '900', color: '#111111', letterSpacing: -0.5, marginBottom: 8, textAlign: 'center' }]}>
             We&apos;re On It.
           </Text>
 
-          <Text style={{ fontSize: 13, color: '#6B6667', textAlign: 'center', lineHeight: 20, marginBottom: 28 }}>
+          <Text style={[FontStyles.sansRegular, { fontSize: 13, color: '#6B6667', textAlign: 'center', lineHeight: 20, marginBottom: 28 }]}>
             Your request has been dispatched to our dedicated fashion stylists and fleet concierge. We will respond promptly.
           </Text>
 
@@ -147,7 +147,7 @@ export default function SupportScreen() {
             style={{ width: '100%', backgroundColor: '#111111', borderRadius: 999, paddingVertical: 14, alignItems: 'center', justifyContent: 'center' }}
             onPress={() => safeBack(router, '/')}
           >
-            <Text style={{ fontSize: 12, fontWeight: '900', color: '#FFFFFF', letterSpacing: 1, textTransform: 'uppercase' }}>
+            <Text style={[FontStyles.sansBold, { fontSize: 12, fontWeight: '900', color: '#FFFFFF', letterSpacing: 1, textTransform: 'uppercase' }]}>
               BACK TO EXPLORE
             </Text>
           </AnimatedPressable>
@@ -184,10 +184,10 @@ export default function SupportScreen() {
         </AnimatedPressable>
 
         <View style={{ alignItems: 'center' }}>
-          <Text style={{ fontSize: 9.5, fontWeight: '900', letterSpacing: 1.5, color: '#FF5A1F', textTransform: 'uppercase' }}>
+          <Text style={[FontStyles.sansBold, { fontSize: 9.5, fontWeight: '900', letterSpacing: 1.5, color: '#FF5A1F', textTransform: 'uppercase' }]}>
             AFFORDZ CLIENT CARE
           </Text>
-          <Text style={{ fontSize: 16, fontWeight: '900', color: '#111111' }}>
+          <Text style={[FontStyles.sansBold, { fontSize: 16, fontWeight: '900', color: '#111111' }]}>
             Stylist Concierge
           </Text>
         </View>
@@ -212,13 +212,13 @@ export default function SupportScreen() {
             </Text>
           </View>
           <Text
-            className="font-serif editorial-text"
-            style={{ fontFamily: Fonts.serifSemiBold, fontSize: 28, lineHeight: 32, letterSpacing: -0.5, color: '#111111' }}
+            className="font-sans"
+            style={{ fontFamily: Fonts.sansBold, fontSize: 28, lineHeight: 32, letterSpacing: -0.5, color: '#111111' }}
           >
-            <Text style={FontStyles.serifRegular}>How can we</Text>{' '}
-            <Text style={FontStyles.serifItalic}>assist you?</Text>
+            <Text style={FontStyles.sansRegular}>How can we</Text>{' '}
+            <Text style={FontStyles.sansBold}>assist you?</Text>
           </Text>
-          <Text style={{ fontSize: 12.5, color: '#6B6667', marginTop: 4 }}>
+          <Text style={[FontStyles.sansRegular, { fontSize: 12.5, color: '#6B6667', marginTop: 4 }]}>
             Instant doorstep resolutions, fit exchanges, or bespoke order styling.
           </Text>
         </View>
@@ -230,10 +230,10 @@ export default function SupportScreen() {
               <Package size={16} color="#FF5A1F" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 11.5, fontWeight: '900', color: '#C2410C', textTransform: 'uppercase' }}>
+              <Text style={[FontStyles.sansBold, { fontSize: 11.5, fontWeight: '900', color: '#C2410C', textTransform: 'uppercase' }]}>
                 LINKED TO DROP #{params.orderId}
               </Text>
-              <Text style={{ fontSize: 10.5, color: '#9A3412', marginTop: 1 }}>
+              <Text style={[FontStyles.sansRegular, { fontSize: 10.5, color: '#9A3412', marginTop: 1 }]}>
                 Our team has immediate access to your order items and assigned delivery partner.
               </Text>
             </View>
@@ -241,7 +241,7 @@ export default function SupportScreen() {
         )}
 
         {/* Categories Chips */}
-        <Text style={{ fontSize: 10.5, fontWeight: '900', color: '#8E877E', letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 8 }}>
+        <Text style={[FontStyles.sansBold, { fontSize: 10.5, fontWeight: '900', color: '#8E877E', letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 8 }]}>
           SELECT INQUIRY CATEGORY
         </Text>
         <ScrollView
@@ -268,11 +268,14 @@ export default function SupportScreen() {
                 }}
               >
                 <Text
-                  style={{
-                    fontSize: 11,
-                    fontWeight: isSelected ? '900' : '700',
-                    color: isSelected ? '#FFFFFF' : '#4A4A4A',
-                  }}
+                  style={[
+                    isSelected ? FontStyles.sansBold : FontStyles.sansMedium,
+                    {
+                      fontSize: 11,
+                      fontWeight: isSelected ? '900' : '700',
+                      color: isSelected ? '#FFFFFF' : '#4A4A4A',
+                    },
+                  ]}
                 >
                   {SUPPORT_CATEGORY_LABELS[cat]}
                 </Text>
@@ -282,7 +285,7 @@ export default function SupportScreen() {
         </ScrollView>
 
         {/* Priority Chips */}
-        <Text style={{ fontSize: 10.5, fontWeight: '900', color: '#8E877E', letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 8 }}>
+        <Text style={[FontStyles.sansBold, { fontSize: 10.5, fontWeight: '900', color: '#8E877E', letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 8 }]}>
           PRIORITY LEVEL
         </Text>
         <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
@@ -303,11 +306,14 @@ export default function SupportScreen() {
                 }}
               >
                 <Text
-                  style={{
-                    fontSize: 11,
-                    fontWeight: isSelected ? '900' : '700',
-                    color: isSelected ? '#C2410C' : '#4A4A4A',
-                  }}
+                  style={[
+                    isSelected ? FontStyles.sansBold : FontStyles.sansMedium,
+                    {
+                      fontSize: 11,
+                      fontWeight: isSelected ? '900' : '700',
+                      color: isSelected ? '#C2410C' : '#4A4A4A',
+                    },
+                  ]}
                 >
                   {p.label}
                 </Text>
@@ -318,12 +324,12 @@ export default function SupportScreen() {
 
         {/* Input Card */}
         <View style={{ backgroundColor: '#FFFFFF', borderRadius: 22, padding: 18, borderWidth: 1, borderColor: '#E8E5DF', marginBottom: 16 }}>
-          <Text style={{ fontSize: 11, fontWeight: '800', color: '#111111', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6 }}>
+          <Text style={[FontStyles.sansBold, { fontSize: 11, fontWeight: '800', color: '#111111', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6 }]}>
             Subject
           </Text>
           <View style={{ height: 46, backgroundColor: '#FAF8F5', borderWidth: 1, borderColor: '#E8E5DF', borderRadius: 12, paddingHorizontal: 14, justifyContent: 'center', marginBottom: 14 }}>
             <TextInput
-              style={{ fontSize: 13, color: '#111111', fontWeight: '600' }}
+              style={[{ fontSize: 13, color: '#111111', fontWeight: '600' }, FontStyles.sansMedium]}
               placeholder="e.g. Size exchange for Heritage Kurta"
               placeholderTextColor="#A0A0A0"
               value={subject}
@@ -331,12 +337,12 @@ export default function SupportScreen() {
             />
           </View>
 
-          <Text style={{ fontSize: 11, fontWeight: '800', color: '#111111', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6 }}>
+          <Text style={[FontStyles.sansBold, { fontSize: 11, fontWeight: '800', color: '#111111', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6 }]}>
             Inquiry Message
           </Text>
           <View style={{ height: 110, backgroundColor: '#FAF8F5', borderWidth: 1, borderColor: '#E8E5DF', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, marginBottom: 18 }}>
             <TextInput
-              style={{ fontSize: 13, color: '#111111', minHeight: 90 }}
+              style={[{ fontSize: 13, color: '#111111', minHeight: 90 }, FontStyles.sansRegular]}
               placeholder="Describe your inquiry. Include any sizing preferences or instructions for our delivery pilot..."
               placeholderTextColor="#A0A0A0"
               multiline
@@ -363,7 +369,7 @@ export default function SupportScreen() {
             }}
             onPress={handleSubmit}
           >
-            <Text style={{ color: '#FFFFFF', fontSize: 12, fontWeight: '900', letterSpacing: 0.8, textTransform: 'uppercase' }}>
+            <Text style={[FontStyles.sansBold, { color: '#FFFFFF', fontSize: 12, fontWeight: '900', letterSpacing: 0.8, textTransform: 'uppercase' }]}>
               {isLoading ? 'SUBMITTING TICKET...' : 'DISPATCH TO CONCIERGE'}
             </Text>
             <Send size={14} color="#FFFFFF" />
@@ -373,7 +379,7 @@ export default function SupportScreen() {
         {/* Existing Tickets Section */}
         {tickets.length > 0 && (
           <View style={{ marginBottom: 16 }}>
-            <Text style={{ fontSize: 10.5, fontWeight: '900', color: '#8E877E', letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 10 }}>
+            <Text style={[FontStyles.sansBold, { fontSize: 10.5, fontWeight: '900', color: '#8E877E', letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 10 }]}>
               RECENT TICKETS & RESOLUTIONS
             </Text>
             {tickets.map((t) => {
@@ -393,7 +399,7 @@ export default function SupportScreen() {
                   }}
                 >
                   <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                    <Text style={{ fontSize: 10, fontWeight: '800', color: '#8E877E', textTransform: 'uppercase' }}>
+                    <Text style={[FontStyles.sansBold, { fontSize: 10, fontWeight: '800', color: '#8E877E', textTransform: 'uppercase' }]}>
                       {t.id}
                     </Text>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -411,13 +417,16 @@ export default function SupportScreen() {
                           }}
                         >
                           <Text
-                            style={{
-                              fontSize: 9,
-                              fontWeight: '900',
-                              textTransform: 'uppercase',
-                              color:
-                                t.priority === 'URGENT' || t.priority === 'HIGH' ? '#B91C1C' : '#57534E',
-                            }}
+                            style={[
+                              FontStyles.sansBold,
+                              {
+                                fontSize: 9,
+                                fontWeight: '900',
+                                textTransform: 'uppercase',
+                                color:
+                                  t.priority === 'URGENT' || t.priority === 'HIGH' ? '#B91C1C' : '#57534E',
+                              },
+                            ]}
                           >
                             {t.priority}
                           </Text>
@@ -434,30 +443,33 @@ export default function SupportScreen() {
                         }}
                       >
                         <Text
-                          style={{
-                            fontSize: 9,
-                            fontWeight: '900',
-                            textTransform: 'uppercase',
-                            color: isClosedOrResolved ? '#065F46' : '#C2410C',
-                          }}
+                          style={[
+                            FontStyles.sansBold,
+                            {
+                              fontSize: 9,
+                              fontWeight: '900',
+                              textTransform: 'uppercase',
+                              color: isClosedOrResolved ? '#065F46' : '#C2410C',
+                            },
+                          ]}
                         >
                           {t.status}
                         </Text>
                       </View>
                     </View>
                   </View>
-                  <Text style={{ fontSize: 13, fontWeight: '800', color: '#111111' }} numberOfLines={1}>
+                  <Text style={[FontStyles.sansBold, { fontSize: 13, fontWeight: '800', color: '#111111' }]} numberOfLines={1}>
                     {t.title}
                   </Text>
-                  <Text style={{ fontSize: 11, color: '#8E877E', marginTop: 2 }}>{categoryLabel}</Text>
+                  <Text style={[FontStyles.sansMedium, { fontSize: 11, color: '#8E877E', marginTop: 2 }]}>{categoryLabel}</Text>
                   {t.description ? (
-                    <Text style={{ fontSize: 11.5, color: '#4A4A4A', marginTop: 6 }} numberOfLines={2}>
+                    <Text style={[FontStyles.sansRegular, { fontSize: 11.5, color: '#4A4A4A', marginTop: 6 }]} numberOfLines={2}>
                       {t.description}
                     </Text>
                   ) : null}
                   {t.resolutionRemarks ? (
                     <View style={{ marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: '#F4F1EA' }}>
-                      <Text style={{ fontSize: 10.5, fontWeight: '800', color: '#065F46' }}>
+                      <Text style={[FontStyles.sansBold, { fontSize: 10.5, fontWeight: '800', color: '#065F46' }]}>
                         Resolution: {t.resolutionRemarks}
                       </Text>
                     </View>
@@ -470,8 +482,8 @@ export default function SupportScreen() {
 
         {/* Direct Channel Footer */}
         <View style={{ alignItems: 'center', paddingVertical: 16, borderTopWidth: 1, borderTopColor: '#E8E5DF' }}>
-          <Text style={{ fontSize: 11.5, color: '#6B6667', marginBottom: 2 }}>Direct VIP Atelier Helpline</Text>
-          <Text style={{ fontSize: 13, fontWeight: '900', color: '#FF5A1F' }}>concierge@affordz.in</Text>
+          <Text style={[FontStyles.sansMedium, { fontSize: 11.5, color: '#6B6667', marginBottom: 2 }]}>Direct VIP Atelier Helpline</Text>
+          <Text style={[FontStyles.sansBold, { fontSize: 13, fontWeight: '900', color: '#FF5A1F' }]}>concierge@affordz.in</Text>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>

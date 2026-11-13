@@ -3,6 +3,7 @@ import { View, Text } from 'react-native';
 import { Lock, ArrowRight } from 'lucide-react-native';
 import { AnimatedPriceTicker } from '@/components/common/animated-price-ticker';
 import { AnimatedPressable } from '@/components/common/animated-pressable';
+import { Fonts, FontStyles } from '@/constants/theme';
 
 export interface CartBottomBarProps {
   insets: any;
@@ -59,20 +60,23 @@ export const CartBottomBar = React.memo(function CartBottomBar({
           <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
             <AnimatedPriceTicker
               value={finalPayable}
-              style={{ fontSize: 20, fontWeight: '900', color: '#111111' }}
+              style={[FontStyles.sansBold, { fontSize: 20, fontWeight: '900', color: '#111111' }]}
             />
             {totalMrp > finalPayable && (
-              <Text style={{ fontSize: 12, color: '#A0A0A0', textDecorationLine: 'line-through' }}>
+              <Text style={[FontStyles.sansRegular, { fontSize: 12, color: '#A0A0A0', textDecorationLine: 'line-through' }]}>
                 {formatPrice(totalMrp)}
               </Text>
             )}
           </View>
           <Text
-            style={{
-              fontSize: 10.5,
-              color: !addressServiceability.isServiceable && hasDarkStoreItems ? '#DC2626' : '#15803D',
-              fontWeight: '800',
-            }}
+            style={[
+              FontStyles.sansBold,
+              {
+                fontSize: 10.5,
+                color: !addressServiceability.isServiceable && hasDarkStoreItems ? '#DC2626' : '#15803D',
+                fontWeight: '800',
+              },
+            ]}
           >
             {!addressServiceability.isServiceable && hasDarkStoreItems
               ? `⚠️ Outside 8.0 km radius (${addressServiceability.distanceKm} km)`
@@ -109,13 +113,16 @@ export const CartBottomBar = React.memo(function CartBottomBar({
         >
           <Lock size={13} color="#FFFFFF" />
           <Text
-            style={{
-              color: '#FFFFFF',
-              fontSize: 12.5,
-              fontWeight: '900',
-              letterSpacing: 0.8,
-              textTransform: 'uppercase',
-            }}
+            style={[
+              FontStyles.sansBold,
+              {
+                color: '#FFFFFF',
+                fontSize: 12.5,
+                fontWeight: '900',
+                letterSpacing: 0.8,
+                textTransform: 'uppercase',
+              },
+            ]}
           >
             {isCheckingOut
               ? 'PROCESSING...'

@@ -26,6 +26,7 @@ import { ProductItem } from '@/data/homeData';
 import { useCartStore } from '@/store/useCartStore';
 import { useCatalogStore } from '@/store/useCatalogStore';
 import { getEnrichedProductCatalog, sortProductList } from '@/utils/product-catalog';
+import { Fonts, FontStyles } from '@/constants/theme';
 
 import {
   EXPLORE_CATEGORIES,
@@ -259,7 +260,7 @@ export const ExploreCatalogView = React.memo(function ExploreCatalogView({
                     alignItems: 'center',
                   }}
                 >
-                  <Text style={{ fontSize: 11.5, fontWeight: active ? '800' : '600', color: active ? '#FFFFFF' : '#666666' }}>
+                  <Text style={[active ? FontStyles.sansBold : FontStyles.sansSemiBold, { fontSize: 11.5, fontWeight: active ? '800' : '600', color: active ? '#FFFFFF' : '#666666' }]}>
                     {tab.label}
                   </Text>
                 </Pressable>
@@ -296,7 +297,7 @@ export const ExploreCatalogView = React.memo(function ExploreCatalogView({
                     borderColor: active ? '#111111' : '#E8E5DF',
                   }}
                 >
-                  <Text style={{ fontSize: 11, fontWeight: active ? '800' : '600', color: active ? '#FFFFFF' : '#4A4A4A' }}>
+                  <Text style={[active ? FontStyles.sansBold : FontStyles.sansSemiBold, { fontSize: 11, fontWeight: active ? '800' : '600', color: active ? '#FFFFFF' : '#4A4A4A' }]}>
                     {cat.name}
                   </Text>
                 </Pressable>
@@ -331,7 +332,7 @@ export const ExploreCatalogView = React.memo(function ExploreCatalogView({
                       borderColor: active ? '#FF5A1F' : '#E8E5DF',
                     }}
                   >
-                    <Text style={{ fontSize: 10.5, fontWeight: active ? '900' : '600', color: active ? '#FFFFFF' : '#55524E' }}>
+                    <Text style={[active ? FontStyles.sansBold : FontStyles.sansSemiBold, { fontSize: 10.5, fontWeight: active ? '900' : '600', color: active ? '#FFFFFF' : '#55524E' }]}>
                       {sub}
                     </Text>
                   </Pressable>
@@ -351,8 +352,8 @@ export const ExploreCatalogView = React.memo(function ExploreCatalogView({
             justifyContent: 'space-between',
           }}
         >
-          <Text style={{ fontSize: 11.5, color: '#71717A', fontWeight: '500' }}>
-            Showing <Text style={{ fontWeight: '800', color: '#111111' }}>{filteredProducts.length}</Text> pieces
+          <Text style={[FontStyles.sansMedium, { fontSize: 11.5, color: '#71717A', fontWeight: '500' }]}>
+            Showing <Text style={[FontStyles.sansBold, { fontWeight: '800', color: '#111111' }]}>{filteredProducts.length}</Text> pieces
           </Text>
 
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>

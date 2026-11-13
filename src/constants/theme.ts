@@ -43,7 +43,7 @@ export const Colors = {
 export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark;
 
 export const Fonts = {
-  // Plus Jakarta Sans (Modern Sans-serif)
+  // Plus Jakarta Sans (Unified single font family for the entire app)
   sans: Platform.select({
     web: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
     ios: 'PlusJakartaSans_400Regular',
@@ -75,49 +75,50 @@ export const Fonts = {
     default: 'PlusJakartaSans_700Bold',
   }) as string,
 
-  // Playfair Display (Serif / Editorial)
+  // All display, headings & editorial aliases map directly to Plus Jakarta Sans
   serif: Platform.select({
-    web: "'Playfair Display', Georgia, 'Times New Roman', serif",
-    ios: 'PlayfairDisplay_600SemiBold',
-    android: 'PlayfairDisplay_600SemiBold',
-    default: 'PlayfairDisplay_600SemiBold',
+    web: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+    ios: 'PlusJakartaSans_700Bold',
+    android: 'PlusJakartaSans_700Bold',
+    default: 'PlusJakartaSans_700Bold',
   }) as string,
   serifRegular: Platform.select({
-    web: "'Playfair Display', Georgia, 'Times New Roman', serif",
-    ios: 'PlayfairDisplay_400Regular',
-    android: 'PlayfairDisplay_400Regular',
-    default: 'PlayfairDisplay_400Regular',
+    web: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+    ios: 'PlusJakartaSans_400Regular',
+    android: 'PlusJakartaSans_400Regular',
+    default: 'PlusJakartaSans_400Regular',
   }) as string,
   serifMedium: Platform.select({
-    web: "'Playfair Display', Georgia, 'Times New Roman', serif",
-    ios: 'PlayfairDisplay_500Medium',
-    android: 'PlayfairDisplay_500Medium',
-    default: 'PlayfairDisplay_500Medium',
+    web: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+    ios: 'PlusJakartaSans_500Medium',
+    android: 'PlusJakartaSans_500Medium',
+    default: 'PlusJakartaSans_500Medium',
   }) as string,
   serifSemiBold: Platform.select({
-    web: "'Playfair Display', Georgia, 'Times New Roman', serif",
-    ios: 'PlayfairDisplay_600SemiBold',
-    android: 'PlayfairDisplay_600SemiBold',
-    default: 'PlayfairDisplay_600SemiBold',
+    web: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+    ios: 'PlusJakartaSans_600SemiBold',
+    android: 'PlusJakartaSans_600SemiBold',
+    default: 'PlusJakartaSans_600SemiBold',
   }) as string,
   serifBold: Platform.select({
-    web: "'Playfair Display', Georgia, 'Times New Roman', serif",
-    ios: 'PlayfairDisplay_700Bold',
-    android: 'PlayfairDisplay_700Bold',
-    default: 'PlayfairDisplay_700Bold',
+    web: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+    ios: 'PlusJakartaSans_700Bold',
+    android: 'PlusJakartaSans_700Bold',
+    default: 'PlusJakartaSans_700Bold',
   }) as string,
   serifItalic: Platform.select({
-    web: "'Playfair Display', Georgia, 'Times New Roman', serif",
-    ios: 'PlayfairDisplay_400Regular_Italic',
-    android: 'PlayfairDisplay_400Regular_Italic',
-    default: 'PlayfairDisplay_400Regular_Italic',
+    web: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+    ios: 'PlusJakartaSans_600SemiBold',
+    android: 'PlusJakartaSans_600SemiBold',
+    default: 'PlusJakartaSans_600SemiBold',
   }) as string,
 
   rounded: 'normal',
   mono: Platform.select({
-    web: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-    ios: 'ui-monospace',
-    default: 'monospace',
+    web: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+    ios: 'PlusJakartaSans_600SemiBold',
+    android: 'PlusJakartaSans_600SemiBold',
+    default: 'PlusJakartaSans_600SemiBold',
   }) as string,
 };
 
@@ -149,29 +150,30 @@ export const FontStyles = {
   } as TextStyle,
 
   serifRegular: {
-    fontFamily: Fonts.serifRegular,
+    fontFamily: Fonts.sans,
     fontWeight: Platform.select({ web: '400', default: undefined }),
   } as TextStyle,
   serifMedium: {
-    fontFamily: Fonts.serifMedium,
+    fontFamily: Fonts.sansMedium,
     fontWeight: Platform.select({ web: '500', default: undefined }),
   } as TextStyle,
   serifSemiBold: {
-    fontFamily: Fonts.serifSemiBold,
+    fontFamily: Fonts.sansSemiBold,
     fontWeight: Platform.select({ web: '600', default: undefined }),
   } as TextStyle,
   serifBold: {
-    fontFamily: Fonts.serifBold,
+    fontFamily: Fonts.sansBold,
     fontWeight: Platform.select({ web: '700', default: undefined }),
   } as TextStyle,
   serifItalic: {
-    fontFamily: Fonts.serifItalic,
+    fontFamily: Fonts.sansSemiBold,
     fontStyle: 'italic',
-    fontWeight: Platform.select({ web: '400', default: undefined }),
+    fontWeight: Platform.select({ web: '600', default: undefined }),
   } as TextStyle,
 
   mono: {
-    fontFamily: Fonts.mono,
+    fontFamily: Fonts.sansBold,
+    fontWeight: Platform.select({ web: '700', default: undefined }),
   } as TextStyle,
 };
 

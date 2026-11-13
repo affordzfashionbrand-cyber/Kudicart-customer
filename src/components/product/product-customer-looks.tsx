@@ -4,6 +4,7 @@ import { Image } from 'expo-image';
 import { Camera, Star } from 'lucide-react-native';
 import { EditorialText } from '@/components/common/section-title';
 import { CUSTOMER_LOOKS } from './product-constants';
+import { Fonts, FontStyles } from '@/constants/theme';
 
 export function ProductCustomerLooks() {
   if (!CUSTOMER_LOOKS || CUSTOMER_LOOKS.length === 0) {
@@ -16,7 +17,7 @@ export function ProductCustomerLooks() {
         <View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
             <Camera size={13} color="#FF5A1F" />
-            <Text style={{ fontSize: 9.5, fontWeight: '900', color: '#FF5A1F', letterSpacing: 1.2, textTransform: 'uppercase' }}>
+            <Text style={[FontStyles.sansBold, { fontSize: 9.5, fontWeight: '900', color: '#FF5A1F', letterSpacing: 1.2, textTransform: 'uppercase' }]}>
               REAL CLIENT DRAPES
             </Text>
           </View>
@@ -31,7 +32,7 @@ export function ProductCustomerLooks() {
           />
         </View>
         <View style={{ backgroundColor: '#F0ECE4', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 }}>
-          <Text style={{ fontSize: 9.5, fontWeight: '900', color: '#111111' }}>4.9 ★ (148)</Text>
+          <Text style={[FontStyles.sansBold, { fontSize: 9.5, fontWeight: '900', color: '#111111' }]}>4.9 ★ (148)</Text>
         </View>
       </View>
 
@@ -73,7 +74,7 @@ export function ProductCustomerLooks() {
                   borderRadius: 8,
                 }}
               >
-                <Text style={{ fontSize: 9, fontWeight: '800', color: '#FFFFFF' }}>
+                <Text style={[FontStyles.sansBold, { fontSize: 9, fontWeight: '800', color: '#FFFFFF' }]}>
                   {look.height} • Size {look.size}
                 </Text>
               </View>
@@ -81,7 +82,7 @@ export function ProductCustomerLooks() {
 
             <View style={{ padding: 10 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
-                <Text style={{ fontSize: 11, fontWeight: '900', color: '#111111' }}>
+                <Text style={[FontStyles.sansBold, { fontSize: 11, fontWeight: '900', color: '#111111' }]}>
                   {look.author}
                 </Text>
                 <View style={{ flexDirection: 'row', gap: 1 }}>
@@ -90,10 +91,10 @@ export function ProductCustomerLooks() {
                   ))}
                 </View>
               </View>
-              <Text style={{ fontSize: 9, color: '#71717A', marginBottom: 5 }}>
+              <Text style={[FontStyles.sansRegular, { fontSize: 9, color: '#71717A', marginBottom: 5 }]}>
                 {look.locality}
               </Text>
-              <Text style={{ fontSize: 10, color: '#4A4A4A', lineHeight: 14 }} numberOfLines={3}>
+              <Text style={[FontStyles.sansRegular, { fontSize: 10, color: '#4A4A4A', lineHeight: 14 }]} numberOfLines={3}>
                 &ldquo;{look.comment}&rdquo;
               </Text>
             </View>

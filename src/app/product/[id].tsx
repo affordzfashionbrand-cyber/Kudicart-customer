@@ -46,6 +46,7 @@ import {
 
 import { ProductItem } from '@/data/homeData';
 import { resolveProductGalleryShots } from '@/data/product-gallery-data';
+import { Fonts, FontStyles } from '@/constants/theme';
 
 export default function ProductDetailScreen() {
   const router = useRouter();
@@ -330,10 +331,10 @@ export default function ProductDetailScreen() {
     return (
       <View style={{ flex: 1, backgroundColor: '#FAF8F5', justifyContent: 'center', alignItems: 'center', padding: 24 }}>
         <AlertCircle size={48} color="#FF5A1F" style={{ marginBottom: 16 }} />
-        <Text style={{ fontSize: 20, fontWeight: '900', color: '#111111', textAlign: 'center' }}>
+        <Text style={[FontStyles.sansBold, { fontSize: 20, fontWeight: '900', color: '#111111', textAlign: 'center' }]}>
           Style Not Found
         </Text>
-        <Text style={{ fontSize: 13, color: '#6B6667', textAlign: 'center', marginTop: 8, maxWidth: 280 }}>
+        <Text style={[FontStyles.sansRegular, { fontSize: 13, color: '#6B6667', textAlign: 'center', marginTop: 8, maxWidth: 280 }]}>
           This garment is no longer available in our collection or has been archived.
         </Text>
         <Pressable
@@ -346,7 +347,7 @@ export default function ProductDetailScreen() {
             borderRadius: 14,
           }}
         >
-          <Text style={{ color: '#FFFFFF', fontWeight: '800', fontSize: 13 }}>
+          <Text style={[FontStyles.sansBold, { color: '#FFFFFF', fontWeight: '800', fontSize: 13 }]}>
             Back to Catalog
           </Text>
         </Pressable>
@@ -735,7 +736,7 @@ export default function ProductDetailScreen() {
           }}
         >
           <ShoppingBag size={14} color="#FF5A1F" />
-          <Text style={{ color: '#FFFFFF', fontSize: 11.5, fontWeight: '800' }}>{toastMessage}</Text>
+          <Text style={[FontStyles.sansBold, { color: '#FFFFFF', fontSize: 11.5, fontWeight: '800' }]}>{toastMessage}</Text>
         </Animated.View>
       )}
 

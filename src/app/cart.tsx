@@ -43,7 +43,7 @@ import { AnimatedPressable } from '@/components/common/animated-pressable';
 import { EditorialText } from '@/components/common/section-title';
 import { safeBack } from '@/utils/navigation';
 import { bespokeEasing, formatPrice } from '@/data/homeData';
-import { Fonts } from '@/constants/theme';
+import { Fonts, FontStyles } from '@/constants/theme';
 
 export default function CheckoutScreen() {
   const router = useRouter();
@@ -663,25 +663,29 @@ export default function CheckoutScreen() {
                 }}
               >
                 <Text
-                  style={{
-                    color: '#FAF8F5',
-                    fontSize: 10,
-                    fontFamily: Fonts.mono,
-                    fontWeight: '700',
-                  }}
+                  style={[
+                    FontStyles.sansBold,
+                    {
+                      color: '#FAF8F5',
+                      fontSize: 10,
+                      fontWeight: '700',
+                    },
+                  ]}
                 >
                   {checkoutItems.length} {checkoutItems.length === 1 ? 'ITEM' : 'ITEMS'}
                 </Text>
               </View>
             </View>
             <Text
-              style={{
-                fontSize: 10,
-                fontFamily: Fonts.mono,
-                color: '#8A8580',
-                letterSpacing: 0.8,
-                marginTop: 2,
-              }}
+              style={[
+                FontStyles.sansMedium,
+                {
+                  fontSize: 10,
+                  color: '#8A8580',
+                  letterSpacing: 0.8,
+                  marginTop: 2,
+                },
+              ]}
             >
               {isBuyNowMode
                 ? 'EXPRESS SINGLE-ITEM DIRECT CHECKOUT'
@@ -703,13 +707,15 @@ export default function CheckoutScreen() {
         >
           <Lock size={11} color="#6B6560" />
           <Text
-            style={{
-              fontSize: 10,
-              fontFamily: Fonts.mono,
-              color: '#6B6560',
-              fontWeight: '600',
-              letterSpacing: 0.5,
-            }}
+            style={[
+              FontStyles.sansBold,
+              {
+                fontSize: 10,
+                color: '#6B6560',
+                fontWeight: '600',
+                letterSpacing: 0.5,
+              },
+            ]}
           >
             256-BIT SSL
           </Text>
@@ -756,10 +762,10 @@ export default function CheckoutScreen() {
           >
             <AlertCircle size={18} color="#DC2626" style={{ marginTop: 2 }} />
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 13, fontWeight: '700', color: '#991B1B', marginBottom: 2 }}>
+              <Text style={[FontStyles.sansBold, { fontSize: 13, fontWeight: '700', color: '#991B1B', marginBottom: 2 }]}>
                 Checkout Incomplete
               </Text>
-              <Text style={{ fontSize: 12, color: '#B91C1C', lineHeight: 18 }}>
+              <Text style={[FontStyles.sansRegular, { fontSize: 12, color: '#B91C1C', lineHeight: 18 }]}>
                 {paymentError}
               </Text>
             </View>
@@ -907,7 +913,7 @@ export default function CheckoutScreen() {
           }}
         >
           <ShieldCheck size={18} color="#C5A059" />
-          <Text style={{ color: '#FAF8F5', fontSize: 13, fontWeight: '600', flex: 1 }}>
+          <Text style={[FontStyles.sansMedium, { color: '#FAF8F5', fontSize: 13, fontWeight: '600', flex: 1 }]}>
             {toastMessage}
           </Text>
         </Animated.View>

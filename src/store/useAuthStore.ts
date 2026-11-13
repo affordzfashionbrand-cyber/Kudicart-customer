@@ -23,12 +23,30 @@ const USER_KEY = 'affordz_user';
 
 let firebaseRefreshUnsubscribe: (() => void) | null = null;
 let storeResetHandlers: (() => void)[] = [];
+let storeLoginHandlers: (() => void)[] = [];
 
 export function registerAuthLogoutReset(resetFn: () => void): () => void {
   storeResetHandlers.push(resetFn);
   return () => {
     storeResetHandlers = storeResetHandlers.filter((fn) => fn !== resetFn);
   };
+}
+
+export function registerAuthLoginCallback(callback: () => void): () => void {
+  storeLoginHandlers.push(callback);
+  return () => {
+    storeLoginHandlers = storeLoginHandlers.filter((fn) => fn !== callback);
+  };
+}
+
+function notifyLoginHandlers() {
+  storeLoginHandlers.forEach((fn) => {
+    try {
+      fn();
+    } catch (e) {
+      console.warn('[AuthStore] Login callback error:', e);
+    }
+  });
 }
 
 async function saveSession(token: string, user: AuthUser) {
@@ -179,6 +197,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                 });
                 attachFirebaseRefreshListener();
                 customerNotificationService.registerDeviceToken().catch(() => {});
+                notifyLoginHandlers();
                 return;
               }
             } catch (verifyErr: any) {
@@ -253,6 +272,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           isLoading: false,
         });
         customerNotificationService.registerDeviceToken().catch(() => {});
+        notifyLoginHandlers();
         return true;
       }
       set({ isLoading: false, error: 'Verification failed' });
@@ -278,6 +298,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         });
         attachFirebaseRefreshListener();
         customerNotificationService.registerDeviceToken().catch(() => {});
+        notifyLoginHandlers();
         return true;
       }
       set({ isLoading: false, error: 'Firebase authentication failed' });

@@ -32,6 +32,7 @@ import { Fonts } from '@/constants/theme';
 import { useAddressStore } from '@/store/useAddressStore';
 import type { AddressModel } from '@/services/api';
 import { AnimatedPressable } from '@/components/common/animated-pressable';
+import { reverseGeocodeCoords } from '@/services/geocoding';
 
 const bespokeEasing = Easing.bezier(0.32, 0.72, 0, 1);
 
@@ -162,15 +163,11 @@ export function AddressModal({
       let pincode = '';
 
       try {
-        const rev = await Location.reverseGeocodeAsync({ latitude, longitude });
-        if (rev && rev.length > 0) {
-          const r = rev[0];
-          const parts = [r.streetNumber, r.street, r.name].filter(Boolean);
-          if (parts.length > 0) line1 = parts.join(', ');
-          locality = r.district || r.subregion || r.city || '';
-          city = r.city || r.region || '';
-          pincode = r.postalCode || '';
-        }
+        const rev = await reverseGeocodeCoords(latitude, longitude);
+        line1 = rev.road || '';
+        locality = rev.locality || '';
+        city = rev.city || '';
+        pincode = rev.pincode || '';
       } catch (e) {
         console.warn('Reverse geocode fallback:', e);
       }
@@ -337,14 +334,13 @@ export function AddressModal({
                   color: '#111',
                 }}
               >
-                <Text style={{ fontFamily: Fonts.serifRegular, fontWeight: '400' }}>
+                <Text style={{ fontFamily: Fonts.sans, fontWeight: '400' }}>
                   {isAddingNew ? (editingAddressId ? 'Edit' : 'Add') : 'Select'}
                 </Text>{' '}
                 <Text
                   style={{
-                    fontFamily: Fonts.serifItalic,
-                    fontWeight: '400',
-                    fontStyle: 'italic',
+                    fontFamily: Fonts.sansBold,
+                    fontWeight: '700',
                   }}
                 >
                   address.

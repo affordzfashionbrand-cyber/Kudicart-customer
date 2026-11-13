@@ -14,6 +14,7 @@ import { EditorialText } from '@/components/common/section-title';
 import { ProductItem, formatPrice } from '@/data/homeData';
 import { WishlistItemCard } from '@/components/wishlist/wishlist-item-card';
 import { WishlistEmptyState } from '@/components/wishlist/wishlist-empty-state';
+import { Fonts, FontStyles } from '@/constants/theme';
 
 export interface WishlistViewProps {
   products: ProductItem[];
@@ -129,13 +130,16 @@ export const WishlistView = React.memo(function WishlistView({
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
             <Sparkles size={13} color="#FF5A1F" />
             <Text
-              style={{
-                fontSize: 10,
-                fontWeight: '900',
-                color: '#FF5A1F',
-                letterSpacing: 1.4,
-                textTransform: 'uppercase',
-              }}
+              style={[
+                FontStyles.sansBold,
+                {
+                  fontSize: 10,
+                  fontWeight: '900',
+                  color: '#FF5A1F',
+                  letterSpacing: 1.4,
+                  textTransform: 'uppercase',
+                },
+              ]}
             >
               SAVED ATELIER PIECES
             </Text>
@@ -159,7 +163,7 @@ export const WishlistView = React.memo(function WishlistView({
                 borderRadius: 12,
               }}
             >
-              <Text style={{ color: '#FFFFFF', fontSize: 10, fontWeight: '900', letterSpacing: 0.5 }}>
+              <Text style={[FontStyles.sansBold, { color: '#FFFFFF', fontSize: 10, fontWeight: '900', letterSpacing: 0.5 }]}>
                 {products.length} {products.length === 1 ? 'ITEM' : 'ITEMS'}
               </Text>
             </View>
@@ -183,11 +187,11 @@ export const WishlistView = React.memo(function WishlistView({
               }}
             >
               <View>
-                <Text style={{ fontSize: 9.5, fontWeight: '800', color: '#71717A', textTransform: 'uppercase' }}>
+                <Text style={[FontStyles.sansBold, { fontSize: 9.5, fontWeight: '800', color: '#71717A', textTransform: 'uppercase' }]}>
                   TOTAL CAPSULE VALUE
                 </Text>
                 <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6, marginTop: 1 }}>
-                  <Text style={{ fontSize: 16, fontWeight: '900', color: '#111111' }}>
+                  <Text style={[FontStyles.sansBold, { fontSize: 16, fontWeight: '900', color: '#111111' }]}>
                     {formatPrice(totalWishlistValue)}
                   </Text>
                   {totalSavings > 0 && (
@@ -203,7 +207,7 @@ export const WishlistView = React.memo(function WishlistView({
                       }}
                     >
                       <Tag size={9} color="#FF5A1F" />
-                      <Text style={{ fontSize: 9.5, fontWeight: '900', color: '#FF5A1F' }}>
+                      <Text style={[FontStyles.sansBold, { fontSize: 9.5, fontWeight: '900', color: '#FF5A1F' }]}>
                         Save {formatPrice(totalSavings)}
                       </Text>
                     </View>
@@ -226,12 +230,12 @@ export const WishlistView = React.memo(function WishlistView({
                 {allMovedSuccess ? (
                   <>
                     <Check size={12} color="#FFFFFF" strokeWidth={3} />
-                    <Text style={{ color: '#FFFFFF', fontSize: 10.5, fontWeight: '900' }}>ALL MOVED</Text>
+                    <Text style={[FontStyles.sansBold, { color: '#FFFFFF', fontSize: 10.5, fontWeight: '900' }]}>ALL MOVED</Text>
                   </>
                 ) : (
                   <>
                     <ShoppingBag size={12} color="#FFFFFF" strokeWidth={2.4} />
-                    <Text style={{ color: '#FFFFFF', fontSize: 10.5, fontWeight: '900' }}>MOVE ALL TO BAG</Text>
+                    <Text style={[FontStyles.sansBold, { color: '#FFFFFF', fontSize: 10.5, fontWeight: '900' }]}>MOVE ALL TO BAG</Text>
                   </>
                 )}
               </AnimatedPressable>
@@ -269,11 +273,14 @@ export const WishlistView = React.memo(function WishlistView({
                       }}
                     >
                       <Text
-                        style={{
-                          fontSize: 11,
-                          fontWeight: isSelected ? '800' : '600',
-                          color: isSelected ? '#FFFFFF' : '#4A4A4A',
-                        }}
+                        style={[
+                          isSelected ? FontStyles.sansBold : FontStyles.sansSemiBold,
+                          {
+                            fontSize: 11,
+                            fontWeight: isSelected ? '800' : '600',
+                            color: isSelected ? '#FFFFFF' : '#4A4A4A',
+                          },
+                        ]}
                       >
                         {chip.label}
                       </Text>
@@ -325,13 +332,16 @@ export const WishlistView = React.memo(function WishlistView({
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 }}>
             <ShieldCheck size={16} color="#FF5A1F" strokeWidth={2.4} />
             <Text
-              style={{
-                fontSize: 10,
-                fontWeight: '900',
-                color: '#111111',
-                letterSpacing: 1.2,
-                textTransform: 'uppercase',
-              }}
+              style={[
+                FontStyles.sansBold,
+                {
+                  fontSize: 10,
+                  fontWeight: '900',
+                  color: '#111111',
+                  letterSpacing: 1.2,
+                  textTransform: 'uppercase',
+                },
+              ]}
             >
               AFFORDZ ATELIER PROMISE
             </Text>
@@ -354,10 +364,10 @@ export const WishlistView = React.memo(function WishlistView({
                 <Zap size={13} color="#FF5A1F" fill="#FF5A1F" />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 11.5, fontWeight: '800', color: '#111111' }}>
+                <Text style={[FontStyles.sansBold, { fontSize: 11.5, fontWeight: '800', color: '#111111' }]}>
                   18-Minute Express Try & Buy
                 </Text>
-                <Text style={{ fontSize: 10.5, color: '#71717A', lineHeight: 14 }}>
+                <Text style={[FontStyles.sansRegular, { fontSize: 10.5, color: '#71717A', lineHeight: 14 }]}>
                   Dispatched in minutes from hyper-local temperature-controlled dark stores.
                 </Text>
               </View>
@@ -379,10 +389,10 @@ export const WishlistView = React.memo(function WishlistView({
                 <RotateCcw size={13} color="#111111" strokeWidth={2.2} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 11.5, fontWeight: '800', color: '#111111' }}>
+                <Text style={[FontStyles.sansBold, { fontSize: 11.5, fontWeight: '800', color: '#111111' }]}>
                   Doorstep Try & Keep What Fits
                 </Text>
-                <Text style={{ fontSize: 10.5, color: '#71717A', lineHeight: 14 }}>
+                <Text style={[FontStyles.sansRegular, { fontSize: 10.5, color: '#71717A', lineHeight: 14 }]}>
                   Our style rider waits while you try on your size. Return instantly on spot.
                 </Text>
               </View>

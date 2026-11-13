@@ -30,9 +30,9 @@ export const TrendRadarSection = React.memo(function TrendRadarSection({
             </Text>
           </View>
           <Text style={{ fontSize: 34, lineHeight: 36, letterSpacing: -0.5, color: '#000000' }}>
-            <Text style={{ fontFamily: Fonts.serifRegular, fontWeight: '400' }}>Trend</Text>
+            <Text style={{ fontFamily: Fonts.sans, fontWeight: '400' }}>Trend</Text>
             {'\n'}
-            <Text style={{ fontFamily: Fonts.serifSemiBold, fontWeight: '700' }}>
+            <Text style={{ fontFamily: Fonts.sansBold, fontWeight: '700' }}>
               radar.
             </Text>
           </Text>

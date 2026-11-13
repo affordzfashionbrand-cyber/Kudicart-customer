@@ -103,10 +103,10 @@ export default function OrdersScreen() {
         </AnimatedPressable>
 
         <View style={{ alignItems: 'center' }}>
-          <Text style={{ fontSize: 9.5, fontWeight: '900', letterSpacing: 1.5, color: '#FF5A1F', textTransform: 'uppercase' }}>
+          <Text style={[FontStyles.sansBold, { fontSize: 9.5, fontWeight: '900', letterSpacing: 1.5, color: '#FF5A1F', textTransform: 'uppercase' }]}>
             MY ATELIER DROPS
           </Text>
-          <Text style={{ fontSize: 17, fontWeight: '900', color: '#111111', letterSpacing: -0.3 }}>
+          <Text style={[FontStyles.sansBold, { fontSize: 17, fontWeight: '900', color: '#111111', letterSpacing: -0.3 }]}>
             Order History
           </Text>
         </View>
@@ -139,11 +139,11 @@ export default function OrdersScreen() {
             </Text>
           </View>
           <Text
-            className="font-serif editorial-text"
-            style={{ fontFamily: Fonts.serifSemiBold, fontSize: 28, lineHeight: 32, letterSpacing: -0.5, color: '#111111' }}
+            className="font-sans"
+            style={{ fontFamily: Fonts.sansBold, fontSize: 28, lineHeight: 32, letterSpacing: -0.5, color: '#111111' }}
           >
-            <Text style={FontStyles.serifRegular}>Active & past</Text>{' '}
-            <Text style={FontStyles.serifItalic}>drops.</Text>
+            <Text style={FontStyles.sansRegular}>Active & past</Text>{' '}
+            <Text style={FontStyles.sansBold}>drops.</Text>
           </Text>
         </View>
 
@@ -158,17 +158,17 @@ export default function OrdersScreen() {
             <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: '#F4F1EA', borderWidth: 1, borderColor: '#E8E5DF', justifyContent: 'center', alignItems: 'center', marginBottom: 16 }}>
               <Package size={32} color="#111111" />
             </View>
-            <Text style={{ fontSize: 18, fontWeight: '900', color: '#111111', marginBottom: 6 }}>
+            <Text style={[FontStyles.sansBold, { fontSize: 18, fontWeight: '900', color: '#111111', marginBottom: 6 }]}>
               No orders placed yet
             </Text>
-            <Text style={{ fontSize: 13, color: '#6B6667', textAlign: 'center', maxWidth: 260, lineHeight: 18, marginBottom: 20 }}>
+            <Text style={[FontStyles.sansRegular, { fontSize: 13, color: '#6B6667', textAlign: 'center', maxWidth: 260, lineHeight: 18, marginBottom: 20 }]}>
               Explore handcrafted designer wear with express 18-minute doorstep delivery.
             </Text>
             <AnimatedPressable
               style={{ backgroundColor: '#111111', paddingHorizontal: 24, paddingVertical: 13, borderRadius: 999, flexDirection: 'row', alignItems: 'center', gap: 8 }}
               onPress={() => router.push('/')}
             >
-              <Text style={{ fontSize: 12, fontWeight: '800', color: '#FFFFFF', letterSpacing: 1, textTransform: 'uppercase' }}>
+              <Text style={[FontStyles.sansBold, { fontSize: 12, fontWeight: '800', color: '#FFFFFF', letterSpacing: 1, textTransform: 'uppercase' }]}>
                 START EXPLORING
               </Text>
             </AnimatedPressable>

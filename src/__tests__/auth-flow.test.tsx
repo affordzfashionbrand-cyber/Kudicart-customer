@@ -338,16 +338,13 @@ describe('Auth, API Token Refresh, Session Check, Deletion & Logout Resets', () 
     }
   });
 
-  it('completes __DEV__ backend devOtp round-trip when Firebase throws web config/billing error', async () => {
+  it('completes __DEV__ backend devOtp round-trip when Firebase is unconfigured in development', async () => {
     const rn = require('react-native');
     const prevPlatformOs = rn.Platform.OS;
     rn.Platform.OS = 'web';
 
     const firebaseMock = require('@/services/firebase');
-    firebaseMock.canUseFirebasePhoneAuth.mockReturnValue(true);
-    firebaseMock.startFirebasePhoneSignIn.mockRejectedValueOnce(
-      Object.assign(new Error('Firebase billing not enabled'), { code: 'auth/billing-not-enabled' }),
-    );
+    firebaseMock.canUseFirebasePhoneAuth.mockReturnValue(false);
 
     const sendOtpSpy = jest.spyOn(authApi, 'sendOtp').mockResolvedValueOnce({
       success: true,
@@ -388,6 +385,26 @@ describe('Auth, API Token Refresh, Session Check, Deletion & Logout Resets', () 
       rn.Platform.OS = prevPlatformOs;
       firebaseMock.canUseFirebasePhoneAuth.mockReturnValue(false);
     }
+  });
+
+  it('displays formatted Firebase error and does not fallback to devOtp when Firebase phone auth fails', async () => {
+    const firebaseMock = require('@/services/firebase');
+    firebaseMock.canUseFirebasePhoneAuth.mockReturnValue(true);
+    firebaseMock.startFirebasePhoneSignIn.mockRejectedValueOnce(
+      Object.assign(new Error('Quota exceeded'), { code: 'auth/quota-exceeded' }),
+    );
+    const sendOtpSpy = jest.spyOn(authApi, 'sendOtp');
+
+    const screen = await render(
+      <AuthModal visible={true} onClose={jest.fn()} onSuccess={jest.fn()} />,
+    );
+    await fireEvent.changeText(screen.getByPlaceholderText('Enter mobile number'), '9876543210');
+    await fireEvent.press(screen.getByText('GET OTP'));
+
+    expect(await screen.findByText(/SMS quota exceeded for this project/i)).toBeTruthy();
+    expect(sendOtpSpy).not.toHaveBeenCalled();
+    expect(screen.queryByText(/Dev OTP:/i)).toBeNull();
+    await screen.unmount();
   });
 
   it('completes Firebase OTP sign-in and refreshes backend JWT via subscribeFirebaseTokenRefresh', async () => {

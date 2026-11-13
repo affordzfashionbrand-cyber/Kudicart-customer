@@ -62,10 +62,10 @@ export const EditorialText = React.memo(function EditorialText({
   return (
     <Text
       numberOfLines={numberOfLines}
-      className="font-serif editorial-text"
+      className="font-sans"
       style={[
         {
-          fontFamily: Fonts.serifSemiBold,
+          fontFamily: Fonts.sansBold,
           fontSize,
           lineHeight: effectiveLineHeight,
           letterSpacing: -0.5,
@@ -76,7 +76,7 @@ export const EditorialText = React.memo(function EditorialText({
       ]}
     >
       {first ? (
-        <Text style={FontStyles.serifRegular}>
+        <Text style={FontStyles.sansRegular}>
           {first}
         </Text>
       ) : null}
@@ -84,7 +84,7 @@ export const EditorialText = React.memo(function EditorialText({
       {secondFormatted ? (
         <Text
           style={[
-            FontStyles.serifSemiBold,
+            FontStyles.sansBold,
             {
               color,
             },
@@ -161,10 +161,10 @@ export const SectionTitle = React.memo(function SectionTitle({
         </Text>
       ) : null}
       <Text
-        className="font-serif editorial-text"
+        className="font-sans"
         style={[
           {
-            fontFamily: Fonts.serifSemiBold,
+            fontFamily: Fonts.sansBold,
             fontSize,
             lineHeight: effectiveLineHeight,
             letterSpacing: -0.5,
@@ -173,13 +173,13 @@ export const SectionTitle = React.memo(function SectionTitle({
           },
         ]}
       >
-        <Text style={FontStyles.serifRegular}>{firstLine}</Text>
+        <Text style={FontStyles.sansRegular}>{firstLine}</Text>
         {secondLineFormatted ? (
           <>
             {singleLine ? ' ' : '\n'}
             <Text
               style={[
-                FontStyles.serifSemiBold,
+                FontStyles.sansBold,
                 {
                   color: textColor,
                 },

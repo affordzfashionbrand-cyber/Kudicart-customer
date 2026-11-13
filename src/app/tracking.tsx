@@ -379,7 +379,7 @@ export default function TrackingScreen() {
           <Text style={[FontStyles.sansBold, { fontSize: 18, color: '#111111', marginBottom: 8, textAlign: 'center' }]}>
             No Active Order Selected
           </Text>
-          <Text style={{ fontSize: 13, color: '#6B6667', textAlign: 'center', lineHeight: 19, marginBottom: 22 }}>
+          <Text style={[FontStyles.sansRegular, { fontSize: 13, color: '#6B6667', textAlign: 'center', lineHeight: 19, marginBottom: 22 }]}>
             Place an order or pick one from your order history to view live rider status and delivery milestones.
           </Text>
           <AnimatedPressable
@@ -567,14 +567,14 @@ export default function TrackingScreen() {
           <View style={{ backgroundColor: '#FFFFFF', borderRadius: 20, padding: 15, borderWidth: 1, borderColor: '#E8E5DF', marginBottom: 14 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
               <MapPin size={14} color="#FF5A1F" />
-              <Text style={{ fontSize: 10, fontWeight: '900', color: '#8E877E', letterSpacing: 1.2, textTransform: 'uppercase' }}>
+              <Text style={[FontStyles.sansBold, { fontSize: 10, fontWeight: '900', color: '#8E877E', letterSpacing: 1.2, textTransform: 'uppercase' }]}>
                 DELIVERY DESTINATION
               </Text>
             </View>
-            <Text style={{ fontSize: 13.5, fontWeight: '900', color: '#111111' }}>
+            <Text style={[FontStyles.sansBold, { fontSize: 13.5, fontWeight: '900', color: '#111111' }]}>
               {deliveryAddress.label || 'Delivery Address'}
             </Text>
-            <Text style={{ fontSize: 11.5, color: '#6B6667', marginTop: 2, lineHeight: 16 }}>
+            <Text style={[FontStyles.sansRegular, { fontSize: 11.5, color: '#6B6667', marginTop: 2, lineHeight: 16 }]}>
               {deliveryAddress.line1}, {deliveryAddress.locality || ''}, {deliveryAddress.city} - {deliveryAddress.pincode}
             </Text>
           </View>
@@ -607,8 +607,8 @@ export default function TrackingScreen() {
               <HelpCircle size={16} color="#FF5A1F" />
             </View>
             <View>
-              <Text style={{ fontSize: 12.5, fontWeight: '900', color: '#111111' }}>Need Help with this Drop?</Text>
-              <Text style={{ fontSize: 10.5, color: '#6B6667', marginTop: 1 }}>Doorstep exchanges, rider chat & concierge</Text>
+              <Text style={[FontStyles.sansBold, { fontSize: 12.5, fontWeight: '900', color: '#111111' }]}>Need Help with this Drop?</Text>
+              <Text style={[FontStyles.sansRegular, { fontSize: 10.5, color: '#6B6667', marginTop: 1 }]}>Doorstep exchanges, rider chat & concierge</Text>
             </View>
           </View>
           <ChevronRight size={16} color="#6B6667" />

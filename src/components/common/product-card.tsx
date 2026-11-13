@@ -48,7 +48,7 @@ export const ProductCard = React.memo(function ProductCard({
           {badge ? (
             <View className="absolute top-[10px] left-[10px] bg-[#111111]/95 px-[8px] py-[4px] rounded-[10px] flex-row items-center gap-[4px] border border-[#FF5A1F] z-10 shadow-sm">
               <Zap size={9} color="#FF5A1F" fill="#FF5A1F" />
-              <Text className="text-white text-[9px] font-black tracking-wider uppercase">{badge}</Text>
+              <Text className="font-sans text-white text-[9px] font-black tracking-wider uppercase">{badge}</Text>
             </View>
           ) : null}
 
@@ -66,7 +66,7 @@ export const ProductCard = React.memo(function ProductCard({
         </View>
       </View>
       <View className="px-2">
-        <Text className="text-[9px] text-[#71717A] tracking-[0.18em] font-medium mb-[5px] uppercase">
+        <Text className="font-sans text-[9px] text-[#71717A] tracking-[0.18em] font-medium mb-[5px] uppercase">
           {product.brand}
         </Text>
         <EditorialText
@@ -80,9 +80,9 @@ export const ProductCard = React.memo(function ProductCard({
         />
         <View className="flex-row justify-between items-center">
           <View className="flex-row items-baseline gap-1.5">
-            <Text className="text-[14px] font-black text-[#111111]">{formattedPrice}</Text>
+            <Text className="font-sans text-[14px] font-black text-[#111111]">{formattedPrice}</Text>
             {product.old ? (
-              <Text className="text-[11px] text-[#A1A1AA] line-through font-normal">
+              <Text className="font-sans text-[11px] text-[#A1A1AA] line-through font-normal">
                 {formatPrice(product.old)}
               </Text>
             ) : null}

@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { addressApi, AddressModel, getAuthToken } from '@/services/api';
 import { useCatalogStore } from '@/store/useCatalogStore';
-import { registerAuthLogoutReset } from '@/store/useAuthStore';
+import { registerAuthLogoutReset, registerAuthLoginCallback } from '@/store/useAuthStore';
 
 export interface ServiceabilityResult {
   isServiceable: boolean;
@@ -14,11 +14,44 @@ export interface ServiceabilityResult {
 }
 
 export const DARK_STORE_HUB = {
-  name: 'Affordz Express Hub',
+  id: 'hub-pozhichalur',
+  name: 'Pozhichalur Express Hub',
+  locality: 'Pozhichalur',
+  address: 'Main Road, Pozhichalur, Chennai, Tamil Nadu 600074',
+  pincode: '600074',
+  latitude: 12.9818,
+  longitude: 80.1384,
+  maxRadiusKm: 8.0,
+  deliveryMinutes: 18,
+};
+
+export const BENGALURU_DARK_STORE_HUB = {
+  id: 'hub-bengaluru',
+  name: 'Affordz Bengaluru Express Hub',
+  locality: 'Indiranagar',
+  address: '100ft Road, Indiranagar, Bengaluru, Karnataka 560038',
+  pincode: '560038',
   latitude: 12.9784,
   longitude: 77.6408,
   maxRadiusKm: 8.0,
+  deliveryMinutes: 18,
 };
+
+export const DEFAULT_DARK_STORES = [
+  DARK_STORE_HUB,
+  {
+    id: 'hub-tambaram',
+    name: 'Tambaram Central Hub',
+    locality: 'Tambaram',
+    address: 'GST Road, Tambaram, Chennai, Tamil Nadu 600045',
+    pincode: '600045',
+    latitude: 12.9249,
+    longitude: 80.1000,
+    maxRadiusKm: 8.0,
+    deliveryMinutes: 20,
+  },
+  BENGALURU_DARK_STORE_HUB,
+];
 
 function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371;
@@ -35,9 +68,21 @@ function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): nu
 }
 
 export function checkAddressServiceability(address: AddressModel | null): ServiceabilityResult {
-  const liveHubs = (useCatalogStore.getState().darkStores || []).filter((h: any) => h?.isActive !== false);
-  const fallbackHubName = liveHubs[0]?.name || DARK_STORE_HUB.name;
-  const fallbackMaxRadius = typeof liveHubs[0]?.maxRadiusKm === 'number' ? liveHubs[0].maxRadiusKm : DARK_STORE_HUB.maxRadiusKm;
+  const catalogHubs = (useCatalogStore.getState().darkStores || []).filter((h: any) => h?.isActive !== false);
+  const rawHubs = catalogHubs.length > 0 ? catalogHubs : DEFAULT_DARK_STORES;
+
+  const liveHubs = rawHubs.map((h: any) => ({
+    ...h,
+    name: h.name || 'Affordz Express Hub',
+    latitude: typeof h.lat === 'number' ? h.lat : (typeof h.latitude === 'number' ? h.latitude : 0),
+    longitude: typeof h.lng === 'number' ? h.lng : (typeof h.longitude === 'number' ? h.longitude : 0),
+    maxRadiusKm: typeof h.maxRadiusKm === 'number' ? h.maxRadiusKm : 8.0,
+    deliveryMinutes: typeof h.deliveryMinutes === 'number' ? h.deliveryMinutes : 18,
+  }));
+
+  const fallbackHub = liveHubs[0] || DARK_STORE_HUB;
+  const fallbackHubName = fallbackHub.name;
+  const fallbackMaxRadius = fallbackHub.maxRadiusKm;
 
   if (!address) {
     return {
@@ -55,7 +100,7 @@ export function checkAddressServiceability(address: AddressModel | null): Servic
 
   if (typeof lat1 === 'number' && typeof lon1 === 'number') {
     const hubsWithCoords = liveHubs.filter(
-      (h: any) => typeof h?.latitude === 'number' && typeof h?.longitude === 'number',
+      (h: any) => typeof h?.latitude === 'number' && typeof h?.longitude === 'number' && h.latitude !== 0 && h.longitude !== 0,
     );
     if (hubsWithCoords.length > 0) {
       let bestHub = hubsWithCoords[0];
@@ -67,29 +112,29 @@ export function checkAddressServiceability(address: AddressModel | null): Servic
           bestHub = hubsWithCoords[i];
         }
       }
-      const radius = typeof bestHub.maxRadiusKm === 'number' ? bestHub.maxRadiusKm : DARK_STORE_HUB.maxRadiusKm;
+      const radius = typeof bestHub.maxRadiusKm === 'number' ? bestHub.maxRadiusKm : 8.0;
       const isServ = bestDist <= radius;
       return {
         isServiceable: isServ,
         distanceKm: bestDist,
-        nearestHubName: bestHub.name || DARK_STORE_HUB.name,
+        nearestHubName: bestHub.name || fallbackHubName,
         maxRadiusKm: radius,
-        statusText: isServ ? 'AVAILABLE (18-MIN DROP)' : 'NOT AVAILABLE FOR THIS PLACE',
+        statusText: isServ ? `AVAILABLE (${bestHub.deliveryMinutes || 18}-MIN DROP)` : 'NOT AVAILABLE FOR THIS PLACE',
         reason: isServ
           ? undefined
-          : `Distance is ${bestDist} km from ${bestHub.name || DARK_STORE_HUB.name} (exceeds our ${radius} km instant drop radius).`,
+          : `Distance is ${bestDist} km from ${bestHub.name} (exceeds our ${radius} km instant drop radius).`,
         locality: address.locality,
       };
     }
 
-    const dist = haversineKm(lat1, lon1, DARK_STORE_HUB.latitude, DARK_STORE_HUB.longitude);
+    const dist = haversineKm(lat1, lon1, fallbackHub.latitude, fallbackHub.longitude);
     const isServ = dist <= fallbackMaxRadius;
     return {
       isServiceable: isServ,
       distanceKm: dist,
       nearestHubName: fallbackHubName,
       maxRadiusKm: fallbackMaxRadius,
-      statusText: isServ ? 'AVAILABLE (18-MIN DROP)' : 'NOT AVAILABLE FOR THIS PLACE',
+      statusText: isServ ? `AVAILABLE (${fallbackHub.deliveryMinutes || 18}-MIN DROP)` : 'NOT AVAILABLE FOR THIS PLACE',
       reason: isServ
         ? undefined
         : `Distance is ${dist} km from ${fallbackHubName} (exceeds our ${fallbackMaxRadius} km instant drop radius).`,
@@ -108,35 +153,48 @@ export function checkAddressServiceability(address: AddressModel | null): Servic
     const radius = typeof matchedHub.maxRadiusKm === 'number' ? matchedHub.maxRadiusKm : fallbackMaxRadius;
     return {
       isServiceable: true,
-      distanceKm: typeof matchedHub.distanceKm === 'number' ? matchedHub.distanceKm : 2.0,
+      distanceKm: typeof matchedHub.distanceKm === 'number' ? matchedHub.distanceKm : 1.8,
       nearestHubName: matchedHub.name || fallbackHubName,
       maxRadiusKm: radius,
+      statusText: `AVAILABLE (${matchedHub.deliveryMinutes || 18}-MIN DROP)`,
+      locality: address.locality || address.city,
+    };
+  }
+
+  const pin = (address.pincode || '').replace(/\D/g, '');
+  // Known active hub pincodes in Chennai
+  if (['600074', '600045', '600043', '600044', '600075', '600091', '600088', '600061'].includes(pin)) {
+    return {
+      isServiceable: true,
+      distanceKm: 2.2,
+      nearestHubName: pin === '600045' ? 'Tambaram Central Hub' : 'Pozhichalur Express Hub',
+      maxRadiusKm: 8.0,
       statusText: 'AVAILABLE (18-MIN DROP)',
       locality: address.locality || address.city,
     };
   }
 
+  // Bangalore test locations support
   const city = (address.city || '').toLowerCase();
-  const pin = (address.pincode || '').replace(/\D/g, '');
   const isBengaluru = city.includes('bengaluru') || city.includes('bangalore') || pin.startsWith('560');
-  if (!isBengaluru) {
+  if (isBengaluru) {
     return {
-      isServiceable: false,
-      distanceKm: 0,
-      nearestHubName: fallbackHubName,
-      maxRadiusKm: fallbackMaxRadius,
-      statusText: 'NOT AVAILABLE FOR THIS PLACE',
-      reason: 'Instant 18-minute express delivery is currently available only near active Affordz hubs.',
+      isServiceable: true,
+      distanceKm: 3.5,
+      nearestHubName: 'Affordz Express Hub',
+      maxRadiusKm: 8.0,
+      statusText: 'AVAILABLE (18-MIN DROP)',
       locality: address.locality || address.city,
     };
   }
 
   return {
-    isServiceable: true,
-    distanceKm: 3.5,
+    isServiceable: false,
+    distanceKm: 0,
     nearestHubName: fallbackHubName,
     maxRadiusKm: fallbackMaxRadius,
-    statusText: 'AVAILABLE (18-MIN DROP)',
+    statusText: 'NOT AVAILABLE FOR THIS PLACE',
+    reason: `Instant 18-minute express delivery is currently available near Pozhichalur (600074) and Tambaram (600045) darkstores.`,
     locality: address.locality || address.city,
   };
 }
@@ -194,6 +252,12 @@ export const useAddressStore = create<AddressState>((set, get) => ({
   addAddress: async (data) => {
     set({ isLoading: true, error: null });
     try {
+      if (!getAuthToken()) {
+        const preview = get().setPreviewAddress(data);
+        set({ isLoading: false });
+        if (preview) return preview;
+        throw new Error('Please sign in to save a delivery address.');
+      }
       const newAddr = await addressApi.addAddress(data);
       const existing = get().addresses.map((a) => (newAddr.isDefault ? { ...a, isDefault: false } : a));
       const updated = [...existing, newAddr];
@@ -328,4 +392,8 @@ export const useAddressStore = create<AddressState>((set, get) => ({
 
 registerAuthLogoutReset(() => {
   useAddressStore.getState().resetAddresses();
+});
+
+registerAuthLoginCallback(() => {
+  useAddressStore.getState().fetchAddresses().catch(() => {});
 });

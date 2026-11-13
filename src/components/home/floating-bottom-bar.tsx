@@ -466,7 +466,7 @@ export const FloatingBottomBar = React.memo(function FloatingBottomBar({
             >
               <Text
                 style={{
-                  fontFamily: Fonts.serifItalic,
+                  fontFamily: Fonts.sansSemiBold,
                   fontStyle: 'italic',
                   fontSize: 13,
                   fontWeight: '600',
