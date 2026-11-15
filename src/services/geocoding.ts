@@ -39,6 +39,79 @@ const KNOWN_PINCODES: Record<string, { lat: number; lng: number; locality: strin
 };
 
 /**
+ * Sanitize city name (strips bureaucratic suffixes like 'Metropolitan Area', 'Urban Agglomeration')
+ */
+export function sanitizeCity(cityRaw?: string): string {
+  if (!cityRaw) return 'Chennai';
+  const c = cityRaw.trim();
+  if (/chennai/i.test(c)) return 'Chennai';
+  if (/bangalore|bengaluru/i.test(c)) return 'Bengaluru';
+  if (/mumbai/i.test(c)) return 'Mumbai';
+  if (/delhi/i.test(c)) return 'Delhi';
+  if (/hyderabad/i.test(c)) return 'Hyderabad';
+  if (/kolkata/i.test(c)) return 'Kolkata';
+
+  return (
+    c
+      .replace(/\b(Metropolitan Area|Urban Agglomeration|Municipal Corporation|Corporation|District)\b/gi, '')
+      .trim() || 'Chennai'
+  );
+}
+
+/**
+ * Format a clean, human-readable Indian doorstep address without duplicates.
+ */
+export function formatIndianAddress(parts: {
+  road?: string;
+  locality?: string;
+  suburb?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+}): string {
+  const cleanCity = sanitizeCity(parts.city);
+  const cleanState = parts.state || 'Tamil Nadu';
+  const cleanPin = (parts.pincode || '').replace(/\D/g, '').slice(0, 6);
+
+  const seen = new Set<string>();
+  const segments: string[] = [];
+
+  const addUnique = (val?: string) => {
+    if (!val) return;
+    const cleaned = val
+      .replace(/\b(Metropolitan Area|Urban Agglomeration|Municipal Corporation|Corporation|District)\b/gi, '')
+      .replace(/[\n\r]+/g, ' ')
+      .trim();
+    if (!cleaned) return;
+
+    const lower = cleaned.toLowerCase();
+    if (seen.has(lower)) return;
+
+    // Check if duplicate or substring of existing
+    for (const existing of segments) {
+      const exLower = existing.toLowerCase();
+      if (exLower === lower || exLower.includes(lower)) {
+        return;
+      }
+    }
+
+    seen.add(lower);
+    segments.push(cleaned);
+  };
+
+  addUnique(parts.road);
+  addUnique(parts.locality);
+  addUnique(parts.suburb);
+  addUnique(cleanCity);
+  if (cleanState && cleanState.toLowerCase() !== cleanCity.toLowerCase()) {
+    addUnique(cleanState);
+  }
+
+  const baseAddress = segments.join(', ');
+  return cleanPin ? `${baseAddress} - ${cleanPin}` : baseAddress;
+}
+
+/**
  * Geocode a 6-digit Indian Postal Code to coordinates and locality details.
  */
 export async function geocodePincode(pincode: string): Promise<GeocodedAddress | null> {
@@ -48,6 +121,12 @@ export async function geocodePincode(pincode: string): Promise<GeocodedAddress |
   // 1. Check instant in-memory cache
   if (KNOWN_PINCODES[cleanPin]) {
     const known = KNOWN_PINCODES[cleanPin];
+    const formatted = formatIndianAddress({
+      locality: known.locality,
+      city: known.city,
+      state: known.state,
+      pincode: cleanPin,
+    });
     return {
       latitude: known.lat,
       longitude: known.lng,
@@ -55,7 +134,7 @@ export async function geocodePincode(pincode: string): Promise<GeocodedAddress |
       city: known.city,
       state: known.state,
       pincode: cleanPin,
-      formattedAddress: `${known.locality}, ${known.city}, ${known.state} - ${cleanPin}`,
+      formattedAddress: formatted,
     };
   }
 
@@ -87,8 +166,17 @@ export async function geocodePincode(pincode: string): Promise<GeocodedAddress |
           addr.county ||
           addr.district ||
           'Local Area';
-        const city = addr.city || addr.state_district || 'Chennai';
+        const suburb = addr.town || addr.county || '';
+        const city = sanitizeCity(addr.city || addr.state_district || 'Chennai');
         const state = addr.state || 'Tamil Nadu';
+
+        const formatted = formatIndianAddress({
+          locality,
+          suburb,
+          city,
+          state,
+          pincode: cleanPin,
+        });
 
         return {
           latitude: lat,
@@ -97,7 +185,7 @@ export async function geocodePincode(pincode: string): Promise<GeocodedAddress |
           city,
           state,
           pincode: cleanPin,
-          formattedAddress: item.display_name || `${locality}, ${city}, ${state} - ${cleanPin}`,
+          formattedAddress: formatted,
         };
       }
     }
@@ -119,8 +207,17 @@ export async function geocodePincode(pincode: string): Promise<GeocodedAddress |
       if (Array.isArray(data) && data[0]?.Status === 'Success' && data[0]?.PostOffice?.length > 0) {
         const po = data[0].PostOffice[0];
         const locality = po.Name || 'Local Area';
-        const city = po.District || po.Division || 'Chennai';
+        const suburb = po.District || '';
+        const city = sanitizeCity(po.Division || po.District || 'Chennai');
         const state = po.State || 'Tamil Nadu';
+
+        const formatted = formatIndianAddress({
+          locality,
+          suburb,
+          city,
+          state,
+          pincode: cleanPin,
+        });
 
         // Default to Pozhichalur hub coordinates as approximate anchor if external coordinates unavailable
         return {
@@ -130,7 +227,7 @@ export async function geocodePincode(pincode: string): Promise<GeocodedAddress |
           city,
           state,
           pincode: cleanPin,
-          formattedAddress: `${locality}, ${city}, ${state} - ${cleanPin}`,
+          formattedAddress: formatted,
         };
       }
     }
@@ -150,6 +247,7 @@ export async function reverseGeocodeCoords(
 ): Promise<GeocodedAddress> {
   let road = '';
   let locality = 'Pozhichalur';
+  let suburb = 'Pallavaram';
   let city = 'Chennai';
   let state = 'Tamil Nadu';
   let pincode = '600074';
@@ -163,9 +261,19 @@ export async function reverseGeocodeCoords(
         const roadParts = [rev.streetNumber, rev.street, rev.name].filter(Boolean);
         if (roadParts.length > 0) road = roadParts.join(', ');
         locality = rev.district || rev.subregion || rev.city || locality;
-        city = rev.city || rev.region || city;
+        suburb = rev.subregion || rev.district || '';
+        city = sanitizeCity(rev.city || rev.region || city);
         state = rev.region || state;
-        pincode = rev.postalCode || pincode;
+        pincode = (rev.postalCode || pincode).replace(/\D/g, '').slice(0, 6);
+
+        const formattedAddress = formatIndianAddress({
+          road,
+          locality,
+          suburb,
+          city,
+          state,
+          pincode,
+        });
 
         return {
           latitude,
@@ -175,7 +283,7 @@ export async function reverseGeocodeCoords(
           city,
           state,
           pincode,
-          formattedAddress: [road, locality, city, pincode].filter(Boolean).join(', '),
+          formattedAddress,
         };
       }
     } catch (nativeErr) {
@@ -197,18 +305,27 @@ export async function reverseGeocodeCoords(
     if (res.ok) {
       const data = await res.json();
       const addr = data.address || {};
-      road = addr.road || addr.residential || addr.pedestrian || '';
+      road = addr.road || addr.residential || addr.pedestrian || addr.footway || '';
       locality =
         addr.suburb ||
         addr.neighbourhood ||
         addr.quarter ||
-        addr.town ||
+        addr.residential ||
         addr.village ||
-        addr.county ||
         locality;
-      city = addr.city || addr.town || addr.state_district || city;
+      suburb = addr.town || addr.city_district || addr.county || '';
+      city = sanitizeCity(addr.city || addr.town || addr.state_district || city);
       state = addr.state || state;
-      pincode = addr.postcode || pincode;
+      pincode = (addr.postcode || pincode).replace(/\D/g, '').slice(0, 6);
+
+      const formattedAddress = formatIndianAddress({
+        road,
+        locality,
+        suburb,
+        city,
+        state,
+        pincode,
+      });
 
       return {
         latitude,
@@ -218,13 +335,21 @@ export async function reverseGeocodeCoords(
         city,
         state,
         pincode,
-        formattedAddress:
-          data.display_name || [road, locality, city, pincode].filter(Boolean).join(', '),
+        formattedAddress,
       };
     }
   } catch (webErr) {
     console.warn('[Geocoding] Web Nominatim reverse geocode fallback:', webErr);
   }
+
+  const fallbackFormatted = formatIndianAddress({
+    road: road || 'Selected Location',
+    locality,
+    suburb,
+    city,
+    state,
+    pincode,
+  });
 
   return {
     latitude,
@@ -234,7 +359,6 @@ export async function reverseGeocodeCoords(
     city,
     state,
     pincode,
-    formattedAddress: [road, locality, city, pincode].filter(Boolean).join(', '),
+    formattedAddress: fallbackFormatted,
   };
 }
-

@@ -5,9 +5,41 @@ import {
   TryAndBuySessionContract,
 } from '@/contracts/order-contracts';
 
-export const API_BASE_URL =
-  process.env.EXPO_PUBLIC_API_URL ||
-  (Platform.OS === 'android' ? 'http://10.0.2.2:3001' : 'http://localhost:3001');
+function resolveApiBaseUrl(): string {
+  const envUrl = process.env.EXPO_PUBLIC_API_URL;
+
+  // 1. If explicitly set in environment with a non-localhost IP/domain, prioritize it
+  if (envUrl && !envUrl.includes('localhost') && !envUrl.includes('127.0.0.1')) {
+    return envUrl;
+  }
+
+  // 2. On Web: adapt dynamically to whatever host the browser accessed (e.g. 192.168.31.222:8081)
+  if (Platform.OS === 'web' && typeof window !== 'undefined' && window.location?.hostname) {
+    const host = window.location.hostname;
+    if (host && host !== 'localhost' && host !== '127.0.0.1') {
+      return `${window.location.protocol}//${host}:3001`;
+    }
+  }
+
+  // 3. On Native: inspect Expo debugger host URI to find host computer's LAN IP
+  try {
+    const Constants = require('expo-constants').default;
+    const hostUri = Constants?.expoConfig?.hostUri || Constants?.manifest?.debuggerHost;
+    if (hostUri) {
+      const ip = hostUri.split(':')[0];
+      if (ip && ip !== 'localhost' && ip !== '127.0.0.1') {
+        return `http://${ip}:3001`;
+      }
+    }
+  } catch {
+    // ignore
+  }
+
+  // 4. Default fallbacks
+  return envUrl || (Platform.OS === 'android' ? 'http://10.0.2.2:3001' : 'http://localhost:3001');
+}
+
+export const API_BASE_URL = resolveApiBaseUrl();
 
 export const PRODUCT_ID_MAP: Record<string, string> = {
   '101': 'prod-2',

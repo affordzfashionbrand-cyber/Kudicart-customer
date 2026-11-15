@@ -106,7 +106,7 @@ export function SplashScreenView({
     const exitTimer = setTimeout(() => {
       Animated.timing(screenOpacity, {
         toValue: 0,
-        duration: 500,
+        duration: duration < 1000 ? 150 : 500,
         useNativeDriver: isNative,
       }).start(() => {
         glowLoop.stop();

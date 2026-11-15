@@ -113,26 +113,6 @@ export default function RootLayout() {
     PlusJakartaSans_600SemiBold,
     PlusJakartaSans_700Bold,
     PlusJakartaSans_400Regular_Italic,
-    'Playfair Display': PlusJakartaSans_700Bold,
-    'Playfair-Display': PlusJakartaSans_700Bold,
-    'PlayfairDisplay': PlusJakartaSans_700Bold,
-    'PlayfairDisplay-Regular': PlusJakartaSans_400Regular,
-    'PlayfairDisplay-Medium': PlusJakartaSans_500Medium,
-    'PlayfairDisplay-SemiBold': PlusJakartaSans_600SemiBold,
-    'PlayfairDisplay-Bold': PlusJakartaSans_700Bold,
-    'PlayfairDisplay-Italic': PlusJakartaSans_600SemiBold,
-    'Plus Jakarta Sans': PlusJakartaSans_400Regular,
-    'Plus-Jakarta-Sans': PlusJakartaSans_400Regular,
-    'PlusJakartaSans': PlusJakartaSans_400Regular,
-    'PlusJakartaSans-Regular': PlusJakartaSans_400Regular,
-    'PlusJakartaSans-Medium': PlusJakartaSans_500Medium,
-    'PlusJakartaSans-SemiBold': PlusJakartaSans_600SemiBold,
-    'PlusJakartaSans-Bold': PlusJakartaSans_700Bold,
-    serif: PlusJakartaSans_700Bold,
-    Georgia: PlusJakartaSans_700Bold,
-    'sans-serif': PlusJakartaSans_400Regular,
-    sans: PlusJakartaSans_400Regular,
-    editorial: PlusJakartaSans_700Bold,
   });
 
   useEffect(() => {
@@ -183,18 +163,6 @@ export default function RootLayout() {
       })
       .catch(() => {});
 
-    if (Platform.OS === 'web' && typeof document !== 'undefined') {
-      const linkId = 'affordz-google-fonts';
-      if (!document.getElementById(linkId)) {
-        const link = document.createElement('link');
-        link.id = linkId;
-        link.rel = 'stylesheet';
-        link.href =
-          'https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,600&family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400;1,600&family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap';
-        document.head.appendChild(link);
-      }
-    }
-
     return () => {
       unsubNotifs();
       linkSub.remove();
@@ -202,12 +170,12 @@ export default function RootLayout() {
   }, [router]);
 
   useEffect(() => {
-    if (fontsLoaded || fontError) {
+    if (fontsLoaded || fontError || Platform.OS === 'web') {
       SplashScreen.hideAsync().catch(() => {});
     }
   }, [fontsLoaded, fontError]);
 
-  if (!fontsLoaded && !fontError) {
+  if (!fontsLoaded && !fontError && Platform.OS !== 'web') {
     return null;
   }
 
@@ -226,7 +194,7 @@ export default function RootLayout() {
               />
               {showSplash && (
                 <SplashScreenView
-                  duration={1800}
+                  duration={__DEV__ ? 400 : 1800}
                   onFinish={() => setShowSplash(false)}
                 />
               )}

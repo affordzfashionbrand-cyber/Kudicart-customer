@@ -103,6 +103,24 @@ export const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
     return hubs.length > 0 ? hubs : DEFAULT_DARK_STORES;
   }, [darkStores]);
 
+  // Clean presentation Title & Subtitle for bottom card
+  const displayTitle = useMemo(() => {
+    if (geocodedAddr?.road && geocodedAddr.road !== 'Selected Location') {
+      return geocodedAddr.locality && !geocodedAddr.road.toLowerCase().includes(geocodedAddr.locality.toLowerCase())
+        ? `${geocodedAddr.road}, ${geocodedAddr.locality}`
+        : geocodedAddr.road;
+    }
+    return geocodedAddr?.locality || locality || 'Selected Location';
+  }, [geocodedAddr, locality]);
+
+  const displaySubtitle = useMemo(() => {
+    let full = geocodedAddr?.formattedAddress || `${locality}, ${city} - ${pincode}`;
+    if (displayTitle && full.toLowerCase().startsWith(displayTitle.toLowerCase() + ', ')) {
+      full = full.slice(displayTitle.length + 2);
+    }
+    return full;
+  }, [geocodedAddr, locality, city, pincode, displayTitle]);
+
   // Primary hub coordinates
   const primaryHub = activeHubs[0] || DARK_STORE_HUB;
   const hubLat = typeof primaryHub.lat === 'number' ? primaryHub.lat : primaryHub.latitude;
@@ -521,14 +539,14 @@ export const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
                     </View>
                   ) : (
                     <>
-                      <Text style={[FontStyles.sansBold, { fontSize: 15, color: '#111111' }]} numberOfLines={1}>
-                        {locality || 'Chennai Express Hub'}
+                      <Text style={[FontStyles.sansBold, { fontSize: 16, color: '#111111' }]} numberOfLines={1}>
+                        {displayTitle}
                       </Text>
                       <Text
-                        style={[FontStyles.sansRegular, { fontSize: 12, color: '#6B6667', marginTop: 2, lineHeight: 17 }]}
+                        style={[FontStyles.sansRegular, { fontSize: 12, color: '#6B6667', marginTop: 2, lineHeight: 18 }]}
                         numberOfLines={2}
                       >
-                        {geocodedAddr?.formattedAddress || `${locality}, ${city} - ${pincode}`}
+                        {displaySubtitle}
                       </Text>
                     </>
                   )}
