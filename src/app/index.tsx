@@ -8,6 +8,8 @@ import { useAddressStore } from '@/store/useAddressStore';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useCartStore } from '@/store/useCartStore';
 import { useCatalogStore } from '@/store/useCatalogStore';
+import { useHomeContentStore } from '@/store/useHomeContentStore';
+import { handleActionPress } from '@/utils/deepLinkRouter';
 
 import {
   ProductItem,
@@ -88,6 +90,14 @@ export default function Page() {
     fetchAddresses,
   } = useAddressStore();
   const { isDarkStoreModalOpen, openDarkStoreModal, closeDarkStoreModal } = useDarkStore();
+
+  // Dynamic Homepage Content CMS Store
+  const {
+    sections: cmsSections,
+    fetchHomeLayout,
+    hydrateOfflineCache,
+    isRefreshing: isCmsRefreshing,
+  } = useHomeContentStore();
 
   useEffect(() => {
     fetchAddresses();
@@ -226,7 +236,9 @@ export default function Page() {
     fetchDarkStores();
     fetchCoupons();
     fetchProducts();
-  }, [fetchCategories, fetchDarkStores, fetchCoupons, fetchProducts]);
+    hydrateOfflineCache();
+    fetchHomeLayout(false, selectedGender);
+  }, [fetchCategories, fetchDarkStores, fetchCoupons, fetchProducts, hydrateOfflineCache, fetchHomeLayout]);
 
   // Android Hardware Back Button Handling
   useEffect(() => {
@@ -362,23 +374,33 @@ export default function Page() {
     setSelectedGender(gender);
     setSelectedWear('All');
     setCategory(gender === 'All' ? 'All' : gender);
-  }, []);
+    fetchHomeLayout(false, gender);
+  }, [fetchHomeLayout]);
 
   const handleSelectWear = useCallback((wearId: string) => {
     setSelectedWear((prev) => (prev === wearId ? 'All' : wearId));
   }, []);
 
   // Banner Press Handlers
-  const handleBannerPress = useCallback((banner: HeroBannerItem) => {
-    if (banner.categoryTarget !== 'All') {
+  const handleBannerPress = useCallback((banner: any) => {
+    if (banner?.actionType && banner.actionType !== 'NONE') {
+      handleActionPress(banner.actionType, banner.actionValue, router, {
+        setQuery,
+        setCategory,
+        setGender: setSelectedGender,
+        setTab,
+      });
+      return;
+    }
+    if (banner?.categoryTarget && banner.categoryTarget !== 'All') {
       setSelectedGender(banner.categoryTarget);
       setCategory(banner.categoryTarget);
     }
-    if (banner.wearTarget) {
+    if (banner?.wearTarget) {
       setSelectedWear(banner.wearTarget);
     }
     setTab('SHOP');
-  }, []);
+  }, [router]);
 
   const handleTrendingCityPress = useCallback((item: TrendingCityItem) => {
     if (item.genderTarget !== 'All') {
@@ -439,6 +461,20 @@ export default function Page() {
     setCategory('All');
   }, []);
 
+  // Active CMS Homepage Sections (Filtered by isEnabled and Sorted by displayOrder)
+  const activeCmsSections = useMemo(() => {
+    return [...cmsSections]
+      .filter((s) => s.isEnabled)
+      .sort((a, b) => a.displayOrder - b.displayOrder);
+  }, [cmsSections]);
+
+  const handleRefresh = useCallback(async () => {
+    await Promise.all([
+      refreshCatalog(),
+      fetchHomeLayout(true, selectedGender),
+    ]);
+  }, [refreshCatalog, fetchHomeLayout, selectedGender]);
+
   // Wishlist Products List
   const wishlistProductsList = useMemo(() => {
     return activeProducts.filter((product: any) => storeWishlist.includes(String(product.id)));
@@ -480,8 +516,8 @@ export default function Page() {
           refreshControl={
             tab === 'HOME' && !query ? (
               <RefreshControl
-                refreshing={isRefreshing}
-                onRefresh={refreshCatalog}
+                refreshing={isRefreshing || isCmsRefreshing}
+                onRefresh={handleRefresh}
                 tintColor="#FF5A1F"
                 colors={['#FF5A1F', '#C2410C']}
               />
@@ -531,204 +567,245 @@ export default function Page() {
             {/* Spacer to push content below the floating category bar */}
             <View style={{ height: CATEGORY_BAR_HEIGHT }} />
 
-            {/* ROW 3: Compact Hero Banner Carousel with Isolated Auto-Advance Interval */}
-            <HeroBannerSection onBannerPress={handleBannerPress} />
+            {/* Dynamic CMS Sections Loop (Ordered and Toggled via Admin Studio) */}
+            {activeCmsSections.map((section) => {
+              switch (section.sectionKey) {
+                case 'HERO_BANNER':
+                  return (
+                    <React.Fragment key="HERO_BANNER">
+                      {/* Compact Hero Banner Carousel with Isolated Auto-Advance Interval */}
+                      <HeroBannerSection onBannerPress={handleBannerPress} />
 
-            {/* Hyperlocal 18-Min Instant Drop Serviceability Banner */}
-            {!serviceability.isServiceable ? (
-              <View
-                style={{
-                  marginHorizontal: 16,
-                  marginTop: 12,
-                  marginBottom: 10,
-                  backgroundColor: '#FEF2F2',
-                  borderWidth: 1.5,
-                  borderColor: '#FCA5A5',
-                  borderRadius: 20,
-                  padding: 16,
-                  shadowColor: '#DC2626',
-                  shadowOffset: { width: 0, height: 3 },
-                  shadowOpacity: 0.08,
-                  shadowRadius: 8,
-                  elevation: 3,
-                }}
-              >
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                    <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: '#FEE2E2', alignItems: 'center', justifyContent: 'center' }}>
-                      <AlertTriangle size={15} color="#DC2626" />
-                    </View>
-                    <Text style={[FontStyles.sansBold, { fontSize: 11.5, color: '#DC2626', letterSpacing: 0.8, textTransform: 'uppercase' }]}>
-                      NOT AVAILABLE FOR THIS PLACE
-                    </Text>
-                  </View>
+                      {/* Hyperlocal 18-Min Instant Drop Serviceability Banner */}
+                      {!serviceability.isServiceable ? (
+                        <View
+                          style={{
+                            marginHorizontal: 16,
+                            marginTop: 12,
+                            marginBottom: 10,
+                            backgroundColor: '#FEF2F2',
+                            borderWidth: 1.5,
+                            borderColor: '#FCA5A5',
+                            borderRadius: 20,
+                            padding: 16,
+                            shadowColor: '#DC2626',
+                            shadowOffset: { width: 0, height: 3 },
+                            shadowOpacity: 0.08,
+                            shadowRadius: 8,
+                            elevation: 3,
+                          }}
+                        >
+                          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                              <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: '#FEE2E2', alignItems: 'center', justifyContent: 'center' }}>
+                                <AlertTriangle size={15} color="#DC2626" />
+                              </View>
+                              <Text style={[FontStyles.sansBold, { fontSize: 11.5, color: '#DC2626', letterSpacing: 0.8, textTransform: 'uppercase' }]}>
+                                NOT AVAILABLE FOR THIS PLACE
+                              </Text>
+                            </View>
 
-                  <View style={{ backgroundColor: '#FFFFFF', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10, borderWidth: 1, borderColor: '#FECACA' }}>
-                    <Text style={[FontStyles.sansBold, { fontSize: 10, color: '#B91C1C' }]}>
-                      {serviceability.distanceKm} KM (MAX 8.0 KM)
-                    </Text>
-                  </View>
-                </View>
+                            <View style={{ backgroundColor: '#FFFFFF', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10, borderWidth: 1, borderColor: '#FECACA' }}>
+                              <Text style={[FontStyles.sansBold, { fontSize: 10, color: '#B91C1C' }]}>
+                                {serviceability.distanceKm} KM (MAX 8.0 KM)
+                              </Text>
+                            </View>
+                          </View>
 
-                <Text style={[FontStyles.sansBold, { fontSize: 13, color: '#991B1B', lineHeight: 18 }]}>
-                  Instant 18-minute delivery is not available at {selectedAddress?.locality || selectedAddress?.city || 'this location'}.
-                </Text>
-                <Text style={[FontStyles.sansRegular, { fontSize: 11, color: '#7F1D1D', marginTop: 3, lineHeight: 16 }]}>
-                  Our Ather 450X EV quick-commerce fleet operates within 8.0 km of our Express Hub. Items can only be ordered via Standard Boutique Dispatch (2-4 Days) or choose another location.
-                </Text>
+                          <Text style={[FontStyles.sansBold, { fontSize: 13, color: '#991B1B', lineHeight: 18 }]}>
+                            Instant 18-minute delivery is not available at {selectedAddress?.locality || selectedAddress?.city || 'this location'}.
+                          </Text>
+                          <Text style={[FontStyles.sansRegular, { fontSize: 11, color: '#7F1D1D', marginTop: 3, lineHeight: 16 }]}>
+                            Our Ather 450X EV quick-commerce fleet operates within 8.0 km of our Express Hub. Items can only be ordered via Standard Boutique Dispatch (2-4 Days) or choose another location.
+                          </Text>
 
-                <Pressable
-                  onPress={() => setIsLocationModalOpen(true)}
-                  style={{
-                    marginTop: 12,
-                    backgroundColor: '#DC2626',
-                    borderRadius: 12,
-                    paddingVertical: 9,
-                    paddingHorizontal: 14,
-                    alignSelf: 'flex-start',
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    gap: 6,
-                  }}
-                >
-                  <MapPin size={13} color="#FFFFFF" />
-                  <Text style={[FontStyles.sansBold, { fontSize: 11.5, color: '#FFFFFF', letterSpacing: 0.5 }]}>
-                    SELECT SERVICEABLE LOCATION
-                  </Text>
-                </Pressable>
-              </View>
-            ) : (
-              <View
-                style={{
-                  marginHorizontal: 16,
-                  marginTop: 10,
-                  marginBottom: 6,
-                  backgroundColor: '#F0FDF4',
-                  borderWidth: 1,
-                  borderColor: '#BBF7D0',
-                  borderRadius: 14,
-                  paddingHorizontal: 12,
-                  paddingVertical: 7,
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                }}
-              >
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Zap size={13} color="#15803D" fill="#15803D" />
-                  <Text style={[FontStyles.sansBold, { fontSize: 11, color: '#15803D' }]}>
-                    ⚡ 18-Min Instant Drop Available at {selectedAddress?.locality || selectedAddress?.city || 'Your Area'}
-                  </Text>
-                </View>
-                <Text style={[FontStyles.sansBold, { fontSize: 10, color: '#166534' }]}>
-                  {serviceability.distanceKm} km from Hub
-                </Text>
-              </View>
-            )}
+                          <Pressable
+                            onPress={() => setIsLocationModalOpen(true)}
+                            style={{
+                              marginTop: 12,
+                              backgroundColor: '#DC2626',
+                              borderRadius: 12,
+                              paddingVertical: 9,
+                              paddingHorizontal: 14,
+                              alignSelf: 'flex-start',
+                              flexDirection: 'row',
+                              alignItems: 'center',
+                              gap: 6,
+                            }}
+                          >
+                            <MapPin size={13} color="#FFFFFF" />
+                            <Text style={[FontStyles.sansBold, { fontSize: 11.5, color: '#FFFFFF', letterSpacing: 0.5 }]}>
+                              SELECT SERVICEABLE LOCATION
+                            </Text>
+                          </Pressable>
+                        </View>
+                      ) : (
+                        <View
+                          style={{
+                            marginHorizontal: 16,
+                            marginTop: 10,
+                            marginBottom: 6,
+                            backgroundColor: '#F0FDF4',
+                            borderWidth: 1,
+                            borderColor: '#BBF7D0',
+                            borderRadius: 14,
+                            paddingHorizontal: 12,
+                            paddingVertical: 7,
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                          }}
+                        >
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                            <Zap size={13} color="#15803D" fill="#15803D" />
+                            <Text style={[FontStyles.sansBold, { fontSize: 11, color: '#15803D' }]}>
+                              ⚡ 18-Min Instant Drop Available at {selectedAddress?.locality || selectedAddress?.city || 'Your Area'}
+                            </Text>
+                          </View>
+                          <Text style={[FontStyles.sansBold, { fontSize: 10, color: '#166534' }]}>
+                            {serviceability.distanceKm} km from Hub
+                          </Text>
+                        </View>
+                      )}
 
-            {/* Quick Strip: Doorstep Try & Buy Button */}
-            <Pressable
-              onPress={() => setIsTryAndBuyModalOpen(true)}
-              style={({ pressed }) => ({
-                marginHorizontal: 16,
-                marginBottom: 12,
-                backgroundColor: '#ffffff',
-                borderWidth: 1,
-                borderColor: '#D9D9D5',
-                borderRadius: 14,
-                paddingHorizontal: 14,
-                paddingVertical: 10,
-                flexDirection: 'row',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                shadowColor: '#111111',
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.05,
-                shadowRadius: 4,
-                elevation: 2,
-                opacity: pressed ? 0.92 : 1,
-                transform: [{ scale: pressed ? 0.99 : 1 }],
-              })}
-            >
-              <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
-                <View
-                  style={{
-                    width: 28,
-                    height: 28,
-                    borderRadius: 14,
-                    backgroundColor: '#111111',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    marginRight: 8,
-                  }}
-                >
-                  <Sparkles size={13} color="#ffffff" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <EditorialText
-                    first="Doorstep"
-                    second="try & buy"
-                    fontSize={13}
-                    lineHeight={16}
-                    singleLine={true}
-                  />
-                  <Text style={[FontStyles.sansRegular, { fontSize: 9.5, color: '#6B6667', marginTop: 1.5 }]} numberOfLines={1}>
-                    Try sizes • Keep what fits
-                  </Text>
-                </View>
-              </View>
-              <ChevronRight size={14} color="#111111" />
-            </Pressable>
+                      {/* Quick Strip: Doorstep Try & Buy Button */}
+                      <Pressable
+                        onPress={() => setIsTryAndBuyModalOpen(true)}
+                        style={({ pressed }) => ({
+                          marginHorizontal: 16,
+                          marginBottom: 12,
+                          backgroundColor: '#ffffff',
+                          borderWidth: 1,
+                          borderColor: '#D9D9D5',
+                          borderRadius: 14,
+                          paddingHorizontal: 14,
+                          paddingVertical: 10,
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          shadowColor: '#111111',
+                          shadowOffset: { width: 0, height: 2 },
+                          shadowOpacity: 0.05,
+                          shadowRadius: 4,
+                          elevation: 2,
+                          opacity: pressed ? 0.92 : 1,
+                          transform: [{ scale: pressed ? 0.99 : 1 }],
+                        })}
+                      >
+                        <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                          <View
+                            style={{
+                              width: 28,
+                              height: 28,
+                              borderRadius: 14,
+                              backgroundColor: '#111111',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              marginRight: 8,
+                            }}
+                          >
+                            <Sparkles size={13} color="#ffffff" />
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <EditorialText
+                              first="Doorstep"
+                              second="try & buy"
+                              fontSize={13}
+                              lineHeight={16}
+                              singleLine={true}
+                            />
+                            <Text style={[FontStyles.sansRegular, { fontSize: 9.5, color: '#6B6667', marginTop: 1.5 }]} numberOfLines={1}>
+                              Try sizes • Keep what fits
+                            </Text>
+                          </View>
+                        </View>
+                        <ChevronRight size={14} color="#111111" />
+                      </Pressable>
+                    </React.Fragment>
+                  );
 
-            {/* ROW 4: Dynamic Bank Offer Strip with Isolated 3.8s Ticker */}
-            <BankOffersTicker
-              onPress={() => setIsBankModalOpen(true)}
-              selectedIndex={currentBankIndex}
-            />
+                case 'BANK_OFFERS':
+                  return (
+                    <BankOffersTicker
+                      key="BANK_OFFERS"
+                      onPress={() => setIsBankModalOpen(true)}
+                      selectedIndex={currentBankIndex}
+                    />
+                  );
 
-            {/* ROW 5: Trending in Your City */}
-            <TrendingCitySection onItemPress={handleTrendingCityPress} />
+                case 'TRENDING_CITY':
+                  return (
+                    <TrendingCitySection
+                      key="TRENDING_CITY"
+                      onItemPress={handleTrendingCityPress}
+                    />
+                  );
 
-            {/* Curated Luxury Tiers: For Him & For Her */}
-            <CuratedGenderDealsSection
-              onDealPress={handleCuratedDealPress}
-              onGenderHeaderPress={(g) => {
-                handleSelectGender(g);
-                setTab('SHOP');
-              }}
-            />
+                case 'CURATED_DEALS':
+                  return (
+                    <CuratedGenderDealsSection
+                      key="CURATED_DEALS"
+                      onDealPress={handleCuratedDealPress}
+                      onGenderHeaderPress={(g) => {
+                        handleSelectGender(g);
+                        setTab('SHOP');
+                      }}
+                    />
+                  );
 
-            {/* Shop by Budget Stores (2x2 Grid) */}
-            <BudgetStoresSection
-              onSelectBudget={handleBudgetPress}
-              onViewAll={() => {
-                setMaxPriceFilter(null);
-                setTab('SHOP');
-              }}
-            />
+                case 'BUDGET_STORES':
+                  return (
+                    <BudgetStoresSection
+                      key="BUDGET_STORES"
+                      onSelectBudget={handleBudgetPress}
+                      onViewAll={() => {
+                        setMaxPriceFilter(null);
+                        setTab('SHOP');
+                      }}
+                    />
+                  );
 
-            {/* Flash Atelier Live Drop (Isolated 1-Second Timer) */}
-            <FlashDropSection
-              onExplore={() => {
-                setCategory('All');
-                setTab('SHOP');
-              }}
-            />
+                case 'FLASH_DROP':
+                  return (
+                    <FlashDropSection
+                      key="FLASH_DROP"
+                      onExplore={() => {
+                        setCategory('All');
+                        setTab('SHOP');
+                      }}
+                    />
+                  );
 
-            {/* Trend Radar / Aesthetic Hub */}
-            <TrendRadarSection
-              onSelectTrend={handleTrendRadarPress}
-              onExploreAll={() => setTab('SHOP')}
-            />
+                case 'TREND_RADAR':
+                  return (
+                    <TrendRadarSection
+                      key="TREND_RADAR"
+                      onSelectTrend={handleTrendRadarPress}
+                      onExploreAll={() => setTab('SHOP')}
+                    />
+                  );
 
-            {/* Vendor Brand Campaign Spotlight (3x3 Grid) */}
-            <VendorSpotlightSection
-              onSelectBrand={handleBrandSelect}
-              onViewAll={() => setTab('SHOP')}
-            />
+                case 'BRAND_SPOTLIGHT':
+                  return (
+                    <VendorSpotlightSection
+                      key="BRAND_SPOTLIGHT"
+                      onSelectBrand={handleBrandSelect}
+                      onViewAll={() => setTab('SHOP')}
+                    />
+                  );
 
-            {/* Urban Editorial Deals Banner Strip */}
-            <UrbanDealsSection onSelectDeal={handleUrbanDealSelect} />
+                case 'LUXE_WEEKEND':
+                  return (
+                    <UrbanDealsSection
+                      key="LUXE_WEEKEND"
+                      onSelectDeal={handleUrbanDealSelect}
+                    />
+                  );
+
+                default:
+                  return null;
+              }
+            })}
 
             {/* Trending Now Horizontal Carousel */}
             <TrendingNowSection

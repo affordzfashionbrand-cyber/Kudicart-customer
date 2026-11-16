@@ -1234,3 +1234,67 @@ export const paymentsApi = {
     });
   },
 };
+
+export interface HomeLayoutSection {
+  id?: string;
+  sectionKey: string;
+  displayName: string;
+  title?: string | null;
+  subtitle?: string | null;
+  displayOrder: number;
+  isEnabled: boolean;
+  metadata?: any;
+}
+
+export interface HomeLayoutBanner {
+  id: string;
+  placement: string;
+  tag?: string | null;
+  title1: string;
+  title2?: string | null;
+  imageUrl: string;
+  mobileImageUrl?: string | null;
+  targetGender: string;
+  actionType: 'CATEGORY' | 'PRODUCT' | 'BRAND' | 'SEARCH_QUERY' | 'EXTERNAL_URL' | 'NONE';
+  actionValue?: string | null;
+  categoryId?: string | null;
+  categoryName?: string | null;
+  productId?: string | null;
+  productTitle?: string | null;
+  displayOrder: number;
+}
+
+export interface HomeLayoutBankOffer {
+  id: string;
+  bankName: string;
+  badgeBgColor: string;
+  badgeBg?: string;
+  title: string;
+  subtitle: string;
+  code?: string | null;
+  discountText: string;
+  discount?: string;
+  minSpendText?: string | null;
+  minSpend?: string | null;
+  details: string;
+  termsUrl?: string | null;
+  displayOrder: number;
+}
+
+export interface HomeLayoutResponse {
+  success: boolean;
+  timestamp: string;
+  data: {
+    sections: HomeLayoutSection[];
+    banners: HomeLayoutBanner[];
+    bankOffers: HomeLayoutBankOffer[];
+    curatedSections: Record<string, any[]>;
+  };
+}
+
+export const homeContentApi = {
+  getLayout: async (gender?: string): Promise<HomeLayoutResponse> => {
+    const qs = gender ? `?gender=${encodeURIComponent(gender)}` : '';
+    return await request<HomeLayoutResponse>(`/api/v1/home/layout${qs}`);
+  },
+};

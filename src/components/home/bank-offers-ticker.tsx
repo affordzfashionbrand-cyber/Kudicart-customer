@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, Pressable, Animated, Easing, Platform } from 'react-native';
 import { ChevronRight } from 'lucide-react-native';
 import { BANK_OFFERS, bespokeEasing } from '@/data/homeData';
+import { useHomeContentStore } from '@/store/useHomeContentStore';
 
 export interface BankOffersTickerProps {
   onPress: () => void;
@@ -12,13 +13,16 @@ export const BankOffersTicker = React.memo(function BankOffersTicker({
   onPress,
   selectedIndex,
 }: BankOffersTickerProps) {
+  const storeOffers = useHomeContentStore((s) => s.bankOffers);
+  const offers = storeOffers && storeOffers.length > 0 ? storeOffers : BANK_OFFERS;
+
   const [internalIndex, setInternalIndex] = useState(0);
   const bankSlideAnim = useRef(new Animated.Value(0)).current;
   const bankOpacityAnim = useRef(new Animated.Value(1)).current;
   const isNative = Platform.OS !== 'web';
 
   const activeIndex = selectedIndex !== undefined ? selectedIndex : internalIndex;
-  const currentBankOffer = BANK_OFFERS[activeIndex] || BANK_OFFERS[0];
+  const currentBankOffer = offers[activeIndex % offers.length] || offers[0];
 
   useEffect(() => {
     if (selectedIndex !== undefined) {
@@ -27,6 +31,7 @@ export const BankOffersTicker = React.memo(function BankOffersTicker({
   }, [selectedIndex]);
 
   useEffect(() => {
+    if (offers.length <= 1) return;
     const timer = setInterval(() => {
       Animated.parallel([
         Animated.timing(bankSlideAnim, {
@@ -41,7 +46,7 @@ export const BankOffersTicker = React.memo(function BankOffersTicker({
           useNativeDriver: isNative,
         }),
       ]).start(() => {
-        setInternalIndex((prev) => (prev + 1) % BANK_OFFERS.length);
+        setInternalIndex((prev) => (prev + 1) % offers.length);
         bankSlideAnim.setValue(14);
         Animated.parallel([
           Animated.timing(bankSlideAnim, {
@@ -60,7 +65,7 @@ export const BankOffersTicker = React.memo(function BankOffersTicker({
     }, 3800);
 
     return () => clearInterval(timer);
-  }, [bankSlideAnim, bankOpacityAnim, isNative]);
+  }, [bankSlideAnim, bankOpacityAnim, isNative, offers.length]);
 
   return (
     <Pressable
@@ -99,7 +104,7 @@ export const BankOffersTicker = React.memo(function BankOffersTicker({
           {/* Animated Bank Badge with Specific Bank Brand Color */}
           <View
             style={{
-              backgroundColor: currentBankOffer.badgeBg,
+              backgroundColor: (currentBankOffer as any).badgeBgColor || (currentBankOffer as any).badgeBg || '#111111',
               paddingHorizontal: 8,
               paddingVertical: 5,
               borderRadius: 6,
@@ -138,7 +143,7 @@ export const BankOffersTicker = React.memo(function BankOffersTicker({
           }}
         >
           <Text style={{ fontSize: 9.5, fontWeight: '900', color: '#ffffff' }}>
-            {activeIndex + 1}/{BANK_OFFERS.length}
+            {(activeIndex % offers.length) + 1}/{offers.length}
           </Text>
         </View>
         <ChevronRight size={16} color="#6B6667" />

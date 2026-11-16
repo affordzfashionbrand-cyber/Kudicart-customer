@@ -3,6 +3,7 @@ import { View, Text, Modal, Pressable, ScrollView, StyleSheet, Dimensions } from
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { X, Check, Copy } from 'lucide-react-native';
 import { BANK_OFFERS } from '@/data/homeData';
+import { useHomeContentStore } from '@/store/useHomeContentStore';
 
 const { height } = Dimensions.get('window');
 
@@ -24,6 +25,8 @@ export const BankOffersModal = React.memo(function BankOffersModal({
   copiedCode,
 }: BankOffersModalProps) {
   const insets = useSafeAreaInsets();
+  const storeOffers = useHomeContentStore((s) => s.bankOffers);
+  const offers = storeOffers && storeOffers.length > 0 ? storeOffers : BANK_OFFERS;
 
   return (
     <Modal
@@ -73,79 +76,86 @@ export const BankOffersModal = React.memo(function BankOffersModal({
 
           {/* Scrollable list of offers */}
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 20, gap: 14 }}>
-            {BANK_OFFERS.map((offer, idx) => (
-              <View
-                key={offer.id}
-                style={{
-                  backgroundColor: '#ffffff',
-                  borderWidth: 1.5,
-                  borderColor: currentBankIndex === idx ? '#111111' : '#D9D9D5',
-                  borderRadius: 18,
-                  padding: 16,
-                  shadowColor: '#000',
-                  shadowOffset: { width: 0, height: 2 },
-                  shadowOpacity: 0.04,
-                  shadowRadius: 6,
-                  elevation: 2,
-                }}
-              >
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                    <View style={{ backgroundColor: offer.badgeBg, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 }}>
-                      <Text style={{ color: '#fff', fontSize: 9.5, fontWeight: '900', letterSpacing: 0.6 }}>
-                        {offer.bankName}
+            {offers.map((offer, idx) => {
+              const badgeColor = (offer as any).badgeBgColor || (offer as any).badgeBg || '#111111';
+              const discountCallout = (offer as any).discountText || (offer as any).discount;
+              const minSpend = (offer as any).minSpendText || (offer as any).minSpend || 'None';
+              return (
+                <View
+                  key={offer.id || idx}
+                  style={{
+                    backgroundColor: '#ffffff',
+                    borderWidth: 1.5,
+                    borderColor: currentBankIndex === idx ? '#111111' : '#D9D9D5',
+                    borderRadius: 18,
+                    padding: 16,
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: 0.04,
+                    shadowRadius: 6,
+                    elevation: 2,
+                  }}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                      <View style={{ backgroundColor: badgeColor, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 }}>
+                        <Text style={{ color: '#fff', fontSize: 9.5, fontWeight: '900', letterSpacing: 0.6 }}>
+                          {offer.bankName}
+                        </Text>
+                      </View>
+                      <Text style={{ fontSize: 14, fontWeight: '800', color: '#111111' }}>
+                        {discountCallout}
                       </Text>
                     </View>
-                    <Text style={{ fontSize: 14, fontWeight: '800', color: '#111111' }}>
-                      {offer.discount}
-                    </Text>
+
+                    {/* Copy Code Button */}
+                    {offer.code && (
+                      <Pressable
+                        onPress={() => onCopyCode(offer.code!)}
+                        style={{
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          gap: 5,
+                          backgroundColor: copiedCode === offer.code ? '#ecfdf5' : '#F4F1EA',
+                          borderWidth: 1,
+                          borderColor: copiedCode === offer.code ? '#10b981' : '#D9D9D5',
+                          paddingHorizontal: 12,
+                          paddingVertical: 5,
+                          borderRadius: 8,
+                        }}
+                      >
+                        {copiedCode === offer.code ? (
+                          <>
+                            <Check size={12} color="#059669" strokeWidth={3} />
+                            <Text style={{ fontSize: 11, fontWeight: '800', color: '#059669' }}>COPIED</Text>
+                          </>
+                        ) : (
+                          <>
+                            <Copy size={12} color="#111111" />
+                            <Text style={{ fontSize: 11, fontWeight: '900', color: '#111111' }}>{offer.code}</Text>
+                          </>
+                        )}
+                      </Pressable>
+                    )}
                   </View>
 
-                  {/* Copy Code Button */}
-                  <Pressable
-                    onPress={() => onCopyCode(offer.code)}
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      gap: 5,
-                      backgroundColor: copiedCode === offer.code ? '#ecfdf5' : '#F4F1EA',
-                      borderWidth: 1,
-                      borderColor: copiedCode === offer.code ? '#10b981' : '#D9D9D5',
-                      paddingHorizontal: 12,
-                      paddingVertical: 5,
-                      borderRadius: 8,
-                    }}
-                  >
-                    {copiedCode === offer.code ? (
-                      <>
-                        <Check size={12} color="#059669" strokeWidth={3} />
-                        <Text style={{ fontSize: 11, fontWeight: '800', color: '#059669' }}>COPIED</Text>
-                      </>
-                    ) : (
-                      <>
-                        <Copy size={12} color="#111111" />
-                        <Text style={{ fontSize: 11, fontWeight: '900', color: '#111111' }}>{offer.code}</Text>
-                      </>
-                    )}
-                  </Pressable>
-                </View>
-
-                <Text style={{ fontSize: 12, color: '#4b5563', lineHeight: 17, marginBottom: 8 }}>
-                  {offer.details}
-                </Text>
-
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: '#D9D9D5', paddingTop: 8 }}>
-                  <Text style={{ fontSize: 11, color: '#6B6667' }}>
-                    Minimum Spend: <Text style={{ fontWeight: '800', color: '#111111' }}>{offer.minSpend}</Text>
+                  <Text style={{ fontSize: 12, color: '#4b5563', lineHeight: 17, marginBottom: 8 }}>
+                    {offer.details}
                   </Text>
-                  <Pressable onPress={() => onSelectOffer(idx)}>
-                    <Text style={{ fontSize: 11, fontWeight: '800', color: '#111111' }}>
-                      Select Offer →
+
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: '#D9D9D5', paddingTop: 8 }}>
+                    <Text style={{ fontSize: 11, color: '#6B6667' }}>
+                      Minimum Spend: <Text style={{ fontWeight: '800', color: '#111111' }}>{minSpend}</Text>
                     </Text>
-                  </Pressable>
+                    <Pressable onPress={() => onSelectOffer(idx)}>
+                      <Text style={{ fontSize: 11, fontWeight: '800', color: '#111111' }}>
+                        Select Offer →
+                      </Text>
+                    </Pressable>
+                  </View>
                 </View>
-              </View>
-            ))}
+              );
+            })}
           </ScrollView>
         </View>
       </View>
