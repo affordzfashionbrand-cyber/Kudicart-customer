@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, Modal, Pressable, ScrollView, StyleSheet, Dimensions } from 'react-native';
+import { View, Text, Modal, Pressable, ScrollView, StyleSheet, Dimensions, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { X, ArrowRight } from 'lucide-react-native';
 import { AnimatedPressable } from '@/components/common/animated-pressable';
@@ -48,11 +48,13 @@ export const TryBuyModal = React.memo(function TryBuyModal({
       transparent={true}
       onRequestClose={onClose}
     >
-      <View style={{ flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.55)', justifyContent: 'flex-end' }}>
+      <View style={{ flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.55)', justifyContent: 'flex-end', alignItems: 'center' }}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
         <View
           style={{
             backgroundColor: '#ffffff',
+            width: '100%',
+            maxWidth: Platform.OS === 'web' ? 480 : undefined,
             borderTopLeftRadius: 28,
             borderTopRightRadius: 28,
             paddingTop: 18,

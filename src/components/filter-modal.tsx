@@ -4,6 +4,8 @@ import {
   Text,
   Modal,
   TouchableOpacity,
+  Platform,
+  StyleSheet,
 } from 'react-native';
 import { Icon } from '@/components/icon';
 
@@ -57,8 +59,9 @@ export function FilterModal({
       visible={visible}
       onRequestClose={onClose}
     >
-      <View className="flex-1 bg-black/70 justify-end">
-        <View style={{ backgroundColor: '#F7F7F5' }} className="rounded-t-3xl p-5 border-t border-[#D9D9D5] shadow-2xl">
+      <View className="flex-1 bg-black/70 justify-end items-center">
+        <TouchableOpacity style={StyleSheet.absoluteFill} activeOpacity={1} onPress={onClose} />
+        <View style={{ backgroundColor: '#F7F7F5', width: '100%', maxWidth: Platform.OS === 'web' ? 480 : undefined }} className="rounded-t-3xl p-5 border-t border-[#D9D9D5] shadow-2xl">
           {/* Header */}
           <View className="flex flex-row items-center justify-between pb-3 border-b border-[#D9D9D5]">
             <View className="flex flex-row items-center gap-2">

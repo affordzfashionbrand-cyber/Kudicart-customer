@@ -1,22 +1,29 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, Modal, TextInput, Animated, Easing, KeyboardAvoidingView, Platform, Dimensions, Pressable } from 'react-native';
-import { X, ArrowRight, ShieldCheck, CheckCircle2, AlertCircle } from 'lucide-react-native';
-import type { FirebasePhoneConfirmation } from '@/services/firebase';
-import { useAuthStore } from '@/store/useAuthStore';
 import { AnimatedPressable } from '@/components/common/animated-pressable';
 import { Fonts } from '@/constants/theme';
+import type { FirebasePhoneConfirmation } from '@/services/firebase';
 import {
   canUseFirebasePhoneAuth,
   clearRecaptchaVerifier,
   startFirebasePhoneSignIn,
   verifyFirebasePhoneCode,
 } from '@/services/firebase';
+import { useAuthStore } from '@/store/useAuthStore';
+import { AlertCircle, ArrowRight, CheckCircle2, ShieldCheck, X } from 'lucide-react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { Animated, Dimensions, Easing, KeyboardAvoidingView, Modal, Platform, Pressable, Text, TextInput, View } from 'react-native';
 
 const bespokeEasing = Easing.bezier(0.32, 0.72, 0, 1);
 
 function formatFirebaseAuthError(err: any): string {
   const code = String(err?.code || '');
   const message = String(err?.message || '');
+  if (message.includes('Hostname match not found')) {
+    const host = typeof window !== 'undefined' ? window.location.hostname : 'current domain/IP';
+    return `Domain "${host}" is not in Firebase Authorized Domains. Access via http://localhost:8081 or add "${host}" in Firebase Console > Authentication > Settings > Authorized Domains.`;
+  }
+  if (message.includes('MALFORMED')) {
+    return 'Firebase test phone number is not registered in Firebase Console. Please add this number under Firebase Console > Authentication > Sign-in method > Phone > Phone numbers for testing.';
+  }
   if (message.includes('reCAPTCHA Timeout') || message.includes('Timeout') || code === 'auth/timeout') {
     return 'Security verification (reCAPTCHA) timed out. Please try sending OTP again.';
   }
@@ -28,9 +35,9 @@ function formatFirebaseAuthError(err: any): string {
     case 'auth/too-many-requests':
       return 'Too many attempts. Please wait a moment before requesting a new OTP.';
     case 'auth/captcha-check-failed':
-      return 'Security verification (reCAPTCHA) failed. Please try again.';
+      return 'Security verification (reCAPTCHA) failed. Ensure this domain/IP is authorized in Firebase Console.';
     case 'auth/invalid-app-credential':
-      return 'App verification failed. Please try again or use 127.0.0.1 in the address bar.';
+      return 'App verification failed. Please try again or use localhost in the address bar.';
     case 'auth/invalid-verification-code':
       return 'Invalid verification code. Please check the code received via SMS.';
     case 'auth/code-expired':
@@ -69,7 +76,7 @@ export function AuthModal({ visible, onClose, onSuccess }: AuthModalProps) {
 
   const { sendOtp, verifyOtp, loginWithFirebase } = useAuthStore();
   const confirmationResultRef = useRef<FirebasePhoneConfirmation | null>(null);
-  const inputRefs = useRef<(TextInput | null)[]>([]);
+  const inputRefs = useRef<(React.ComponentRef<typeof TextInput> | null)[]>([]);
   const slideAnim = useRef(new Animated.Value(300)).current;
 
   useEffect(() => {
@@ -96,78 +103,6 @@ export function AuthModal({ visible, onClose, onSuccess }: AuthModalProps) {
     }
     return () => clearInterval(timer);
   }, [visible, activeStep, countdown]);
-
-  const handleClose = () => {
-    setError(null);
-    clearRecaptchaVerifier();
-    Animated.timing(slideAnim, { toValue: Dimensions.get('window').height, duration: 260, easing: bespokeEasing, useNativeDriver: isNative }).start(() => {
-      onClose();
-    });
-  };
-
-  const handleGetOtp = async () => {
-    const clean = phoneNumber.replace(/\D/g, '');
-    if (!clean || clean.length < 10) {
-      setError('Please enter a valid 10-digit mobile number.');
-      return;
-    }
-    const formattedPhone = `+91 ${clean.slice(-10)}`;
-    setError(null);
-    setIsGettingOtp(true);
-
-    try {
-      if (canUseFirebasePhoneAuth()) {
-        try {
-          const confirmation = await startFirebasePhoneSignIn(formattedPhone, 'recaptcha-container');
-          confirmationResultRef.current = confirmation;
-          setAuthMode('firebase');
-          setActiveStep(2);
-          setCountdown(30);
-          setDevOtp(null);
-          setOtp(['', '', '', '', '', '']);
-          return;
-        } catch (fbErr: any) {
-          clearRecaptchaVerifier();
-          console.error('[Affordz Auth] Firebase Phone Auth error:', fbErr);
-          setError(formatFirebaseAuthError(fbErr));
-          return;
-        }
-      }
-
-      if (!__DEV__) {
-        setError(
-          Platform.OS === 'web'
-            ? 'Authentication service is not configured for this build.'
-            : 'Authentication service is not configured for this build (missing google-services.json).',
-        );
-        return;
-      }
-
-      const res = await sendOtp(formattedPhone);
-      if (res && res.success) {
-        setAuthMode('backend_dev');
-        setActiveStep(2);
-        setCountdown(res.countdownSeconds || 30);
-        const code = __DEV__ ? res.devOtp || res.otp : undefined;
-        if (code) {
-          setDevOtp(code);
-          const digits = String(code).split('').slice(0, 6);
-          if (digits.length === 6) {
-            setOtp(digits);
-          }
-        } else {
-          setDevOtp(null);
-          setOtp(['', '', '', '', '', '']);
-        }
-      } else {
-        setError(useAuthStore.getState().error || 'Unable to send OTP. Authentication service is unavailable.');
-      }
-    } catch (err: any) {
-      setError(err?.message || 'Authentication service is unavailable. Please check your network.');
-    } finally {
-      setIsGettingOtp(false);
-    }
-  };
 
   const handleVerifyOtp = async () => {
     const code = otp.join('');
@@ -206,11 +141,96 @@ export function AuthModal({ visible, onClose, onSuccess }: AuthModalProps) {
     }
   };
 
+  useEffect(() => {
+    const code = otp.join('');
+    if (code.length === 6 && !isVerifying && !verifiedSuccess && !error) {
+      handleVerifyOtp();
+    }
+  }, [otp, isVerifying, verifiedSuccess, error]);
+
+  const handleClose = () => {
+    setError(null);
+    clearRecaptchaVerifier();
+    Animated.timing(slideAnim, { toValue: Dimensions.get('window').height, duration: 260, easing: bespokeEasing, useNativeDriver: isNative }).start(() => {
+      onClose();
+    });
+  };
+
+  const handleGetOtp = async () => {
+    const clean = phoneNumber.replace(/\D/g, '');
+    if (!clean || clean.length < 10) {
+      setError('Please enter a valid 10-digit mobile number.');
+      return;
+    }
+    const formattedPhone = `+91 ${clean.slice(-10)}`;
+    setError(null);
+    setIsGettingOtp(true);
+
+    try {
+      if (canUseFirebasePhoneAuth()) {
+        try {
+          const confirmation = await startFirebasePhoneSignIn(formattedPhone, 'recaptcha-container');
+          confirmationResultRef.current = confirmation;
+          setAuthMode('firebase');
+          setActiveStep(2);
+          setCountdown(30);
+          setDevOtp(null);
+          setOtp(['', '', '', '', '', '']);
+          return;
+        } catch (fbErr: any) {
+          clearRecaptchaVerifier();
+          if (!__DEV__) {
+            console.error('[Affordz Auth] Firebase Phone Auth error:', fbErr);
+            setError(formatFirebaseAuthError(fbErr));
+            return;
+          }
+          console.warn(
+            '[Affordz Auth] Firebase Phone Auth failed on web/dev, falling back to backend Dev OTP:',
+            fbErr?.message || fbErr,
+          );
+        }
+      }
+
+      if (!__DEV__) {
+        setError(
+          Platform.OS === 'web'
+            ? 'Authentication service is not configured for this build.'
+            : 'Authentication service is not configured for this build (missing google-services.json).',
+        );
+        return;
+      }
+
+      const res = await sendOtp(formattedPhone);
+      if (res && res.success) {
+        setAuthMode('backend_dev');
+        setActiveStep(2);
+        setCountdown(res.countdownSeconds || 30);
+        const code = __DEV__ ? res.devOtp || res.otp : undefined;
+        if (code) {
+          setDevOtp(code);
+          const digits = String(code).split('').slice(0, 6);
+          if (digits.length === 6) {
+            setOtp(digits);
+          }
+        } else {
+          setDevOtp(null);
+          setOtp(['', '', '', '', '', '']);
+        }
+      } else {
+        setError(useAuthStore.getState().error || 'Unable to send OTP. Authentication service is unavailable.');
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Authentication service is unavailable. Please check your network.');
+    } finally {
+      setIsGettingOtp(false);
+    }
+  };
+
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={handleClose}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} className="flex-1 bg-black/60 justify-end">
-        <Pressable className="flex-1" onPress={handleClose} />
-        <Animated.View style={{ transform: [{ translateY: slideAnim }] }} className="bg-paper rounded-t-[32px] pt-[8px] px-[8px] pb-[40px]">
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} className="flex-1 bg-black/60 justify-end items-center">
+        <Pressable className="flex-1 w-full" onPress={handleClose} />
+        <Animated.View style={{ transform: [{ translateY: slideAnim }], width: '100%', maxWidth: Platform.OS === 'web' ? 480 : undefined }} className="bg-paper rounded-t-[32px] pt-[8px] px-[8px] pb-[40px]">
           <View className="bg-white rounded-[28px] p-[24px] border border-[#D9D9D5]">
             <View nativeID="recaptcha-container" />
             <View className="flex-row justify-between items-center mb-[28px]">
@@ -243,7 +263,7 @@ export function AuthModal({ visible, onClose, onSuccess }: AuthModalProps) {
                 <View className="h-[52px] bg-[#F7F7F5] border border-[#D9D9D5] rounded-[16px] flex-row items-center px-[16px] mb-[28px]">
                   <Text style={{ fontFamily: Fonts.sansBold }} className="text-[15px] text-[#111111] mr-[12px]">+91</Text>
                   <View className="w-[1px] h-[20px] bg-[#D9D9D5] mr-[12px]" />
-                  <TextInput 
+                  <TextInput
                     style={{ fontFamily: Fonts.sansBold }}
                     className="flex-1 text-[15px] text-[#111111]"
                     keyboardType="phone-pad"
@@ -300,6 +320,7 @@ export function AuthModal({ visible, onClose, onSuccess }: AuthModalProps) {
                       className="w-[48px] h-[52px] bg-[#F7F7F5] border border-[#D9D9D5] rounded-[16px] text-center text-[20px] text-[#111111]"
                       keyboardType="number-pad"
                       maxLength={1}
+                      textContentType="oneTimeCode"
                       value={digit}
                       onChangeText={(val) => {
                         const cleaned = val.replace(/\D/g, '');

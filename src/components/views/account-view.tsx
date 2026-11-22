@@ -290,20 +290,22 @@ export function AccountView({
               </View>
             </AnimatedPressable>
 
-            <AnimatedPressable
-              className="flex-row justify-between items-center py-[14px] border-b border-[#F4F1EA]"
-              onPress={onAuth}
-            >
-              <View className="flex-row items-center gap-3">
-                <View className="w-8 h-8 rounded-xl bg-[#FAF8F5] border border-[#E8E5DF] items-center justify-center">
-                  <Phone size={15} color="#111111" />
+            {!isAuthenticated && (
+              <AnimatedPressable
+                className="flex-row justify-between items-center py-[14px] border-b border-[#F4F1EA]"
+                onPress={onAuth}
+              >
+                <View className="flex-row items-center gap-3">
+                  <View className="w-8 h-8 rounded-xl bg-[#FAF8F5] border border-[#E8E5DF] items-center justify-center">
+                    <Phone size={15} color="#111111" />
+                  </View>
+                  <Text className="font-sans text-[14px] font-bold text-[#111111]">Login / Switch Account</Text>
                 </View>
-                <Text className="font-sans text-[14px] font-bold text-[#111111]">Login / Switch Account</Text>
-              </View>
-              <View className="w-[28px] h-[28px] rounded-full bg-[#F4F1EA] items-center justify-center">
-                <ChevronRight size={14} color="#111111" />
-              </View>
-            </AnimatedPressable>
+                <View className="w-[28px] h-[28px] rounded-full bg-[#F4F1EA] items-center justify-center">
+                  <ChevronRight size={14} color="#111111" />
+                </View>
+              </AnimatedPressable>
+            )}
 
             {/* Section 3: Preferences & Concierge */}
             <Text className="font-sans text-[10.5px] font-black uppercase text-[#8A857D] tracking-wider mt-5 mb-2">

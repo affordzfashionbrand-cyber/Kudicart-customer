@@ -9,6 +9,7 @@ import {
   ScrollView,
   Platform,
   Dimensions,
+  StyleSheet,
 } from 'react-native';
 import { X, Bell, Package, Sparkles, Zap, ArrowRight, CheckCheck } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -132,8 +133,8 @@ export function NotificationModal({ visible, onClose }: NotificationModalProps) 
 
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={handleClose}>
-      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
-        <Pressable style={{ flex: 1 }} onPress={handleClose} />
+      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end', alignItems: 'center' }}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={handleClose} />
         <Animated.View
           style={{
             transform: [{ translateY: slideAnim }],
@@ -144,6 +145,8 @@ export function NotificationModal({ visible, onClose }: NotificationModalProps) 
             paddingTop: 12,
             paddingBottom: Math.max(insets.bottom, 24),
             paddingHorizontal: 20,
+            width: '100%',
+            maxWidth: Platform.OS === 'web' ? 480 : undefined,
             shadowColor: '#000',
             shadowOffset: { width: 0, height: -4 },
             shadowOpacity: 0.1,

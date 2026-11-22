@@ -29,12 +29,7 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
-      [
-        "expo-router",
-        {
-          "asyncRoutes": "development"
-        }
-      ],
+      "expo-router",
       [
         "expo-splash-screen",
         {
@@ -46,6 +41,12 @@
       "expo-font",
       "expo-secure-store",
       "expo-notifications",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Affordz requires your location to deliver orders in 18 minutes from your nearest dark store hub."
+        }
+      ],
       [
         "@sentry/react-native/expo",
         {

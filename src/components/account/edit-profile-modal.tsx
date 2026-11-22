@@ -6,6 +6,7 @@ import {
   TextInput,
   Pressable,
   Platform,
+  StyleSheet,
   KeyboardAvoidingView,
   ScrollView,
   ActivityIndicator,
@@ -98,11 +99,13 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
           flex: 1,
           backgroundColor: 'rgba(0, 0, 0, 0.55)',
           justifyContent: 'flex-end',
+          alignItems: 'center',
         }}
       >
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={{ width: '100%', maxHeight: '90%' }}
+          style={{ width: '100%', maxWidth: Platform.OS === 'web' ? 480 : '100%', maxHeight: '90%' }}
         >
           <View
             style={{

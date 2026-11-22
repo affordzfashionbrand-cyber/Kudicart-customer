@@ -29,7 +29,7 @@ export interface BrandTextProps extends TextProps {
  * It eliminates font fallback mismatches by mapping each variant to
  * verified loaded fonts and clean platform weight styles.
  */
-export const BrandText = React.forwardRef<Text, BrandTextProps>(function BrandText(
+export const BrandText = React.forwardRef<React.ComponentRef<typeof Text>, BrandTextProps>(function BrandText(
   { variant = 'regular', style, children, className, ...props },
   ref
 ) {

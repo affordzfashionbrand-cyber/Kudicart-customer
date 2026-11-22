@@ -7,6 +7,7 @@ import {
   ScrollView,
   TextInput,
   Platform,
+  StyleSheet,
 } from 'react-native';
 import {
   X,
@@ -84,10 +85,11 @@ export const SelectDarkStoreModal = React.memo(function SelectDarkStoreModal({
           flex: 1,
           backgroundColor: 'rgba(0, 0, 0, 0.72)',
           justifyContent: 'flex-end',
+          alignItems: 'center',
         }}
       >
         <Pressable
-          style={{ flex: 1 }}
+          style={StyleSheet.absoluteFill}
           onPress={onClose}
         />
 
@@ -95,6 +97,8 @@ export const SelectDarkStoreModal = React.memo(function SelectDarkStoreModal({
         <View
           style={{
             backgroundColor: '#111111',
+            width: '100%',
+            maxWidth: Platform.OS === 'web' ? 480 : undefined,
             borderTopLeftRadius: 28,
             borderTopRightRadius: 28,
             borderTopWidth: 1,

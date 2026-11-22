@@ -10,6 +10,8 @@ import {
   TextInput,
   ScrollView,
   KeyboardAvoidingView,
+  Alert,
+  Linking,
 } from 'react-native';
 import * as Location from 'expo-location';
 import {
@@ -178,12 +180,42 @@ export const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
   // Acquire live GPS position from device
   const handleAcquireCurrentGps = async () => {
     setIsLocatingUser(true);
+    setFormError(null);
     try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        setFormError('Location permission denied. Please pick a location on the map.');
+      const perm = await Location.requestForegroundPermissionsAsync();
+      if (perm.status !== 'granted') {
+        if (!perm.canAskAgain && Platform.OS !== 'web') {
+          Alert.alert(
+            'Location Permission Blocked',
+            'Location access is blocked in your device settings. Please enable GPS permissions to locate your delivery doorstep.',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              { text: 'Open Settings', onPress: () => Linking.openSettings() },
+            ],
+          );
+          setFormError('Location permission is blocked in settings. Please drag the pin on map or enable in Settings.');
+        } else {
+          setFormError('Location permission denied. Please pick a location on the map.');
+        }
         return;
       }
+
+      const enabled = await Location.hasServicesEnabledAsync();
+      if (!enabled) {
+        if (Platform.OS !== 'web') {
+          Alert.alert(
+            'Location Services Disabled',
+            'Your device GPS is turned off. Please turn on location services in device settings.',
+            [
+              { text: 'Cancel', style: 'cancel' },
+              { text: 'Open Settings', onPress: () => Linking.openSettings() },
+            ],
+          );
+        }
+        setFormError('Device GPS is turned off. Please enable location services or drag the pin.');
+        return;
+      }
+
       const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
       const lat = pos.coords.latitude;
       const lng = pos.coords.longitude;
@@ -389,10 +421,25 @@ export const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
 
   return (
     <Modal visible={visible} animationType="slide" transparent={false} onRequestClose={onClose}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={{ flex: 1, backgroundColor: '#FFFFFF' }}
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: Platform.OS === 'web' ? '#EDE8E1' : '#FFFFFF',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
       >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={{
+            flex: 1,
+            width: '100%',
+            maxWidth: Platform.OS === 'web' ? 480 : '100%',
+            backgroundColor: '#FFFFFF',
+            position: 'relative',
+            overflow: 'hidden',
+          }}
+        >
         {/* Top Header */}
         <View style={styles.header}>
           <Pressable
@@ -759,7 +806,8 @@ export const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
           </ScrollView>
         )}
       </KeyboardAvoidingView>
-    </Modal>
+    </View>
+  </Modal>
   );
 };
 

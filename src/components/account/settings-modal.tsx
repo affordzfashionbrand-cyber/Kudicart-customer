@@ -6,6 +6,10 @@ import {
   ScrollView,
   Pressable,
   Switch,
+  Platform,
+  StyleSheet,
+  Linking,
+  Alert,
 } from 'react-native';
 import {
   X,
@@ -23,6 +27,7 @@ import {
 } from 'lucide-react-native';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { useAuthStore } from '@/store/useAuthStore';
+import { customerNotificationService } from '@/services/notificationService';
 import { AnimatedPressable } from '@/components/common/animated-pressable';
 
 interface SettingsModalProps {
@@ -62,6 +67,34 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     showToast(res.message);
   };
 
+  const handleToggleNotification = async (key: 'orderUpdates' | 'dropAlerts', enable: boolean) => {
+    if (!enable) {
+      setNotificationPreference(key, false);
+      showToast('Notification preference muted.');
+      return;
+    }
+    const perm = await customerNotificationService.requestPermission();
+    if (perm.granted) {
+      setNotificationPreference(key, true);
+      void customerNotificationService.registerDeviceToken();
+      showToast('Push notifications enabled!');
+    } else {
+      setNotificationPreference(key, false);
+      if (!perm.canAskAgain && Platform.OS !== 'web') {
+        Alert.alert(
+          'Notifications Blocked',
+          'Push notifications are blocked in your device settings. Please enable them to receive live dispatch & delivery alerts.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Open Settings', onPress: () => Linking.openSettings() },
+          ],
+        );
+      } else {
+        showToast('Notification permission was not granted.');
+      }
+    }
+  };
+
   const handleRequestDeletion = async () => {
     if (isDeletingAccount) return;
     setDeleteError(null);
@@ -92,11 +125,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             flex: 1,
             backgroundColor: 'rgba(0, 0, 0, 0.55)',
             justifyContent: 'flex-end',
+            alignItems: 'center',
           }}
         >
+          <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
           <View
             style={{
               backgroundColor: '#FAF8F5',
+              width: '100%',
+              maxWidth: Platform.OS === 'web' ? 480 : undefined,
               borderTopLeftRadius: 28,
               borderTopRightRadius: 28,
               height: '88%',
@@ -234,7 +271,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   </View>
                   <Switch
                     value={notifications.orderUpdates}
-                    onValueChange={(val) => setNotificationPreference('orderUpdates', val)}
+                    onValueChange={(val) => handleToggleNotification('orderUpdates', val)}
                     trackColor={{ false: '#E8E5DF', true: '#111111' }}
                     thumbColor="#FFFFFF"
                   />
@@ -262,7 +299,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   </View>
                   <Switch
                     value={notifications.dropAlerts}
-                    onValueChange={(val) => setNotificationPreference('dropAlerts', val)}
+                    onValueChange={(val) => handleToggleNotification('dropAlerts', val)}
                     trackColor={{ false: '#E8E5DF', true: '#111111' }}
                     thumbColor="#FFFFFF"
                   />

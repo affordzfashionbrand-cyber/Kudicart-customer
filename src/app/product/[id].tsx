@@ -150,7 +150,7 @@ export default function ProductDetailScreen() {
   const [selectedSize, setSelectedSize] = useState<string>('M');
   const [sizeError, setSizeError] = useState(false);
   const sizeSectionLayoutY = useRef<number>(0);
-  const scrollViewRef = useRef<ScrollView>(null);
+  const scrollViewRef = useRef<React.ComponentRef<typeof ScrollView>>(null);
   const [selectedColor, setSelectedColor] = useState('Classic Fabric');
   const [isSizeGuideOpen, setIsSizeGuideOpen] = useState(false);
 

@@ -54,10 +54,11 @@ export const customerNotificationService = {
       }
 
       if (Platform.OS === 'android') {
+        const androidImportanceMax = (Notifications as any).AndroidImportance?.MAX ?? 7;
         await Promise.all([
           Notifications.setNotificationChannelAsync('affordz_critical_alerts', {
             name: 'Urgent Alerts & Order Delivery',
-            importance: Notifications.AndroidImportance.MAX,
+            importance: androidImportanceMax,
             vibrationPattern: [0, 250, 250, 250],
             lightColor: '#FF5A1F',
             sound: 'default',
@@ -66,7 +67,7 @@ export const customerNotificationService = {
           }),
           Notifications.setNotificationChannelAsync('affordz_orders', {
             name: 'Order Updates & Try & Buy Alerts',
-            importance: Notifications.AndroidImportance.MAX,
+            importance: androidImportanceMax,
             vibrationPattern: [0, 250, 250, 250],
             lightColor: '#FF5A1F',
             sound: 'default',
@@ -105,6 +106,59 @@ export const customerNotificationService = {
       return fcmToken;
     } catch {
       return null;
+    }
+  },
+
+  /**
+   * Check current push notification permission status without prompting.
+   */
+  async checkPermission(): Promise<{ status: string; granted: boolean; canAskAgain: boolean }> {
+    try {
+      if (Platform.OS === 'web') {
+        if (typeof window === 'undefined' || !('Notification' in window)) {
+          return { status: 'denied', granted: false, canAskAgain: false };
+        }
+        const granted = Notification.permission === 'granted';
+        return {
+          status: Notification.permission,
+          granted,
+          canAskAgain: Notification.permission !== 'denied',
+        };
+      }
+      const perm = await Notifications.getPermissionsAsync();
+      return {
+        status: perm.status,
+        granted: perm.status === 'granted',
+        canAskAgain: perm.canAskAgain,
+      };
+    } catch {
+      return { status: 'undetermined', granted: false, canAskAgain: true };
+    }
+  },
+
+  /**
+   * Explicitly request push notification permissions from the OS.
+   */
+  async requestPermission(): Promise<{ granted: boolean; canAskAgain: boolean }> {
+    try {
+      if (Platform.OS === 'web') {
+        if (typeof window === 'undefined' || !('Notification' in window)) {
+          return { granted: false, canAskAgain: false };
+        }
+        const perm = await Notification.requestPermission();
+        return { granted: perm === 'granted', canAskAgain: perm !== 'denied' };
+      }
+      const existing = await Notifications.getPermissionsAsync();
+      if (existing.status === 'granted') {
+        return { granted: true, canAskAgain: true };
+      }
+      const requested = await Notifications.requestPermissionsAsync();
+      return {
+        granted: requested.status === 'granted',
+        canAskAgain: requested.canAskAgain,
+      };
+    } catch {
+      return { granted: false, canAskAgain: false };
     }
   },
 

@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, Modal, Pressable, ScrollView, StyleSheet, Dimensions } from 'react-native';
+import { View, Text, Modal, Pressable, ScrollView, StyleSheet, Dimensions, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { X, Check, Copy } from 'lucide-react-native';
 import { BANK_OFFERS } from '@/data/homeData';
@@ -35,11 +35,13 @@ export const BankOffersModal = React.memo(function BankOffersModal({
       transparent={true}
       onRequestClose={onClose}
     >
-      <View style={{ flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.55)', justifyContent: 'flex-end' }}>
+      <View style={{ flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.55)', justifyContent: 'flex-end', alignItems: 'center' }}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
         <View
           style={{
             backgroundColor: '#ffffff',
+            width: '100%',
+            maxWidth: Platform.OS === 'web' ? 480 : undefined,
             borderTopLeftRadius: 28,
             borderTopRightRadius: 28,
             paddingTop: 18,

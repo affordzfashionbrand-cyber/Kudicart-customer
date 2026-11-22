@@ -475,19 +475,21 @@ export function LiveTrackingMap({
         animationType="fade"
         onRequestClose={() => setIsFullscreen(false)}
       >
-        <View style={{ flex: 1, backgroundColor: '#FAF8F5' }}>
-          <View style={styles.fullscreenHeader}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <View style={styles.liveGreenDot} />
-              <Text style={styles.fullscreenTitle}>LIVE DELIVERY RADAR</Text>
+        <View style={{ flex: 1, backgroundColor: Platform.OS === 'web' ? '#EDE8E1' : '#FAF8F5', alignItems: 'center' }}>
+          <View style={{ flex: 1, width: '100%', maxWidth: Platform.OS === 'web' ? 480 : '100%', backgroundColor: '#FAF8F5' }}>
+            <View style={styles.fullscreenHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <View style={styles.liveGreenDot} />
+                <Text style={styles.fullscreenTitle}>LIVE DELIVERY RADAR</Text>
+              </View>
+              <Pressable onPress={() => setIsFullscreen(false)} style={styles.closeBtn}>
+                <Text style={styles.closeBtnText}>CLOSE</Text>
+              </Pressable>
             </View>
-            <Pressable onPress={() => setIsFullscreen(false)} style={styles.closeBtn}>
-              <Text style={styles.closeBtnText}>CLOSE</Text>
-            </Pressable>
-          </View>
 
-          <View style={{ flex: 1, padding: 14 }}>
-            {renderMapCanvas(520)}
+            <View style={{ flex: 1, padding: 14 }}>
+              {renderMapCanvas(520)}
+            </View>
           </View>
         </View>
       </Modal>

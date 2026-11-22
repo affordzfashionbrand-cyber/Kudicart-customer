@@ -262,11 +262,7 @@ export async function startFirebasePhoneSignIn(
 
   try {
     if (webAuth && (webAuth as any).settings) {
-      if (isFirebaseTestNumber(e164Phone)) {
-        (webAuth as any).settings.appVerificationDisabledForTesting = true;
-      } else {
-        (webAuth as any).settings.appVerificationDisabledForTesting = false;
-      }
+      (webAuth as any).settings.appVerificationDisabledForTesting = false;
     }
 
     const confirmationPromise = signInWithPhoneNumber(webAuth, e164Phone, activeRecaptchaVerifier);
