@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   ActivityIndicator,
   StyleSheet,
+  Linking,
 } from 'react-native';
 import * as Location from 'expo-location';
 import {
@@ -26,6 +27,7 @@ import {
   Building,
   Plus,
   LogIn,
+  Settings,
 } from 'lucide-react-native';
 import { FontStyles } from '@/constants/theme';
 import {
@@ -65,6 +67,7 @@ export const LocationOnboardingModal: React.FC<LocationOnboardingModalProps> = (
   const [pincodeResult, setPincodeResult] = useState<ServiceabilityResult | null>(null);
   const [isDetectingLocation, setIsDetectingLocation] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
+  const [isPermissionBlocked, setIsPermissionBlocked] = useState(false);
 
   // Map Picker & Auth Modal State
   const [isMapPickerOpen, setIsMapPickerOpen] = useState(false);
@@ -97,14 +100,22 @@ export const LocationOnboardingModal: React.FC<LocationOnboardingModalProps> = (
   const handleDetectCurrentLocation = useCallback(async () => {
     setIsDetectingLocation(true);
     setLocationError(null);
+    setIsPermissionBlocked(false);
 
     try {
       // 1. Request foreground permissions
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        setLocationError(
-          'Location permission was denied. Please select a saved address or enter your 6-digit PIN code.',
-        );
+      const perm = await Location.requestForegroundPermissionsAsync();
+      if (perm.status !== 'granted') {
+        if (!perm.canAskAgain && Platform.OS !== 'web') {
+          setIsPermissionBlocked(true);
+          setLocationError(
+            'Location permission is blocked in your device settings. Tap "Open Settings" to enable GPS access, or enter your PIN code below.',
+          );
+        } else {
+          setLocationError(
+            'Location permission was denied. Please allow location access to auto-detect your delivery hub, or enter your PIN code below.',
+          );
+        }
         setIsDetectingLocation(false);
         return;
       }
@@ -112,8 +123,9 @@ export const LocationOnboardingModal: React.FC<LocationOnboardingModalProps> = (
       // 2. Check if device location services are enabled
       const enabled = await Location.hasServicesEnabledAsync();
       if (!enabled) {
+        setIsPermissionBlocked(true);
         setLocationError(
-          'Device GPS / location services are turned off. Please enable GPS on your device.',
+          'Device GPS / location services are turned off. Please enable GPS in device settings and try again.',
         );
         setIsDetectingLocation(false);
         return;
@@ -222,6 +234,7 @@ export const LocationOnboardingModal: React.FC<LocationOnboardingModalProps> = (
     <>
       <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
         <View style={styles.modalBackdrop}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
           <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             style={styles.keyboardContainer}
@@ -419,10 +432,23 @@ export const LocationOnboardingModal: React.FC<LocationOnboardingModalProps> = (
 
                 {locationError && (
                   <View style={styles.locationErrorBox}>
-                    <AlertTriangle size={14} color="#DC2626" />
-                    <Text style={[FontStyles.sansMedium, { fontSize: 11.5, color: '#DC2626', flex: 1 }]}>
-                      {locationError}
-                    </Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
+                      <AlertTriangle size={15} color="#DC2626" style={{ marginTop: 1 }} />
+                      <Text style={[FontStyles.sansMedium, { fontSize: 12, color: '#DC2626', flex: 1, lineHeight: 17 }]}>
+                        {locationError}
+                      </Text>
+                    </View>
+                    {isPermissionBlocked && Platform.OS !== 'web' && (
+                      <Pressable
+                        onPress={() => Linking.openSettings()}
+                        style={styles.openSettingsBtn}
+                      >
+                        <Settings size={12} color="#DC2626" />
+                        <Text style={[FontStyles.sansBold, { fontSize: 11, color: '#DC2626' }]}>
+                          OPEN SETTINGS
+                        </Text>
+                      </Pressable>
+                    )}
                   </View>
                 )}
 
@@ -670,9 +696,12 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.65)',
     justifyContent: 'flex-end',
+    alignItems: 'center',
   },
   keyboardContainer: {
     width: '100%',
+    maxWidth: Platform.OS === 'web' ? 480 : '100%',
+    alignSelf: 'center',
     maxHeight: '90%',
   },
   sheetContainer: {
@@ -684,6 +713,7 @@ const styles = StyleSheet.create({
     paddingBottom: Platform.OS === 'ios' ? 36 : 24,
     borderTopWidth: 1,
     borderColor: '#E8E5DF',
+    width: '100%',
   },
   sheetHeader: {
     flexDirection: 'row',
@@ -783,15 +813,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   locationErrorBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
     backgroundColor: '#FEF2F2',
     borderWidth: 1,
     borderColor: '#FECACA',
     borderRadius: 12,
     padding: 10,
     marginBottom: 12,
+  },
+  openSettingsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    alignSelf: 'flex-start',
+    backgroundColor: '#FEE2E2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    marginTop: 8,
+    marginLeft: 23,
   },
   addressCard: {
     backgroundColor: '#FFFFFF',

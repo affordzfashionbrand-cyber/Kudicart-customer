@@ -24,6 +24,7 @@ import { AddressModal } from '@/components/address-modal';
 import { AuthModal } from '@/components/auth-modal';
 import { paymentsApi } from '@/services/api';
 import { launchRazorpayCheckout } from '@/services/razorpay';
+import { customerNotificationService } from '@/services/notificationService';
 
 import { CartTopDeals, DealProduct } from '@/components/cart/cart-top-deals';
 import { CartFlashUrgencyTimer } from '@/components/cart/cart-flash-urgency-timer';
@@ -451,6 +452,9 @@ export default function CheckoutScreen() {
         await useCartStore.getState().clearCart();
       }
       setOrderSuccess(true);
+      void customerNotificationService.requestPermission().then((res) => {
+        if (res.granted) void customerNotificationService.registerDeviceToken();
+      });
       Animated.timing(successAnim, {
         toValue: 1,
         duration: 500,
@@ -533,6 +537,9 @@ export default function CheckoutScreen() {
             await useCartStore.getState().clearCart();
           }
           setOrderSuccess(true);
+          void customerNotificationService.requestPermission().then((res) => {
+            if (res.granted) void customerNotificationService.registerDeviceToken();
+          });
           Animated.timing(successAnim, {
             toValue: 1,
             duration: 500,
@@ -552,6 +559,9 @@ export default function CheckoutScreen() {
             await useCartStore.getState().clearCart();
           }
           setOrderSuccess(true);
+          void customerNotificationService.requestPermission().then((res) => {
+            if (res.granted) void customerNotificationService.registerDeviceToken();
+          });
           Animated.timing(successAnim, {
             toValue: 1,
             duration: 500,

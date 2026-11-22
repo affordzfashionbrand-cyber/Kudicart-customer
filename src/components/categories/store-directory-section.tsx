@@ -27,6 +27,7 @@ interface StoreDirectorySectionProps {
   storeSubFilter: string;
   setStoreSubFilter: (filter: string) => void;
   visibleStores: AtelierStoreDef[];
+  allStores: AtelierStoreDef[]; // Added
   activeWishlist: string[];
   onSelectStore: (store: AtelierStoreDef) => void;
   onBackToAllStores: () => void;
@@ -43,6 +44,7 @@ export const StoreDirectorySection = React.memo(function StoreDirectorySection({
   storeSubFilter,
   setStoreSubFilter,
   visibleStores,
+  allStores, // Added
   activeWishlist,
   onSelectStore,
   onBackToAllStores,
@@ -316,7 +318,7 @@ export const StoreDirectorySection = React.memo(function StoreDirectorySection({
       <View style={{ paddingHorizontal: 16, marginBottom: 16 }}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
           {[
-            { id: 'ALL', label: `All Stores (${ATELIER_STORES.length})` },
+            { id: 'ALL', label: `All Stores (${allStores.length})` },
             { id: 'DARK_STORE', label: '⚡ 18M Express Dark Stores' },
             { id: 'BRAND_BOUTIQUE', label: 'Artisan Brand Boutiques' },
           ].map((tab) => {

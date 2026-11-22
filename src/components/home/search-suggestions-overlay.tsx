@@ -46,7 +46,7 @@ export const SearchSuggestionsOverlay = React.memo(function SearchSuggestionsOve
   onClose,
 }: SearchSuggestionsOverlayProps) {
   const insets = useSafeAreaInsets();
-  const inputRef = useRef<TextInput>(null);
+  const inputRef = useRef<React.ComponentRef<typeof TextInput>>(null);
   const initialQueryRef = useRef(query);
 
   const {

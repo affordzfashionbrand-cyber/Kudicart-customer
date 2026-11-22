@@ -15,6 +15,7 @@ export interface ProductItem {
   wear: string;
   image: string;
   fulfillmentType?: 'DARK_STORE' | 'MARKETPLACE';
+  darkStoreHubId?: string;
   tryAndBuyEligible?: boolean;
   fabric?: string;
   description?: string;

@@ -62,9 +62,9 @@ export function ProductGallery({
   const [isLightboxOpen, setIsLightboxOpen] = useState<boolean>(false);
   const [lightboxIndex, setLightboxIndex] = useState<number>(activeImageIndex);
 
-  const carouselRef = useRef<ScrollView>(null);
-  const thumbnailScrollRef = useRef<ScrollView>(null);
-  const lightboxScrollRef = useRef<ScrollView>(null);
+  const carouselRef = useRef<React.ComponentRef<typeof ScrollView>>(null);
+  const thumbnailScrollRef = useRef<React.ComponentRef<typeof ScrollView>>(null);
+  const lightboxScrollRef = useRef<React.ComponentRef<typeof ScrollView>>(null);
 
   const labels = shotLabels && shotLabels.length >= galleryImages.length
     ? shotLabels
@@ -501,7 +501,8 @@ export function ProductGallery({
         animationType="fade"
         onRequestClose={() => setIsLightboxOpen(false)}
       >
-        <View style={{ flex: 1, backgroundColor: 'rgba(9, 9, 11, 0.97)', justifyContent: 'space-between' }}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(9, 9, 11, 0.97)', alignItems: 'center', justifyContent: 'center' }}>
+          <View style={{ flex: 1, width: '100%', maxWidth: Platform.OS === 'web' ? 480 : '100%', justifyContent: 'space-between' }}>
           {/* Lightbox Top Header */}
           <View
             style={{
@@ -635,6 +636,7 @@ export function ProductGallery({
                 );
               })}
             </ScrollView>
+          </View>
           </View>
         </View>
       </Modal>

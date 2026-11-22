@@ -18,6 +18,7 @@ export default function AccountScreen() {
   const paddingTop = Platform.OS === 'android' ? insets.top + 8 : insets.top;
 
   const { user, logout } = useAuthStore();
+  const { selectedAddressId, setSelectedAddressId } = useAddressStore();
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
@@ -92,7 +93,11 @@ export default function AccountScreen() {
       <AddressModal
         visible={isAddressModalOpen}
         onClose={() => setIsAddressModalOpen(false)}
-        onSelectAddress={() => setIsAddressModalOpen(false)}
+        selectedAddressId={selectedAddressId}
+        onSelectAddress={(addr) => {
+          setSelectedAddressId(addr.id);
+          setIsAddressModalOpen(false);
+        }}
       />
 
       {/* Auth / Switch Account Modal */}

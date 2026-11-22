@@ -713,7 +713,9 @@ Payment Method: ${order.paymentMethod} (PAID)`;
         visible={isCancelModalOpen}
         transparent
         animationType="fade"
-        onRequestClose={() => !isCancelling && setIsCancelModalOpen(false)}
+        onRequestClose={() => {
+          if (!isCancelling) setIsCancelModalOpen(false);
+        }}
       >
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
           <View style={{ width: '100%', maxWidth: 400, backgroundColor: '#FFFFFF', borderRadius: 24, padding: 22 }}>

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { View, Text, Pressable, ScrollView, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { ArrowLeft, Store, Layers } from 'lucide-react-native';
@@ -8,6 +8,7 @@ import { ProductItem } from '@/data/homeData';
 import { safeBack } from '@/utils/navigation';
 import { useCartStore } from '@/store/useCartStore';
 import { useDarkStore } from '@/store/useDarkStore';
+import { catalogApi } from '@/services/api';
 
 import {
   CATEGORY_COLLECTIONS,
@@ -47,6 +48,33 @@ export const ShopByCategoryView = React.memo(function ShopByCategoryView({
   const router = useRouter();
   const { wishlist: storeWishlist, toggleWishlist: storeToggleWishlist, addItem } = useCartStore();
   const { setSelectedDarkStore, darkStores } = useDarkStore();
+  const [dynamicStores, setDynamicStores] = useState<AtelierStoreDef[]>([]);
+
+  useEffect(() => {
+    catalogApi.getDarkStores().then(stores => {
+        const dynamicStoresFromApi = stores.map((ds: any) => ({
+            id: ds.id,
+            name: ds.name,
+            shortName: ds.name.split(' ')[0], // Derived
+            tagline: 'Instant delivery from our local hub.', // Default
+            type: 'DARK_STORE' as const,
+            code: ds.id, // Or some code field
+            locality: ds.locality,
+            distanceKm: 2.0, // Default
+            deliveryMinutes: ds.deliveryMinutes,
+            stockCount: 5000, // Default
+            badge: '⚡ FASTEST DROP', // Default
+            rating: '4.8', // Default
+            image: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=800&q=85', // Default image
+            features: ['Instant Try & Buy', 'Express Dispatch'],
+            brands: [],
+            filterFn: (p: ProductItem) => p.darkStoreHubId === ds.id,
+        }));
+        
+        const boutiqueStores = ATELIER_STORES.filter(s => s.type === 'BRAND_BOUTIQUE');
+        setDynamicStores([...dynamicStoresFromApi, ...boutiqueStores]);
+    });
+  }, []);
 
   const activeWishlist = propWishlist || storeWishlist;
 
@@ -69,13 +97,13 @@ export const ShopByCategoryView = React.memo(function ShopByCategoryView({
 
   const activeStore = useMemo(() => {
     if (!selectedStoreId) return null;
-    return ATELIER_STORES.find((s) => s.id === selectedStoreId) || null;
-  }, [selectedStoreId]);
+    return dynamicStores.find((s) => s.id === selectedStoreId) || null;
+  }, [selectedStoreId, dynamicStores]);
 
   const visibleStores = useMemo(() => {
-    if (storeTypeFilter === 'ALL') return ATELIER_STORES;
-    return ATELIER_STORES.filter((s) => s.type === storeTypeFilter);
-  }, [storeTypeFilter]);
+    if (storeTypeFilter === 'ALL') return dynamicStores;
+    return dynamicStores.filter((s) => s.type === storeTypeFilter);
+  }, [storeTypeFilter, dynamicStores]);
 
   const visibleCategories = useMemo(() => {
     if (selectedGender === 'All') return CATEGORY_COLLECTIONS;
@@ -353,6 +381,7 @@ export const ShopByCategoryView = React.memo(function ShopByCategoryView({
           storeSubFilter={storeSubFilter}
           setStoreSubFilter={setStoreSubFilter}
           visibleStores={visibleStores}
+          allStores={dynamicStores}
           activeWishlist={activeWishlist}
           onSelectStore={handleSelectStore}
           onBackToAllStores={() => {

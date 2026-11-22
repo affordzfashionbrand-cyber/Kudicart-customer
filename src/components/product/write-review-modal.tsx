@@ -7,6 +7,7 @@ import {
   TextInput,
   ScrollView,
   Platform,
+  StyleSheet,
   KeyboardAvoidingView,
   ActivityIndicator,
 } from 'react-native';
@@ -171,11 +172,15 @@ export function WriteReviewModal({
           flex: 1,
           backgroundColor: 'rgba(0, 0, 0, 0.65)',
           justifyContent: 'flex-end',
+          alignItems: 'center',
         }}
       >
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
         <View
           style={{
             backgroundColor: '#FFFFFF',
+            width: '100%',
+            maxWidth: Platform.OS === 'web' ? 480 : undefined,
             borderTopLeftRadius: 28,
             borderTopRightRadius: 28,
             maxHeight: '90%',
