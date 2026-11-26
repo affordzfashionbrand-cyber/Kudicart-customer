@@ -663,31 +663,19 @@ export function resolveProductGalleryShots(product: {
   image?: string;
   galleryImages?: string[];
 }): GalleryShot[] {
-  const pId = String(product.id || '');
-
-  // 1. Check pre-curated dictionary
-  if (pId && PRODUCT_GALLERIES[pId]) {
-    return PRODUCT_GALLERIES[pId];
+  const defaultLabels = ['Lookbook View', 'Craftsmanship Detail', 'Model Drape', 'Back Styling', 'Atelier Finish'];
+  const rawUris = Array.isArray(product.galleryImages)
+    ? product.galleryImages.filter((u): u is string => typeof u === 'string' && u.trim().length > 0)
+    : [];
+  const combined: string[] = [];
+  if (product.image && product.image.trim().length > 0) {
+    combined.push(product.image);
   }
-
-  // 2. Check if galleryImages is populated with > 1 URLs
-  if (product.galleryImages && product.galleryImages.length > 1) {
-    const defaultLabels = ['Lookbook View', 'Craftsmanship Detail', 'Model Drape', 'Back Styling', 'Atelier Finish'];
-    return product.galleryImages.map((uri, idx) => ({
-      uri,
-      label: defaultLabels[idx % defaultLabels.length] || `Angle ${idx + 1}`,
-    }));
+  for (const uri of rawUris) {
+    if (!combined.includes(uri)) combined.push(uri);
   }
-
-  // 3. Fallback to category angles, preserving the product's primary image as Shot 1
-  const key = product.wear || product.category || 'Western';
-  const fallbackSet = CATEGORY_ANGLE_FALLBACKS[key] || CATEGORY_ANGLE_FALLBACKS.Western;
-
-  const mainUri = product.image || (fallbackSet[0] ? fallbackSet[0].uri : '');
-  const shots: GalleryShot[] = [
-    { uri: mainUri, label: 'Main Lookbook' },
-    ...fallbackSet.slice(1),
-  ];
-
-  return shots;
+  return combined.map((uri, idx) => ({
+    uri,
+    label: defaultLabels[idx % defaultLabels.length] || `Angle ${idx + 1}`,
+  }));
 }

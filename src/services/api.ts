@@ -363,6 +363,8 @@ export interface ApiProduct {
   altText: string;
   galleryImages: string[];
   category: string;
+  gender?: string;
+  wear?: string;
   fulfillmentType?: 'DARK_STORE' | 'VENDOR';
   darkStoreHubId?: string;
   darkStoreHub?: { id: string; name: string; locality: string; deliveryMinutes: number };
@@ -412,6 +414,10 @@ export const catalogApi = {
 
   getDarkStores: async (): Promise<any[]> => {
     return await request<any[]>('/api/v1/dark-stores');
+  },
+
+  getStores: async (): Promise<any[]> => {
+    return await request<any[]>('/api/v1/stores');
   },
 
   getActiveCoupons: async (): Promise<any[]> => {

@@ -51,29 +51,70 @@ export const ShopByCategoryView = React.memo(function ShopByCategoryView({
   const [dynamicStores, setDynamicStores] = useState<AtelierStoreDef[]>([]);
 
   useEffect(() => {
-    catalogApi.getDarkStores().then(stores => {
-        const dynamicStoresFromApi = stores.map((ds: any) => ({
-            id: ds.id,
-            name: ds.name,
-            shortName: ds.name.split(' ')[0], // Derived
-            tagline: 'Instant delivery from our local hub.', // Default
-            type: 'DARK_STORE' as const,
-            code: ds.id, // Or some code field
-            locality: ds.locality,
-            distanceKm: 2.0, // Default
-            deliveryMinutes: ds.deliveryMinutes,
-            stockCount: 5000, // Default
-            badge: '⚡ FASTEST DROP', // Default
-            rating: '4.8', // Default
-            image: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=800&q=85', // Default image
-            features: ['Instant Try & Buy', 'Express Dispatch'],
-            brands: [],
-            filterFn: (p: ProductItem) => p.darkStoreHubId === ds.id,
+    let active = true;
+    catalogApi
+      .getStores()
+      .then((stores) => {
+        if (!active || !Array.isArray(stores)) return;
+        const mapped: AtelierStoreDef[] = stores.map((s: any) => ({
+          id: String(s.id),
+          name: String(s.name || 'Affordz Store'),
+          shortName: String(s.name || 'Store').split('—')[0].trim(),
+          tagline: String(s.subtitle || s.address || 'Curated Express Catalog'),
+          type: s.type === 'DARK_STORE' ? ('DARK_STORE' as const) : ('BRAND_BOUTIQUE' as const),
+          code: String(s.id),
+          locality: String(s.locality || ''),
+          distanceKm: 0,
+          deliveryMinutes: Number(s.deliveryMinutes) || 18,
+          stockCount: Number(s.productsCount) || 0,
+          badge: String(s.badge || (s.type === 'DARK_STORE' ? '⚡ 18M DROP' : 'ATELIER BOUTIQUE')),
+          rating: '4.8',
+          image: s.image || '',
+          features:
+            s.type === 'DARK_STORE'
+              ? ['Instant Try & Buy', 'Express Dispatch']
+              : ['Atelier Boutique', 'Curated Dispatch'],
+          brands: [],
+          filterFn: (p: ProductItem) =>
+            s.type === 'DARK_STORE'
+              ? p.darkStoreHubId === s.id || p.fulfillmentType === 'DARK_STORE'
+              : (p.brand || '')
+                  .toLowerCase()
+                  .includes(String(s.name || '').split(' ')[0].toLowerCase()),
         }));
-        
-        const boutiqueStores = ATELIER_STORES.filter(s => s.type === 'BRAND_BOUTIQUE');
-        setDynamicStores([...dynamicStoresFromApi, ...boutiqueStores]);
-    });
+        setDynamicStores(mapped);
+      })
+      .catch(() => {
+        catalogApi
+          .getDarkStores()
+          .then((stores) => {
+            if (!active || !Array.isArray(stores)) return;
+            setDynamicStores(
+              stores.map((ds: any) => ({
+                id: ds.id,
+                name: ds.name,
+                shortName: ds.locality || ds.name,
+                tagline: 'Instant delivery from our local hub.',
+                type: 'DARK_STORE' as const,
+                code: ds.id,
+                locality: ds.locality || '',
+                distanceKm: 0,
+                deliveryMinutes: ds.deliveryMinutes || 18,
+                stockCount: 0,
+                badge: '⚡ FASTEST DROP',
+                rating: '4.8',
+                image: '',
+                features: ['Instant Try & Buy', 'Express Dispatch'],
+                brands: [],
+                filterFn: (p: ProductItem) => p.darkStoreHubId === ds.id,
+              })),
+            );
+          })
+          .catch(() => {});
+      });
+    return () => {
+      active = false;
+    };
   }, []);
 
   const activeWishlist = propWishlist || storeWishlist;
@@ -394,6 +435,7 @@ export const ShopByCategoryView = React.memo(function ShopByCategoryView({
         />
       ) : (
         <CategoryGridSection
+          stores={dynamicStores}
           selectedGender={selectedGender}
           setSelectedGender={setSelectedGender}
           selectedCategoryId={selectedCategoryId}

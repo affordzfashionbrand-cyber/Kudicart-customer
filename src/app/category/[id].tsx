@@ -240,35 +240,25 @@ export default function CategoryResultsScreen() {
     }
   };
 
-  // Convert server products or enriched local products
+  // Convert server products cleanly (no synthetic fallback pool)
   const displayedProducts: ProductItem[] = useMemo(() => {
-    if (serverProducts.length > 0) {
-      return serverProducts.map((p) => ({
-        id: p.id,
-        brand: p.brand,
-        name: p.title,
-        price: p.price,
-        old: p.originalPrice || Math.round(p.price * 1.3),
-        rating: String(p.rating || '4.8'),
-        category: p.category || 'Women',
-        wear: (p as any).wear || 'Tops',
-        image: p.image || (p.galleryImages && p.galleryImages[0]) || '',
-      }));
-    }
+    const list: ProductItem[] = serverProducts.map((p) => ({
+      id: p.id,
+      brand: p.brand,
+      name: p.title,
+      price: p.price,
+      old: p.originalPrice || Math.round(p.price * 1.3),
+      rating: String(p.rating || '4.8'),
+      category: p.category || 'Women',
+      wear: (p as any).wear || 'Tops',
+      image: p.image || (p.galleryImages && p.galleryImages[0]) || '',
+      fulfillmentType: p.fulfillmentType as any,
+      darkStoreHubId: p.darkStoreHubId || undefined,
+      tryAndBuyEligible: p.tryAndBuyEligible,
+    }));
 
-    // Fallback to local catalog if server returned 0 results
-    let pool = getEnrichedProductCatalog(storeCatalogProducts);
-    if (debouncedSearch) {
-      const q = debouncedSearch.toLowerCase();
-      pool = pool.filter(
-        (p) =>
-          p.name.toLowerCase().includes(q) ||
-          p.brand.toLowerCase().includes(q) ||
-          p.category.toLowerCase().includes(q),
-      );
-    }
-    return sortProductList(pool, activeSort);
-  }, [serverProducts, storeCatalogProducts, debouncedSearch, activeSort]);
+    return sortProductList(list, activeSort);
+  }, [serverProducts, activeSort]);
 
   const handleOpenProduct = useCallback(
     (product: ProductItem) => {
@@ -292,10 +282,13 @@ export default function CategoryResultsScreen() {
           originalPrice: product.old || product.price,
           discount: '',
           rating: Number(product.rating) || 4.8,
-          reviewsCount: 120,
-          stockQuantity: 10,
-          readyToShip: true,
-          sizes: ['S', 'M', 'L'],
+          reviewsCount: Number((product as any).reviewsCount) || 0,
+          stockQuantity: typeof (product as any).stockQuantity === 'number' ? (product as any).stockQuantity : 1,
+          readyToShip: (product as any).readyToShip !== false,
+          sizes:
+            Array.isArray((product as any).sizes) && (product as any).sizes.length > 0
+              ? (product as any).sizes
+              : ['M'],
           image: product.image,
           altText: product.name,
           galleryImages: [product.image],

@@ -4,20 +4,41 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { ArrowRight } from 'lucide-react-native';
 import { SectionTitle } from '@/components/common/section-title';
 import { AnimatedPressable } from '@/components/common/animated-pressable';
+import { useHomeContentStore } from '@/store/useHomeContentStore';
 
 export interface FlashDropSectionProps {
   onExplore: () => void;
 }
 
+function computeInitialSeconds(metadata: any): number {
+  if (metadata?.endsAt) {
+    const diff = Math.floor((new Date(metadata.endsAt).getTime() - Date.now()) / 1000);
+    if (Number.isFinite(diff) && diff > 0) return diff;
+  }
+  const mins = Number(metadata?.endsInMinutes);
+  if (Number.isFinite(mins) && mins > 0) {
+    return Math.round(mins * 60);
+  }
+  return 45 * 60;
+}
+
 export const FlashDropSection = React.memo(function FlashDropSection({
   onExplore,
 }: FlashDropSectionProps) {
-  // Live Countdown Timer isolated within this component
-  const [flashTimeLeft, setFlashTimeLeft] = useState(2 * 3600 + 14 * 60 + 38);
+  const sectionConfig = useHomeContentStore((s) =>
+    s.sections.find((sec) => sec.sectionKey === 'FLASH_DROP'),
+  );
+  const [flashTimeLeft, setFlashTimeLeft] = useState(() =>
+    computeInitialSeconds(sectionConfig?.metadata),
+  );
+
+  useEffect(() => {
+    setFlashTimeLeft(computeInitialSeconds(sectionConfig?.metadata));
+  }, [sectionConfig?.metadata]);
 
   useEffect(() => {
     const timer = setInterval(() => {
-      setFlashTimeLeft((prev) => (prev > 0 ? prev - 1 : 24 * 3600 - 1));
+      setFlashTimeLeft((prev) => (prev > 0 ? prev - 1 : 0));
     }, 1000);
     return () => clearInterval(timer);
   }, []);

@@ -1,9 +1,11 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SectionTitle } from '@/components/common/section-title';
-import { LUXE_WEEKEND_DEALS, LuxeDealItem } from '@/data/homeData';
+import { LuxeDealItem } from '@/data/homeData';
+import { useHomeContentStore } from '@/store/useHomeContentStore';
+import { useCatalogStore } from '@/store/useCatalogStore';
 
 interface UrbanDealsSectionProps {
   onSelectDeal: (deal: LuxeDealItem) => void;
@@ -12,6 +14,32 @@ interface UrbanDealsSectionProps {
 export const UrbanDealsSection = React.memo(function UrbanDealsSection({
   onSelectDeal,
 }: UrbanDealsSectionProps) {
+  const cmsItems = useHomeContentStore((s) => s.curatedSections['LUXE_WEEKEND']);
+  const catalogProducts = useCatalogStore((s) => s.products);
+
+  const deals = useMemo<LuxeDealItem[]>(() => {
+    if (Array.isArray(cmsItems) && cmsItems.length > 0) {
+      return cmsItems.map((it: any, idx: number) => ({
+        id: String(it.id || `cms-luxe-${idx}`),
+        brand: String(it.title || 'Affordz Select'),
+        title: String(it.subtitle || 'Curated Drop'),
+        discount: String(it.badge || 'LIVE DROP'),
+        image: String(it.imageUrl || catalogProducts[idx]?.image || ''),
+      }));
+    }
+    return catalogProducts
+      .filter((p) => Boolean(p.image))
+      .slice(0, 6)
+      .map((p) => ({
+        id: `luxe-${p.id}`,
+        brand: p.brand,
+        title: p.title,
+        discount: p.discount || '18M EXPRESS',
+        image: p.image,
+      }));
+  }, [cmsItems, catalogProducts]);
+
+  if (deals.length === 0) return null;
   return (
     <View style={{ backgroundColor: '#111111', paddingVertical: 28, marginBottom: 36, borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#353335' }}>
       <View style={{ alignItems: 'center', paddingHorizontal: 16, marginBottom: 16 }}>
@@ -41,7 +69,7 @@ export const UrbanDealsSection = React.memo(function UrbanDealsSection({
         overScrollMode="never"
         contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}
       >
-        {LUXE_WEEKEND_DEALS.map((deal) => (
+        {deals.map((deal) => (
           <Pressable
             key={deal.id}
             onPress={() => onSelectDeal(deal)}

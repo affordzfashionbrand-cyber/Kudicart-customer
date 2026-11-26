@@ -1,9 +1,11 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, ScrollView } from 'react-native';
 import { Image } from 'expo-image';
 import { SectionTitle } from '@/components/common/section-title';
 import { AnimatedPressable } from '@/components/common/animated-pressable';
-import { TRENDING_CITY_ITEMS, TrendingCityItem } from '@/data/homeData';
+import { TrendingCityItem } from '@/data/homeData';
+import { useHomeContentStore } from '@/store/useHomeContentStore';
+import { useCatalogStore } from '@/store/useCatalogStore';
 
 export interface TrendingCitySectionProps {
   onItemPress: (item: TrendingCityItem) => void;
@@ -12,6 +14,46 @@ export interface TrendingCitySectionProps {
 export const TrendingCitySection = React.memo(function TrendingCitySection({
   onItemPress,
 }: TrendingCitySectionProps) {
+  const cmsItems = useHomeContentStore((s) => s.curatedSections['TRENDING_CITY']);
+  const catalogProducts = useCatalogStore((s) => s.products);
+
+  const items = useMemo<TrendingCityItem[]>(() => {
+    if (Array.isArray(cmsItems) && cmsItems.length > 0) {
+      return cmsItems.map((it: any, idx: number) => {
+        const meta = it.metadata || {};
+        const gender =
+          meta.gender === 'Men' || meta.gender === 'Women' || meta.gender === 'Kids'
+            ? meta.gender
+            : 'All';
+        return {
+          id: String(it.id || `cms-city-${idx}`),
+          label: String(it.title || 'Trending Edit'),
+          genderTarget: gender,
+          wearTarget: meta.wear || undefined,
+          searchQuery: String(it.actionValue || it.title || ''),
+          image: String(it.imageUrl || ''),
+        };
+      });
+    }
+    return catalogProducts
+      .filter((p) => Boolean(p.image))
+      .slice(0, 6)
+      .map((p) => {
+        const gender =
+          p.gender === 'Men' || p.gender === 'Women' || p.gender === 'Kids' ? p.gender : 'All';
+        return {
+          id: `city-${p.id}`,
+          label: `${gender !== 'All' ? `${gender} - ` : ''}${p.brand}`,
+          genderTarget: gender,
+          wearTarget: p.wear || undefined,
+          searchQuery: p.title,
+          image: p.image,
+        };
+      });
+  }, [cmsItems, catalogProducts]);
+
+  if (items.length === 0) return null;
+
   return (
     <View style={{ marginBottom: 26, marginTop: 4 }}>
       <View style={{ paddingHorizontal: 16 }}>
@@ -30,7 +72,7 @@ export const TrendingCitySection = React.memo(function TrendingCitySection({
         overScrollMode="never"
         contentContainerStyle={{ paddingHorizontal: 16, gap: 14 }}
       >
-        {TRENDING_CITY_ITEMS.map((item) => (
+        {items.map((item) => (
           <AnimatedPressable
             key={item.id}
             onPress={() => onItemPress(item)}

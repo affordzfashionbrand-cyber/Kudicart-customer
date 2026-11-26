@@ -61,10 +61,13 @@ export default function WishlistScreen() {
           originalPrice: product.old || product.price,
           discount: '',
           rating: Number(product.rating) || 4.8,
-          reviewsCount: 120,
-          stockQuantity: 10,
-          readyToShip: true,
-          sizes: ['S', 'M', 'L'],
+          reviewsCount: Number((product as any).reviewsCount) || 0,
+          stockQuantity: typeof (product as any).stockQuantity === 'number' ? (product as any).stockQuantity : 1,
+          readyToShip: (product as any).readyToShip !== false,
+          sizes:
+            Array.isArray((product as any).sizes) && (product as any).sizes.length > 0
+              ? (product as any).sizes
+              : ['M'],
           image: product.image,
           altText: product.name,
           galleryImages: [product.image],

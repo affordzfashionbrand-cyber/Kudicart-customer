@@ -38,6 +38,7 @@ import {
 } from '@/data/category-hierarchy-data';
 
 interface CategoryGridSectionProps {
+  stores?: AtelierStoreDef[];
   selectedGender: 'All' | 'Women' | 'Men' | 'Kids';
   setSelectedGender: (gender: 'All' | 'Women' | 'Men' | 'Kids') => void;
   selectedCategoryId: string | null;
@@ -59,6 +60,7 @@ interface CategoryGridSectionProps {
 }
 
 export const CategoryGridSection = React.memo(function CategoryGridSection({
+  stores: propStores,
   selectedGender,
   setSelectedGender,
   selectedCategoryId,
@@ -239,7 +241,7 @@ export const CategoryGridSection = React.memo(function CategoryGridSection({
           overScrollMode="never"
           contentContainerStyle={{ paddingHorizontal: 16, gap: 10 }}
         >
-          {ATELIER_STORES.map((store) => (
+          {(propStores && propStores.length > 0 ? propStores : ATELIER_STORES).map((store) => (
             <Pressable
               key={store.id}
               onPress={() => onSelectStore(store)}

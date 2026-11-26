@@ -10,7 +10,6 @@
     "@react-native-firebase/app": "^26.4.2",
     "@react-native-firebase/auth": "^26.4.2",
     "@react-native-firebase/messaging": "^26.4.2",
-    "@sentry/react-native": "~8.28.0",
     "@tanstack/react-query": "^5.107.1",
     "expo": "58.0.25",
     "expo-constants": "~58.0.16",

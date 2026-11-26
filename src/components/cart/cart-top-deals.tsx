@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -19,6 +19,7 @@ import {
   ChevronRight,
 } from 'lucide-react-native';
 import { formatPrice } from '@/data/homeData';
+import { catalogApi, ApiProduct } from '@/services/api';
 import { PulsingRadarBeacon } from '@/components/common/pulsing-radar-beacon';
 import { AnimatedPriceTicker } from '@/components/common/animated-price-ticker';
 
@@ -31,154 +32,17 @@ export interface DealProduct {
   discountBadge: string;
   rating: number;
   reviewsCount: number;
-  category: 'Ethnic' | 'Western' | 'Footwear' | 'Accessories';
+  category: string;
   deliveryMinutes: number;
   image: string;
   sizes: string[];
+  stockQuantity?: number;
+  readyToShip?: boolean;
+  tryAndBuyEligible?: boolean;
+  fulfillmentType?: string;
 }
 
-export const TOP_CART_DEALS: DealProduct[] = [
-  {
-    id: 'deal-anarkali-102',
-    brand: 'Avanya Ethnic',
-    title: 'Embroidered Anarkali Kurta Set',
-    price: 1299,
-    originalPrice: 2499,
-    discountBadge: '48% OFF',
-    rating: 4.8,
-    reviewsCount: 142,
-    category: 'Ethnic',
-    deliveryMinutes: 18,
-    image: 'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?auto=format&fit=crop&w=800&q=85',
-    sizes: ['S', 'M', 'L', 'XL'],
-  },
-  {
-    id: 'deal-cotton-shirt-104',
-    brand: 'Studio 04',
-    title: 'Structured Pure Cotton Shirt',
-    price: 1890,
-    originalPrice: 3990,
-    discountBadge: '53% OFF',
-    rating: 4.8,
-    reviewsCount: 89,
-    category: 'Western',
-    deliveryMinutes: 18,
-    image: 'https://images.unsplash.com/photo-1603252110481-7ba873bf42ab?auto=format&fit=crop&w=800&q=85',
-    sizes: ['38', '40', '42', '44'],
-  },
-  {
-    id: 'deal-floral-maxi-103',
-    brand: 'Gulabi Studio',
-    title: 'Tiered Floral Rayon Maxi Dress',
-    price: 999,
-    originalPrice: 1999,
-    discountBadge: '50% OFF',
-    rating: 4.7,
-    reviewsCount: 215,
-    category: 'Western',
-    deliveryMinutes: 18,
-    image: 'https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?auto=format&fit=crop&w=800&q=85',
-    sizes: ['XS', 'S', 'M', 'L'],
-  },
-  {
-    id: 'deal-saree-101',
-    brand: 'Varanasi Looms',
-    title: 'Handloom Cotton Saree with Zari',
-    price: 1849,
-    originalPrice: 3190,
-    discountBadge: '42% OFF',
-    rating: 4.9,
-    reviewsCount: 98,
-    category: 'Ethnic',
-    deliveryMinutes: 18,
-    image: 'https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=800&q=85',
-    sizes: ['Free Size'],
-  },
-  {
-    id: 'deal-leather-tote-3',
-    brand: 'Forme Atelier',
-    title: 'Minimal Leather Crossbody Tote',
-    price: 1790,
-    originalPrice: 3890,
-    discountBadge: '54% OFF',
-    rating: 4.9,
-    reviewsCount: 112,
-    category: 'Accessories',
-    deliveryMinutes: 18,
-    image: 'https://images.unsplash.com/photo-1584917865442-de89df76afd3?auto=format&fit=crop&w=800&q=85',
-    sizes: ['Standard'],
-  },
-  {
-    id: 'deal-trousers-105',
-    brand: 'Aurel',
-    title: 'Wide Leg Tailored Wool Trousers',
-    price: 2990,
-    originalPrice: 5490,
-    discountBadge: '46% OFF',
-    rating: 4.7,
-    reviewsCount: 52,
-    category: 'Western',
-    deliveryMinutes: 18,
-    image: 'https://images.unsplash.com/photo-1506629905607-d9e08e2d3e8e?auto=format&fit=crop&w=800&q=85',
-    sizes: ['28', '30', '32', '34'],
-  },
-  {
-    id: 'deal-sunglasses-addon-1',
-    brand: 'Kudi Eyewear',
-    title: 'Midnight Square Acetate Shades',
-    price: 1290,
-    originalPrice: 2490,
-    discountBadge: '48% OFF',
-    rating: 4.8,
-    reviewsCount: 78,
-    category: 'Accessories',
-    deliveryMinutes: 18,
-    image: 'https://images.unsplash.com/photo-1511499767150-a48a237f0083?auto=format&fit=crop&w=400&q=80',
-    sizes: ['Standard'],
-  },
-  {
-    id: 'deal-sneaker-8',
-    brand: 'Studio 04',
-    title: 'Court Minimal Leather Sneaker',
-    price: 3990,
-    originalPrice: 6990,
-    discountBadge: '43% OFF',
-    rating: 4.8,
-    reviewsCount: 63,
-    category: 'Footwear',
-    deliveryMinutes: 18,
-    image: 'https://images.unsplash.com/photo-1549298916-b41d501d3772?auto=format&fit=crop&w=800&q=85',
-    sizes: ['UK 7', 'UK 8', 'UK 9', 'UK 10'],
-  },
-  {
-    id: 'deal-chanderi-106',
-    brand: 'Maison Silk',
-    title: 'Chanderi Festive Silk Kurta Set',
-    price: 4990,
-    originalPrice: 8990,
-    discountBadge: '45% OFF',
-    rating: 4.9,
-    reviewsCount: 114,
-    category: 'Ethnic',
-    deliveryMinutes: 18,
-    image: 'https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=800&q=85',
-    sizes: ['S', 'M', 'L'],
-  },
-  {
-    id: 'deal-selvedge-108',
-    brand: 'Novalis',
-    title: 'Raw Selvedge Rigid Denim',
-    price: 3690,
-    originalPrice: 5890,
-    discountBadge: '37% OFF',
-    rating: 4.8,
-    reviewsCount: 46,
-    category: 'Western',
-    deliveryMinutes: 18,
-    image: 'https://images.unsplash.com/photo-1541099649105-f69ad21f3246?auto=format&fit=crop&w=800&q=85',
-    sizes: ['30', '32', '34', '36'],
-  },
-];
+export const TOP_CART_DEALS: DealProduct[] = [];
 
 type DealTab = 'ALL' | 'FLASH' | 'UNDER1999' | 'BESTSELLER';
 
@@ -201,9 +65,47 @@ export const CartTopDeals: React.FC<CartTopDealsProps> = ({
   title = 'Top Deals Curated For You',
   subtitle = 'EXCLUSIVE ATELIER DISCOUNTS • 18-MIN EXPRESS DROP',
 }) => {
+  const [deals, setDeals] = useState<DealProduct[]>([]);
   const [activeTab, setActiveTab] = useState<DealTab>('ALL');
   const tabFadeAnim = useRef(new Animated.Value(1)).current;
   const tabSlideAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    let active = true;
+    catalogApi
+      .getProducts({ limit: 12, sort: 'popular' })
+      .then((products: ApiProduct[]) => {
+        if (!active || !Array.isArray(products)) return;
+        const mapped: DealProduct[] = products.map((p) => {
+          const orig = Number(p.originalPrice || p.price || 0);
+          const curr = Number(p.price || 0);
+          const pct = orig > curr ? Math.round(((orig - curr) / orig) * 100) : 0;
+          return {
+            id: p.id,
+            brand: p.brand,
+            title: p.title,
+            price: curr,
+            originalPrice: orig,
+            discountBadge: pct > 0 ? `${pct}% OFF` : p.discount || 'DEAL',
+            rating: Number(p.rating) || 4.8,
+            reviewsCount: Number(p.reviewsCount) || 0,
+            category: p.wear || p.category || 'Fashion',
+            deliveryMinutes: 18,
+            image: p.image,
+            sizes: Array.isArray(p.sizes) && p.sizes.length > 0 ? p.sizes : ['M'],
+            stockQuantity: p.stockQuantity,
+            readyToShip: p.readyToShip,
+            tryAndBuyEligible: p.tryAndBuyEligible,
+            fulfillmentType: p.fulfillmentType,
+          };
+        });
+        setDeals(mapped);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const handleTabChange = (newTab: DealTab) => {
     if (newTab === activeTab) return;
@@ -238,19 +140,21 @@ export const CartTopDeals: React.FC<CartTopDealsProps> = ({
   const filteredDeals = useMemo(() => {
     switch (activeTab) {
       case 'FLASH':
-        return TOP_CART_DEALS.filter((d) => {
+        return deals.filter((d) => {
           const discountNum = parseInt(d.discountBadge, 10) || 0;
-          return discountNum >= 45;
+          return discountNum >= 40;
         });
       case 'UNDER1999':
-        return TOP_CART_DEALS.filter((d) => d.price < 2000);
+        return deals.filter((d) => d.price < 2000);
       case 'BESTSELLER':
-        return TOP_CART_DEALS.filter((d) => d.rating >= 4.8);
+        return deals.filter((d) => d.rating >= 4.8);
       case 'ALL':
       default:
-        return TOP_CART_DEALS;
+        return deals;
     }
-  }, [activeTab]);
+  }, [activeTab, deals]);
+
+  if (deals.length === 0) return null;
 
   return (
     <View

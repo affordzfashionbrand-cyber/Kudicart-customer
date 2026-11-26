@@ -13,7 +13,7 @@ interface AddressCardProps {
   showShippingInfo?: boolean;
 }
 
-export const AddressCard = React.memo(({ address, isSelected, onSelect, onEdit, onDelete, showShippingInfo }: AddressCardProps) => {
+export const AddressCard = React.memo(function AddressCard({ address, isSelected, onSelect, onEdit, onDelete, showShippingInfo }: AddressCardProps) {
   const getIcon = () => {
     const iconProps = { size: 18, color: isSelected ? '#FFFFFF' : '#52525B' };
     const label = (address.label || '').toLowerCase();

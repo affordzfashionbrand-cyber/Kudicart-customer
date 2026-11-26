@@ -248,14 +248,14 @@ export default function CheckoutScreen() {
       discount: deal.discountBadge,
       rating: deal.rating,
       reviewsCount: deal.reviewsCount,
-      stockQuantity: 15,
-      readyToShip: true,
+      stockQuantity: typeof deal.stockQuantity === 'number' ? deal.stockQuantity : 1,
+      readyToShip: deal.readyToShip !== false,
       sizes: deal.sizes,
       image: deal.image,
       altText: deal.title,
       galleryImages: [deal.image],
       category: deal.category,
-      tryAndBuyEligible: true,
+      tryAndBuyEligible: Boolean(deal.tryAndBuyEligible),
     };
     await addItem(productPayload, deal.sizes[0] || 'M');
     showToast(`Added ${deal.brand} to Bag!`);

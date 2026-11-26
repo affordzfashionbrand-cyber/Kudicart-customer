@@ -141,13 +141,6 @@ export function AuthModal({ visible, onClose, onSuccess }: AuthModalProps) {
     }
   };
 
-  useEffect(() => {
-    const code = otp.join('');
-    if (code.length === 6 && !isVerifying && !verifiedSuccess && !error) {
-      handleVerifyOtp();
-    }
-  }, [otp, isVerifying, verifiedSuccess, error]);
-
   const handleClose = () => {
     setError(null);
     clearRecaptchaVerifier();
@@ -179,15 +172,9 @@ export function AuthModal({ visible, onClose, onSuccess }: AuthModalProps) {
           return;
         } catch (fbErr: any) {
           clearRecaptchaVerifier();
-          if (!__DEV__) {
-            console.error('[Affordz Auth] Firebase Phone Auth error:', fbErr);
-            setError(formatFirebaseAuthError(fbErr));
-            return;
-          }
-          console.warn(
-            '[Affordz Auth] Firebase Phone Auth failed on web/dev, falling back to backend Dev OTP:',
-            fbErr?.message || fbErr,
-          );
+          console.error('[Affordz Auth] Firebase Phone Auth error:', fbErr);
+          setError(formatFirebaseAuthError(fbErr));
+          return;
         }
       }
 

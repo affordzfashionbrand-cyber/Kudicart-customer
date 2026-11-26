@@ -1,10 +1,12 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, Pressable, ScrollView, StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ArrowRight, ChevronRight } from 'lucide-react-native';
 import { AnimatedPressable } from '@/components/common/animated-pressable';
-import { TREND_RADAR_ITEMS, TrendRadarItem } from '@/data/homeData';
+import { TrendRadarItem } from '@/data/homeData';
+import { useHomeContentStore } from '@/store/useHomeContentStore';
+import { useCatalogStore } from '@/store/useCatalogStore';
 import { Fonts } from '@/constants/theme';
 
 interface TrendRadarSectionProps {
@@ -16,6 +18,34 @@ export const TrendRadarSection = React.memo(function TrendRadarSection({
   onSelectTrend,
   onExploreAll,
 }: TrendRadarSectionProps) {
+  const cmsItems = useHomeContentStore((s) => s.curatedSections['TREND_RADAR']);
+  const catalogProducts = useCatalogStore((s) => s.products);
+
+  const items = useMemo<TrendRadarItem[]>(() => {
+    if (Array.isArray(cmsItems) && cmsItems.length > 0) {
+      return cmsItems.map((it: any, idx: number) => ({
+        id: String(it.id || `cms-trend-${idx}`),
+        aesthetic: String(it.title || 'TRENDING').toUpperCase(),
+        description: String(it.subtitle || 'Curated edit from Affordz boutiques'),
+        tag: String(it.badge || 'LIVE EDIT'),
+        searchQuery: String(it.actionValue || it.title || ''),
+        image: String(it.imageUrl || catalogProducts[idx]?.image || ''),
+      }));
+    }
+    return catalogProducts
+      .filter((p) => Boolean(p.image))
+      .slice(0, 4)
+      .map((p) => ({
+        id: `trend-${p.id}`,
+        aesthetic: (p.brand || 'CURATED').toUpperCase(),
+        description: p.title,
+        tag: p.wear || p.category || 'EDIT',
+        searchQuery: p.brand || p.title,
+        image: p.image,
+      }));
+  }, [cmsItems, catalogProducts]);
+
+  if (items.length === 0) return null;
   return (
     <View style={{ marginBottom: 36 }}>
       {/* Header */}
@@ -55,7 +85,7 @@ export const TrendRadarSection = React.memo(function TrendRadarSection({
         overScrollMode="never"
         contentContainerStyle={{ paddingHorizontal: 16, gap: 14 }}
       >
-        {TREND_RADAR_ITEMS.map((item) => (
+        {items.map((item) => (
           <AnimatedPressable
             key={item.id}
             onPress={() => onSelectTrend(item)}

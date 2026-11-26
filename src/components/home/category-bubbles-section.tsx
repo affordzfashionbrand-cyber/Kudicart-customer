@@ -1,9 +1,10 @@
-import React, { useRef } from 'react';
+import React, { useMemo, useRef } from 'react';
 import { View, Text, ScrollView, Animated, Platform } from 'react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { AnimatedPressable } from '@/components/common/animated-pressable';
 import { GENDER_CATEGORIES, WEAR_CATEGORIES, bespokeEasing } from '@/data/homeData';
+import { useCatalogStore } from '@/store/useCatalogStore';
 
 export interface CategoryBubblesSectionProps {
   selectedGender: 'All' | 'Men' | 'Women' | 'Kids';
@@ -20,6 +21,27 @@ export const CategoryBubblesSection = React.memo(function CategoryBubblesSection
 }: CategoryBubblesSectionProps) {
   const wearsFadeAnim = useRef(new Animated.Value(1)).current;
   const isNative = Platform.OS !== 'web';
+  const catalogCategories = useCatalogStore((s) => s.categories);
+
+  const wearItems = useMemo(() => {
+    const apiWearCats = (catalogCategories || []).filter(
+      (c) => c.image && (selectedGender === 'All' || !c.gender || String(c.gender) === 'All' || c.gender === selectedGender),
+    );
+    if (apiWearCats.length >= 3) {
+      return apiWearCats.slice(0, 10).map((c) => ({
+        id: c.id,
+        name: c.name,
+        badge: (c as any).isPopular ? 'TOP' : undefined,
+        image: c.image || '',
+      }));
+    }
+    return WEAR_CATEGORIES.map((w) => ({
+      id: w.id,
+      name: w.name,
+      badge: w.badge,
+      image: w.images[selectedGender] || w.images['All'],
+    }));
+  }, [catalogCategories, selectedGender]);
 
   const handleGenderPress = (gender: 'All' | 'Men' | 'Women' | 'Kids') => {
     if (gender === selectedGender) return;
@@ -127,9 +149,9 @@ export const CategoryBubblesSection = React.memo(function CategoryBubblesSection
             overScrollMode="never"
             contentContainerStyle={{ paddingHorizontal: 16, gap: 14, paddingTop: 4, paddingBottom: 4 }}
           >
-            {WEAR_CATEGORIES.map((wear) => {
+            {wearItems.map((wear) => {
               const isSelected = selectedWear === wear.id;
-              const imageUrl = wear.images[selectedGender] || wear.images['All'];
+              const imageUrl = wear.image;
 
               return (
                 <AnimatedPressable

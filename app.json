@@ -46,13 +46,6 @@
         {
           "locationWhenInUsePermission": "Affordz requires your location to deliver orders in 18 minutes from your nearest dark store hub."
         }
-      ],
-      [
-        "@sentry/react-native/expo",
-        {
-          "organization": "affordz",
-          "project": "affordz-customer"
-        }
       ]
     ],
     "experiments": {

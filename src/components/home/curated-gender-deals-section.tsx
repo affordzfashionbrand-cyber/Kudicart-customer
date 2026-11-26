@@ -1,11 +1,13 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, Pressable, StyleSheet, useWindowDimensions } from 'react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ChevronRight } from 'lucide-react-native';
 import { AnimatedPressable } from '@/components/common/animated-pressable';
 import { EditorialText } from '@/components/common/section-title';
-import { FOR_HIM_DEALS, FOR_HER_DEALS, CuratedDealCard } from '@/data/homeData';
+import { CuratedDealCard } from '@/data/homeData';
+import { useHomeContentStore } from '@/store/useHomeContentStore';
+import { useCatalogStore } from '@/store/useCatalogStore';
 
 export interface CuratedGenderDealsSectionProps {
   onDealPress: (deal: CuratedDealCard) => void;
@@ -17,6 +19,52 @@ export const CuratedGenderDealsSection = React.memo(function CuratedGenderDealsS
   onGenderHeaderPress,
 }: CuratedGenderDealsSectionProps) {
   const { width: windowWidth } = useWindowDimensions();
+  const cmsItems = useHomeContentStore((s) => s.curatedSections['CURATED_DEALS']);
+  const catalogProducts = useCatalogStore((s) => s.products);
+
+  const { forHimDeals, forHerDeals } = useMemo(() => {
+    const mapFromProducts = (gender: 'Men' | 'Women'): CuratedDealCard[] =>
+      catalogProducts
+        .filter((p) => (p.gender || p.category || '').toLowerCase() === gender.toLowerCase() && p.image)
+        .slice(0, 3)
+        .map((p) => ({
+          id: `curated-${gender.toLowerCase()}-${p.id}`,
+          brandBadges: [{ text: p.brand }],
+          tierTag: p.discount || `Under ₹${Number(p.price).toLocaleString('en-IN')}`,
+          image: p.image,
+          gender,
+          wear: p.wear || undefined,
+          searchQuery: p.brand,
+        }));
+
+    if (Array.isArray(cmsItems) && cmsItems.length > 0) {
+      const toCard = (it: any, gender: 'Men' | 'Women', idx: number): CuratedDealCard => ({
+        id: String(it.id || `cms-curated-${gender}-${idx}`),
+        brandBadges: [{ text: String(it.title || 'Curated') }],
+        tierTag: String(it.badge || it.subtitle || 'LIVE EDIT'),
+        image: String(it.imageUrl || ''),
+        gender,
+        searchQuery: String(it.actionValue || it.title || ''),
+      });
+      const cmsMen = cmsItems
+        .filter((it: any) => String(it.metadata?.gender || '').toLowerCase() === 'men')
+        .map((it: any, i: number) => toCard(it, 'Men', i));
+      const cmsWomen = cmsItems
+        .filter((it: any) => String(it.metadata?.gender || '').toLowerCase() !== 'men')
+        .map((it: any, i: number) => toCard(it, 'Women', i));
+      return {
+        forHimDeals: cmsMen.length > 0 ? cmsMen : mapFromProducts('Men'),
+        forHerDeals: cmsWomen.length > 0 ? cmsWomen : mapFromProducts('Women'),
+      };
+    }
+
+    return {
+      forHimDeals: mapFromProducts('Men'),
+      forHerDeals: mapFromProducts('Women'),
+    };
+  }, [cmsItems, catalogProducts]);
+
+  if (forHimDeals.length === 0 && forHerDeals.length === 0) return null;
   const availableInner = Math.min(windowWidth, 440) - 24 - 20;
   const curCardWidth = Math.floor((availableInner - 16) / 3);
   const curCardHeight = Math.floor(curCardWidth * 1.54);
@@ -184,7 +232,7 @@ export const CuratedGenderDealsSection = React.memo(function CuratedGenderDealsS
           </View>
         </Pressable>
 
-        {renderDealCards(FOR_HIM_DEALS)}
+        {forHimDeals.length > 0 && renderDealCards(forHimDeals)}
       </View>
 
       {/* --- SECTION: FOR HER > --- */}
@@ -221,7 +269,7 @@ export const CuratedGenderDealsSection = React.memo(function CuratedGenderDealsS
           </View>
         </Pressable>
 
-        {renderDealCards(FOR_HER_DEALS)}
+        {forHerDeals.length > 0 && renderDealCards(forHerDeals)}
       </View>
     </View>
   );

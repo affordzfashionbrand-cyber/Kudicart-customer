@@ -1,10 +1,12 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, Pressable, StyleSheet, useWindowDimensions } from 'react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ChevronRight } from 'lucide-react-native';
 import { SectionTitle } from '@/components/common/section-title';
-import { VENDOR_BRAND_TILES, VendorBrandTile } from '@/data/homeData';
+import { VendorBrandTile } from '@/data/homeData';
+import { useHomeContentStore } from '@/store/useHomeContentStore';
+import { useCatalogStore } from '@/store/useCatalogStore';
 
 interface VendorSpotlightSectionProps {
   onSelectBrand: (tile: VendorBrandTile) => void;
@@ -16,6 +18,39 @@ export const VendorSpotlightSection = React.memo(function VendorSpotlightSection
   onViewAll,
 }: VendorSpotlightSectionProps) {
   const { width: windowWidth } = useWindowDimensions();
+  const cmsItems = useHomeContentStore((s) => s.curatedSections['BRAND_SPOTLIGHT']);
+  const catalogProducts = useCatalogStore((s) => s.products);
+
+  const tiles = useMemo<VendorBrandTile[]>(() => {
+    if (Array.isArray(cmsItems) && cmsItems.length > 0) {
+      return cmsItems.map((it: any, idx: number) => ({
+        id: String(it.id || `cms-brand-${idx}`),
+        brand: String(it.title || 'Atelier').toUpperCase(),
+        subBrand: it.subtitle || undefined,
+        discount: String(it.badge || 'LIVE'),
+        image: String(it.imageUrl || catalogProducts[idx]?.image || ''),
+        category: String(it.actionValue || 'All'),
+      }));
+    }
+    const seen = new Set<string>();
+    const derived: VendorBrandTile[] = [];
+    for (const p of catalogProducts) {
+      const key = (p.brand || '').trim().toLowerCase();
+      if (!key || seen.has(key) || !p.image) continue;
+      seen.add(key);
+      derived.push({
+        id: `brand-${p.id}`,
+        brand: p.brand.toUpperCase(),
+        discount: p.discount || 'CURATED',
+        image: p.image,
+        category: p.wear || p.category || 'All',
+      });
+      if (derived.length >= 9) break;
+    }
+    return derived;
+  }, [cmsItems, catalogProducts]);
+
+  if (tiles.length === 0) return null;
 
   return (
     <View style={{ marginBottom: 36, paddingHorizontal: 6 }}>
@@ -39,7 +74,7 @@ export const VendorSpotlightSection = React.memo(function VendorSpotlightSection
 
       {/* 3x3 Grid of Brand Tiles with 2.5px borders */}
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 3, justifyContent: 'flex-start', paddingHorizontal: 4 }}>
-        {VENDOR_BRAND_TILES.map((tile) => {
+        {tiles.map((tile) => {
           const availableWidth = Math.min(windowWidth, 440) - 20;
           const tileWidth = Math.floor((availableWidth - 6) / 3);
           const tileHeight = Math.floor(tileWidth * 1.48);

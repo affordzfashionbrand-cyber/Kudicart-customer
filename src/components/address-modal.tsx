@@ -42,12 +42,12 @@ interface AddressModalProps {
   onSelectAddress: (address: AddressModel) => void;
 }
 
-export const AddressModal = React.memo(({
+export const AddressModal = React.memo(function AddressModal({
   visible,
   onClose,
   selectedAddressId,
   onSelectAddress,
-}: AddressModalProps) => {
+}: AddressModalProps) {
   const insets = useSafeAreaInsets();
   const { addresses, addAddress, updateAddress, deleteAddress, fetchAddresses } = useAddressStore();
   const [isAddingNew, setIsAddingNew] = useState(false);

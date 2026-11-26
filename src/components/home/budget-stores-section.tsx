@@ -1,11 +1,13 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, Pressable, StyleSheet, useWindowDimensions } from 'react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ChevronRight } from 'lucide-react-native';
 import { SectionTitle } from '@/components/common/section-title';
 import { AnimatedPressable } from '@/components/common/animated-pressable';
-import { BUDGET_STORE_ITEMS, BudgetStoreItem } from '@/data/homeData';
+import { BudgetStoreItem } from '@/data/homeData';
+import { useHomeContentStore } from '@/store/useHomeContentStore';
+import { useCatalogStore } from '@/store/useCatalogStore';
 
 interface BudgetStoresSectionProps {
   onSelectBudget: (item: BudgetStoreItem) => void;
@@ -17,6 +19,41 @@ export const BudgetStoresSection = React.memo(function BudgetStoresSection({
   onViewAll,
 }: BudgetStoresSectionProps) {
   const { width: windowWidth } = useWindowDimensions();
+  const cmsItems = useHomeContentStore((s) => s.curatedSections['BUDGET_STORES']);
+  const catalogProducts = useCatalogStore((s) => s.products);
+
+  const items = useMemo<BudgetStoreItem[]>(() => {
+    if (Array.isArray(cmsItems) && cmsItems.length > 0) {
+      return cmsItems.map((it: any, idx: number) => {
+        const parsedMax = Number(String(it.actionValue || it.title || '').replace(/[^\d]/g, ''));
+        return {
+          id: String(it.id || `cms-budget-${idx}`),
+          tier: String(it.title || 'VALUE FINDS'),
+          tagline: String(it.subtitle || 'Curated Deals'),
+          badge: String(it.badge || 'LIVE DEALS'),
+          maxPrice: Number.isFinite(parsedMax) && parsedMax > 0 ? parsedMax : 2999,
+          image: String(it.imageUrl || catalogProducts[idx]?.image || ''),
+        };
+      });
+    }
+    const thresholds = [1999, 2999, 4999, 7999];
+    return thresholds
+      .map((maxPrice): BudgetStoreItem | null => {
+        const match = catalogProducts.find((p) => Number(p.price) <= maxPrice && p.image);
+        if (!match) return null;
+        return {
+          id: `budget-${maxPrice}`,
+          tier: `UNDER ₹${maxPrice.toLocaleString('en-IN')}`,
+          tagline: `${match.brand} & more`,
+          badge: 'CURATED EDIT',
+          maxPrice,
+          image: match.image,
+        };
+      })
+      .filter((x): x is BudgetStoreItem => x !== null);
+  }, [cmsItems, catalogProducts]);
+
+  if (items.length === 0) return null;
 
   return (
     <View style={{ marginBottom: 32, paddingHorizontal: 6 }}>
@@ -40,7 +77,7 @@ export const BudgetStoresSection = React.memo(function BudgetStoresSection({
 
       {/* 2x2 Clean Grid of Budget Cards */}
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingHorizontal: 4 }}>
-        {BUDGET_STORE_ITEMS.map((item) => {
+        {items.map((item) => {
           const availableW = Math.min(windowWidth, 440) - 20;
           const bCardWidth = Math.floor((availableW - 10) / 2);
           const bCardHeight = Math.floor(bCardWidth * 1.18);
