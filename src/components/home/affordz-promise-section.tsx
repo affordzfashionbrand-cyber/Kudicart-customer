@@ -21,7 +21,7 @@ const PROMISE_PILLARS = [
   },
   {
     Icon: RefreshCw,
-    title: 'Instant 0â‚¹ Exchanges',
+    title: 'Instant 0₹ Exchanges',
     desc: 'No return tickets or courier waiting. Delivery valet exchanges sizes in minutes.',
   },
 ];

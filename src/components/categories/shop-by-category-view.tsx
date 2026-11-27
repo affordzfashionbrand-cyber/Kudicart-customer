@@ -59,7 +59,7 @@ export const ShopByCategoryView = React.memo(function ShopByCategoryView({
         const mapped: AtelierStoreDef[] = stores.map((s: any) => ({
           id: String(s.id),
           name: String(s.name || 'Affordz Store'),
-          shortName: String(s.name || 'Store').split('â€”')[0].trim(),
+          shortName: String(s.name || 'Store').split('—')[0].trim(),
           tagline: String(s.subtitle || s.address || 'Curated Express Catalog'),
           type: s.type === 'DARK_STORE' ? ('DARK_STORE' as const) : ('BRAND_BOUTIQUE' as const),
           code: String(s.id),
@@ -67,7 +67,7 @@ export const ShopByCategoryView = React.memo(function ShopByCategoryView({
           distanceKm: 0,
           deliveryMinutes: Number(s.deliveryMinutes) || 18,
           stockCount: Number(s.productsCount) || 0,
-          badge: String(s.badge || (s.type === 'DARK_STORE' ? 'âš¡ 19M DROP' : 'ATELIER BOUTIQUE')),
+          badge: String(s.badge || (s.type === 'DARK_STORE' ? '⚡ 19M DROP' : 'ATELIER BOUTIQUE')),
           rating: '4.8',
           image: s.image || '',
           features:
@@ -101,7 +101,7 @@ export const ShopByCategoryView = React.memo(function ShopByCategoryView({
                 distanceKm: 0,
                 deliveryMinutes: ds.deliveryMinutes || 18,
                 stockCount: 0,
-                badge: 'âš¡ FASTEST DROP',
+                badge: '⚡ FASTEST DROP',
                 rating: '4.8',
                 image: '',
                 features: ['Instant Try & Buy', 'Express Dispatch'],
@@ -344,7 +344,7 @@ export const ShopByCategoryView = React.memo(function ShopByCategoryView({
             <Text style={{ fontSize: 11, color: '#71717A', fontWeight: '500', marginTop: 1 }}>
               {viewMode === 'STORE'
                 ? activeStore
-                  ? `${activeStore.name} â€¢ 19-min drop`
+                  ? `${activeStore.name} • 19-min drop`
                   : 'Hyper-local ateliers & dark stores'
                 : 'Curated editorial departments'}
             </Text>

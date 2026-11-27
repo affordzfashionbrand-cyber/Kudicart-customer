@@ -282,7 +282,7 @@ export const CartDeliveryAddressSection = React.memo(function CartDeliveryAddres
             }}
           >
             {!addressServiceability.isServiceable && hasDarkStoreItems
-              ? 'âš ï¸ Instant Drop Not Serviceable at this Address'
+              ? '⚠️ Instant Drop Not Serviceable at this Address'
               : hasDarkStoreItems
               ? '⚡ Estimated Delivery: In 19 Minutes'
               : '📦 Boutique Dispatch: In 2-4 Business Days'}

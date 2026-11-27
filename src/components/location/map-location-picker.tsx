@@ -519,7 +519,7 @@ export const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
           L.marker([${hLat}, ${hLng}], {
             icon: L.divIcon({
               className: 'hub-icon',
-              html: '<div style="background:#111;color:#fff;border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.3);font-size:12px;">ðŸª</div>',
+              html: '<div style="background:#111;color:#fff;border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.3);font-size:12px;">🏪</div>',
               iconSize: [26, 26],
               iconAnchor: [13, 13]
             })

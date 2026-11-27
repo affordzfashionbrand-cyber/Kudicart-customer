@@ -467,6 +467,7 @@ export const catalogApi = {
 
   getProducts: async (params?: {
     category?: string;
+    gender?: string;
     search?: string;
     sort?: string;
     sortBy?: string;
@@ -479,6 +480,7 @@ export const catalogApi = {
   }): Promise<ApiProduct[]> => {
     const query = new URLSearchParams();
     if (params?.category && params.category !== 'All') query.append('category', params.category);
+    if (params?.gender && params.gender !== 'All') query.append('gender', params.gender);
     if (params?.search) query.append('search', params.search);
     if (params?.sort) query.append('sort', params.sort);
     if (params?.sortBy) query.append('sortBy', params.sortBy);
@@ -511,6 +513,7 @@ export const catalogApi = {
   searchProducts: async (params?: {
     search?: string;
     category?: string;
+    gender?: string;
     fulfillmentType?: string;
     tryAndBuyOnly?: boolean | string;
     sortBy?: string;
@@ -522,6 +525,7 @@ export const catalogApi = {
   }): Promise<ApiProduct[]> => {
     const query = new URLSearchParams();
     if (params?.category && params.category !== 'All') query.append('category', params.category);
+    if (params?.gender && params.gender !== 'All') query.append('gender', params.gender);
     if (params?.search) query.append('search', params.search);
     if (params?.sort) query.append('sort', params.sort);
     if (params?.sortBy) query.append('sortBy', params.sortBy);

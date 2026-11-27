@@ -34,7 +34,7 @@ import { TrackingPilotRatingCard } from '@/components/tracking/tracking-pilot-ra
 import { TrackingProgressionStepper } from '@/components/tracking/tracking-progression-stepper';
 import { TrackingPackageCard } from '@/components/tracking/tracking-package-card';
 
-const formatPrice = (value: number) => `â‚¹${value.toLocaleString('en-IN')}`;
+const formatPrice = (value: number) => `₹${value.toLocaleString('en-IN')}`;
 
 export default function TrackingScreen() {
   const router = useRouter();
@@ -62,8 +62,8 @@ export default function TrackingScreen() {
   const existingRating = orderRatings[effectiveOrderId];
   const [selectedRating, setSelectedRating] = useState(5);
   const [selectedTags, setSelectedTags] = useState<string[]>([
-    'âš¡ Blazing 19-Min Speed',
-    'ðŸ‘” Neatly Steamed & Pressed',
+    '⚡ Blazing 19-Min Speed',
+    '👔 Neatly Steamed & Pressed',
   ]);
   const [reviewComment, setReviewComment] = useState('');
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);

@@ -189,7 +189,7 @@ export default function Page() {
   const [toast, setToast] = useState('');
   const toastAnim = useRef(new Animated.Value(100)).current;
 
-  // Smart Sticky Category Bar â€” show on scroll-up, hide on scroll-down
+  // Smart Sticky Category Bar — show on scroll-up, hide on scroll-down
   const CATEGORY_BAR_HEIGHT = 170;
   const lastScrollY = useRef(0);
   const categoryTranslateY = useRef(new Animated.Value(0)).current;
@@ -201,7 +201,7 @@ export default function Page() {
     const currentY = event.nativeEvent.contentOffset.y;
     const diff = currentY - lastScrollY.current;
 
-    // Near the top â€” always show
+    // Near the top — always show
     if (currentY <= CATEGORY_BAR_HEIGHT) {
       if (!isCategoryVisible.current) {
         isCategoryVisible.current = true;
@@ -213,7 +213,7 @@ export default function Page() {
         }).start();
       }
     } else if (diff > 12 && isCategoryVisible.current) {
-      // Scrolling DOWN past the section â€” hide it
+      // Scrolling DOWN past the section — hide it
       isCategoryVisible.current = false;
       Animated.spring(categoryTranslateY, {
         toValue: -CATEGORY_BAR_HEIGHT,
@@ -222,7 +222,7 @@ export default function Page() {
         friction: 12,
       }).start();
     } else if (diff < -12 && !isCategoryVisible.current) {
-      // Scrolling UP â€” reveal it
+      // Scrolling UP — reveal it
       isCategoryVisible.current = true;
       Animated.spring(categoryTranslateY, {
         toValue: 0,
@@ -392,7 +392,7 @@ export default function Page() {
   // Formatted Selected Address text
   const selectedAddressText = useMemo(() => {
     const selected = addresses.find((a) => a.id === selectedAddressId) || addresses[0];
-    return selected ? `${selected.label} â€¢ ${selected.city}` : 'Select Delivery Address';
+    return selected ? `${selected.label} • ${selected.city}` : 'Select Delivery Address';
   }, [addresses, selectedAddressId]);
 
   // Total Bag Counter
@@ -470,9 +470,19 @@ export default function Page() {
     fetchHomeLayout(false, gender);
   }, [fetchHomeLayout]);
 
-  const handleSelectWear = useCallback((wearId: string) => {
-    setSelectedWear((prev) => (prev === wearId ? 'All' : wearId));
-  }, []);
+  const handleSelectWear = useCallback(
+    (wearId: string) => {
+      setSelectedWear(wearId);
+      router.push({
+        pathname: '/category/[id]',
+        params: {
+          id: wearId,
+          ...(selectedGender !== 'All' ? { gender: selectedGender } : {}),
+        },
+      });
+    },
+    [router, selectedGender],
+  );
 
   // Banner Press Handlers
   const handleBannerPress = useCallback((banner: any) => {
@@ -532,7 +542,7 @@ export default function Page() {
   }, [executeSearch]);
 
   const handleBrandSelect = useCallback((tile: VendorBrandTile) => {
-    const cleanQuery = tile.brand.replace(/[Â®|]/g, '').trim();
+    const cleanQuery = tile.brand.replace(/[®|]/g, '').trim();
     setQuery(cleanQuery);
     executeSearch(cleanQuery);
   }, [executeSearch]);
@@ -634,7 +644,7 @@ export default function Page() {
           />
         ) : (
           <>
-            {/* Smart Sticky Category Bar â€” shown at top & on scroll-up, hidden on scroll-down */}
+            {/* Smart Sticky Category Bar — shown at top & on scroll-up, hidden on scroll-down */}
             {tab === 'HOME' && (
               <Animated.View
                 style={{
@@ -752,7 +762,7 @@ export default function Page() {
                           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                             <Zap size={13} color="#15803D" fill="#15803D" />
                             <Text style={[FontStyles.sansBold, { fontSize: 11, color: '#15803D' }]}>
-                              âš¡ 19-Min Instant Drop Available at {selectedAddress?.locality || selectedAddress?.city || 'Your Area'}
+                              ⚡ 19-Min Instant Drop Available at {selectedAddress?.locality || selectedAddress?.city || 'Your Area'}
                             </Text>
                           </View>
                           <Text style={[FontStyles.sansBold, { fontSize: 10, color: '#166534' }]}>
@@ -808,7 +818,7 @@ export default function Page() {
                               singleLine={true}
                             />
                             <Text style={[FontStyles.sansRegular, { fontSize: 9.5, color: '#6B6667', marginTop: 1.5 }]} numberOfLines={1}>
-                              Try sizes â€¢ Keep what fits
+                              Try sizes • Keep what fits
                             </Text>
                           </View>
                         </View>

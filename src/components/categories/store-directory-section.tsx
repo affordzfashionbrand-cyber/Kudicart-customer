@@ -109,7 +109,7 @@ export const StoreDirectorySection = React.memo(function StoreDirectorySection({
                       textTransform: 'uppercase',
                     }}
                   >
-                    OPEN NOW â€¢ LIVE DISPATCH
+                    OPEN NOW • LIVE DISPATCH
                   </Text>
                 </View>
 
@@ -210,8 +210,8 @@ export const StoreDirectorySection = React.memo(function StoreDirectorySection({
               { id: 'MEN', label: 'Men' },
               { id: 'ETHNIC', label: 'Ethnic Silhouettes' },
               { id: 'WESTERN', label: 'Western Cuts' },
-              { id: 'EXPRESS', label: 'âš¡ Fast Track' },
-              { id: 'BUDGET', label: 'Under â‚¹3,500' },
+              { id: 'EXPRESS', label: '⚡ Fast Track' },
+              { id: 'BUDGET', label: 'Under ₹3,500' },
             ].map((chip) => {
               const active = storeSubFilter === chip.id;
               return (
@@ -311,7 +311,7 @@ export const StoreDirectorySection = React.memo(function StoreDirectorySection({
 
         <EditorialText first="Select" second="a store." fontSize={24} lineHeight={28} singleLine={true} withDot={true} />
         <Text style={{ fontSize: 11.5, color: '#71717A', marginTop: 3, lineHeight: 16 }}>
-          Shop live inventory available for 18â€“35 min doorstep delivery & try-on from your nearest atelier.
+          Shop live inventory available for 18–35 min doorstep delivery & try-on from your nearest atelier.
         </Text>
       </View>
 
@@ -320,7 +320,7 @@ export const StoreDirectorySection = React.memo(function StoreDirectorySection({
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
           {[
             { id: 'ALL', label: `All Stores (${allStores.length})` },
-            { id: 'DARK_STORE', label: 'âš¡ 19M Express Dark Stores' },
+            { id: 'DARK_STORE', label: '⚡ 19M Express Dark Stores' },
             { id: 'BRAND_BOUTIQUE', label: 'Artisan Brand Boutiques' },
           ].map((tab) => {
             const isSelected = storeTypeFilter === tab.id;

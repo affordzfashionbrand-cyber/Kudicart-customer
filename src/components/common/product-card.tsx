@@ -160,8 +160,13 @@ export const ProductCard = React.memo(function ProductCard({
             </View>
           </Pressable>
           <AnimatedPressable
-            className="w-[32px] h-[32px] rounded-full justify-center items-center"
-            style={{ backgroundColor: isAddedToBag ? '#22C55E' : '#111111' }}
+            style={{
+              width: 28,
+              height: 28,
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: 'transparent',
+            }}
             scaleTo={0.88}
             hitSlop={8}
             onPress={(e) => {
@@ -170,9 +175,9 @@ export const ProductCard = React.memo(function ProductCard({
             }}
           >
             {isAddedToBag ? (
-              <Check size={14} color="#ffffff" strokeWidth={2.6} />
+              <Check size={17} color="#16A34A" strokeWidth={2.5} />
             ) : (
-              <ShoppingCart size={14} color="#ffffff" strokeWidth={2.2} />
+              <ShoppingCart size={17} color="#111111" strokeWidth={2.1} />
             )}
           </AnimatedPressable>
         </View>

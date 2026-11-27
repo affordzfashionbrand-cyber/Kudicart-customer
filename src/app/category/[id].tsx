@@ -46,7 +46,55 @@ import { Fonts, FontStyles } from '@/constants/theme';
 type SortOption = 'featured' | 'price_asc' | 'price_desc' | 'rating';
 type PriceFilter = 'all' | 'under2k' | 'under5k' | 'above5k';
 
-function resolveCategoryDef(normalizedId: string): CategoryItemDef {
+function flattenLiveCategories(nodes: any[]): any[] {
+  const out: any[] = [];
+  const visit = (arr: any[]) => {
+    for (const node of arr) {
+      if (!node) continue;
+      out.push(node);
+      if (Array.isArray(node.children) && node.children.length > 0) visit(node.children);
+      if (Array.isArray(node.subcategories) && node.subcategories.length > 0) visit(node.subcategories);
+    }
+  };
+  visit(nodes || []);
+  return out;
+}
+
+function resolveCategoryDef(normalizedId: string, liveCategories: any[] = []): CategoryItemDef {
+  // 0. Search live DB categories from CatalogStore first
+  const flatLive = flattenLiveCategories(liveCategories);
+  const liveMatch = flatLive.find(
+    (c) =>
+      String(c.id || '').toLowerCase() === normalizedId ||
+      String(c.slug || '').toLowerCase() === normalizedId ||
+      String(c.code || '').toLowerCase() === normalizedId ||
+      String(c.name || '').toLowerCase() === normalizedId,
+  );
+  if (liveMatch) {
+    const childNodes = Array.isArray(liveMatch.children) && liveMatch.children.length > 0
+      ? liveMatch.children
+      : Array.isArray(liveMatch.subcategories)
+      ? liveMatch.subcategories
+      : [];
+    const childNames = childNodes.map((c: any) => String(c.name || '').trim()).filter(Boolean);
+    const liveGender =
+      liveMatch.gender === 'Women' || liveMatch.gender === 'Men' || liveMatch.gender === 'Kids'
+        ? liveMatch.gender
+        : 'All';
+    return {
+      id: String(liveMatch.id),
+      name: String(liveMatch.name || 'Collection'),
+      subtitle: liveMatch.description || `${liveMatch.countText || 'Curated Selection'} • Instant Doorstep Drop`,
+      gender: liveGender,
+      wear: String(liveMatch.name || 'All'),
+      image:
+        liveMatch.banner ||
+        liveMatch.image ||
+        'https://images.unsplash.com/photo-1610030469983-98e550d6193c?auto=format&fit=crop&w=1000&q=85',
+      subcategories: childNames.length > 0 ? ['All', ...childNames] : ['All', 'Express 19m', 'Try & Buy', 'Top Rated'],
+    };
+  }
+
   // 1. Search in 3-Tier COMPLETE_CATEGORY_HIERARCHY
   for (const dept of COMPLETE_CATEGORY_HIERARCHY) {
     if (
@@ -132,21 +180,31 @@ export default function CategoryResultsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
-  const { id } = useLocalSearchParams<{ id?: string }>();
-  const normalizedId = (id || 'all').toLowerCase();
+  const { id, gender: genderParam } = useLocalSearchParams<{ id?: string; gender?: string }>();
+  const rawId = decodeURIComponent(String(id || 'all'));
+  const normalizedId = rawId.toLowerCase();
+  const normalizedGender =
+    genderParam && String(genderParam).toLowerCase() !== 'all' ? String(genderParam) : undefined;
 
   // Cart & Wishlist Store
   const { items, wishlist, toggleWishlist, addItem, itemTotal } = useCartStore();
-  const storeCatalogProducts = useCatalogStore((s) => s.products);
+  const catalogCategories = useCatalogStore((s) => s.categories);
+  const fetchCategories = useCatalogStore((s) => s.fetchCategories);
+
+  useEffect(() => {
+    if (catalogCategories.length === 0) {
+      fetchCategories().catch(() => {});
+    }
+  }, [catalogCategories.length, fetchCategories]);
 
   const totalBagCount = useMemo(() => {
     return items.reduce((sum, item) => sum + (item.quantity || 1), 0);
   }, [items]);
 
-  // Identify matching category metadata from 3-Tier Hierarchy (L1, L2, L3)
+  // Identify matching category metadata from live DB categories or 3-Tier Hierarchy
   const categoryDef: CategoryItemDef = useMemo(() => {
-    return resolveCategoryDef(normalizedId);
-  }, [normalizedId]);
+    return resolveCategoryDef(normalizedId, catalogCategories);
+  }, [normalizedId, catalogCategories]);
 
   // Filters and Sorting State
   const [searchQuery, setSearchQuery] = useState('');
@@ -155,6 +213,10 @@ export default function CategoryResultsScreen() {
   const [selectedSubcategory, setSelectedSubcategory] = useState<string>('All');
   const [activeSort, setActiveSort] = useState<SortOption>('featured');
   const [activePriceFilter, setActivePriceFilter] = useState<PriceFilter>('all');
+
+  useEffect(() => {
+    setSelectedSubcategory('All');
+  }, [normalizedId]);
 
   // Server-side products and pagination
   const [serverProducts, setServerProducts] = useState<ApiProduct[]>([]);
@@ -187,15 +249,39 @@ export default function CategoryResultsScreen() {
         else if (activePriceFilter === 'under5k') maxPrice = 5000;
         else if (activePriceFilter === 'above5k') minPrice = 5001;
 
-        const effectiveCategory = normalizedId === 'all' ? undefined : normalizedId;
-        const effectiveSearch =
-          debouncedSearch ||
-          (selectedSubcategory !== 'All' && !selectedSubcategory.startsWith('All ')
-            ? selectedSubcategory
-            : undefined);
+        let effectiveCategory = normalizedId === 'all' ? undefined : rawId;
+        let fulfillmentType: 'DARK_STORE' | 'VENDOR' | undefined;
+        let tryAndBuyOnly: boolean | undefined;
+        let subSearch: string | undefined;
+
+        if (selectedSubcategory !== 'All' && !selectedSubcategory.startsWith('All ')) {
+          if (selectedSubcategory === 'Express 19m') {
+            fulfillmentType = 'DARK_STORE';
+          } else if (selectedSubcategory === 'Try & Buy') {
+            tryAndBuyOnly = true;
+          } else if (selectedSubcategory === 'Top Rated' || selectedSubcategory === 'Featured' || selectedSubcategory === 'New Arrivals' || selectedSubcategory === 'Bestsellers') {
+            // handled by sort / default listing
+          } else {
+            const flatLive = flattenLiveCategories(catalogCategories);
+            const matchedChild = flatLive.find(
+              (c) => String(c.name || '').trim().toLowerCase() === selectedSubcategory.toLowerCase(),
+            );
+            if (matchedChild) {
+              effectiveCategory = String(matchedChild.id);
+            } else {
+              subSearch = selectedSubcategory;
+            }
+          }
+        }
+
+        const effectiveSearch = debouncedSearch || subSearch;
 
         const sortParam =
-          activeSort === 'featured'
+          selectedSubcategory === 'Top Rated'
+            ? 'rating'
+            : selectedSubcategory === 'New Arrivals'
+            ? 'newest'
+            : activeSort === 'featured'
             ? 'popular'
             : activeSort === 'price_asc'
             ? 'price_asc'
@@ -205,7 +291,10 @@ export default function CategoryResultsScreen() {
 
         const results = await catalogApi.getProducts({
           category: effectiveCategory,
+          gender: normalizedGender,
           search: effectiveSearch,
+          fulfillmentType,
+          tryAndBuyOnly,
           sort: sortParam,
           minPrice,
           maxPrice,
@@ -228,7 +317,7 @@ export default function CategoryResultsScreen() {
         setIsFetchingMore(false);
       }
     },
-    [normalizedId, debouncedSearch, selectedSubcategory, activeSort, activePriceFilter],
+    [normalizedId, rawId, normalizedGender, catalogCategories, debouncedSearch, selectedSubcategory, activeSort, activePriceFilter],
   );
 
   useEffect(() => {

@@ -169,7 +169,7 @@ export const Footer = React.memo(function Footer() {
       {/* Copyright Strip */}
       <View style={styles.copyrightStrip}>
         <Text style={styles.copyrightText}>
-          Â© 2026 Affordz Technologies Pvt Ltd. All rights reserved. Handcrafted with pride across India.
+          © 2026 Affordz Technologies Pvt Ltd. All rights reserved. Handcrafted with pride across India.
         </Text>
       </View>
     </View>

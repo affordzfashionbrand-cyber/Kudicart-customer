@@ -291,7 +291,7 @@ export const CartItemsSection = React.memo(function CartItemsSection({
                     >
                       <Package size={9} color="#1D4ED8" />
                       <Text style={{ fontSize: 9.5, fontWeight: '800', color: '#1D4ED8' }}>
-                        ðŸ›ï¸ BOUTIQUE VENDOR â€¢ 2-4 DAYS
+                        🛍️ BOUTIQUE VENDOR • 2-4 DAYS
                       </Text>
                     </View>
                   </View>

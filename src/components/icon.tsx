@@ -1,6 +1,32 @@
 import React from 'react';
 import { Text, StyleProp, TextStyle, Platform } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import {
+  Zap,
+  BadgeCheck,
+  RefreshCw,
+  ShieldCheck,
+  SlidersHorizontal,
+  X,
+  Ruler,
+  Info,
+  Store,
+  Compass,
+  LayoutGrid,
+  User,
+  Bell,
+  Star,
+  ChevronRight,
+  ChevronLeft,
+  ArrowRight,
+  ShoppingCart,
+  ShoppingBag,
+  Camera,
+  Heart,
+  Landmark,
+  Layers,
+  Sparkles,
+} from 'lucide-react-native';
 
 interface IconProps {
   name: string;
@@ -9,6 +35,35 @@ interface IconProps {
   className?: string;
   style?: StyleProp<TextStyle>;
 }
+
+const LUCIDE_WEB_MAP: Record<string, React.ComponentType<any>> = {
+  bolt: Zap,
+  verified: BadgeCheck,
+  published_with_changes: RefreshCw,
+  sync: RefreshCw,
+  shield: ShieldCheck,
+  tune: SlidersHorizontal,
+  close: X,
+  straighten: Ruler,
+  info: Info,
+  storefront: Store,
+  explore: Compass,
+  grid_view: LayoutGrid,
+  person: User,
+  notifications: Bell,
+  star: Star,
+  chevron_right: ChevronRight,
+  chevron_left: ChevronLeft,
+  arrow_forward: ArrowRight,
+  add_shopping_cart: ShoppingCart,
+  shopping_bag: ShoppingBag,
+  photo_camera: Camera,
+  camera_alt: Camera,
+  favorite_border: Heart,
+  account_balance: Landmark,
+  filter_none: Layers,
+  styler: Sparkles,
+};
 
 // Special overrides for icon names if MaterialIcons name differs from Google Material Symbols
 const NAME_MAP: { [key: string]: keyof typeof MaterialIcons.glyphMap } = {
@@ -43,14 +98,29 @@ const NAME_MAP: { [key: string]: keyof typeof MaterialIcons.glyphMap } = {
 export function Icon({
   name,
   size = 24,
-  color,
+  color = '#111111',
   className = '',
   style,
 }: IconProps) {
-  // Check explicit override or replace underscores with hyphens
-  const mappedName = (NAME_MAP[name] || name.replace(/_/g, '-')) as keyof typeof MaterialIcons.glyphMap;
+  // On Web, render crisp Lucide SVGs directly so @expo/vector-icons never triggers
+  // ExpoFontLoader.web.js's 12s "material" font network/CORS timeout.
+  if (Platform.OS === 'web') {
+    const LucideComp = LUCIDE_WEB_MAP[name];
+    if (LucideComp) {
+      return <LucideComp size={size} color={color} style={style as any} />;
+    }
+    return (
+      <Text
+        className={`material-symbols-outlined ${className}`}
+        style={[{ fontSize: size, color }, style]}
+      >
+        {name}
+      </Text>
+    );
+  }
 
-  // If valid glyph in MaterialIcons, use vector icon for universal native & web compatibility
+  // Native (iOS / Android): use bundled MaterialIcons glyph map
+  const mappedName = (NAME_MAP[name] || name.replace(/_/g, '-')) as keyof typeof MaterialIcons.glyphMap;
   if (MaterialIcons.glyphMap[mappedName]) {
     return (
       <MaterialIcons
@@ -63,26 +133,13 @@ export function Icon({
     );
   }
 
-  // Fallback for native platforms so raw ligature text is never rendered
-  if (Platform.OS !== 'web') {
-    return (
-      <MaterialIcons
-        name="circle"
-        size={Math.max(8, Math.round(size * 0.5))}
-        color={color}
-        className={className}
-        style={style}
-      />
-    );
-  }
-
-  // Fallback for Web / Material Symbols Outlined font
   return (
-    <Text
-      className={`material-symbols-outlined ${className}`}
-      style={[{ fontSize: size, color }, style]}
-    >
-      {name}
-    </Text>
+    <MaterialIcons
+      name="circle"
+      size={Math.max(8, Math.round(size * 0.5))}
+      color={color}
+      className={className}
+      style={style}
+    />
   );
 }

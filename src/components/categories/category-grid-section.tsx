@@ -417,7 +417,7 @@ export const CategoryGridSection = React.memo(function CategoryGridSection({
               {currentDepartment.name} Collection
             </Text>
             <Text style={{ fontSize: 10.5, color: '#D4D4D8', marginTop: 1 }}>
-              {currentDepartment.subcategories.length} Sections â€¢ Doorstep Trial & 19m Express
+              {currentDepartment.subcategories.length} Sections • Doorstep Trial & 19m Express
             </Text>
           </View>
         </View>
@@ -444,8 +444,8 @@ export const CategoryGridSection = React.memo(function CategoryGridSection({
             <SlidersHorizontal size={12} color="#FF5A1F" />
             <Text style={{ fontSize: 11, fontWeight: '700', color: '#111111' }} numberOfLines={1}>
               {currentDepartment.name}
-              {currentSubCategory ? ` â€º ${currentSubCategory.name}` : ''}
-              {currentLeafCategory ? ` â€º ${currentLeafCategory.name}` : ''}
+              {currentSubCategory ? ` › ${currentSubCategory.name}` : ''}
+              {currentLeafCategory ? ` › ${currentLeafCategory.name}` : ''}
             </Text>
           </View>
 
@@ -510,7 +510,7 @@ export const CategoryGridSection = React.memo(function CategoryGridSection({
                       {subCat.name}
                     </Text>
                     <Text style={{ fontSize: 10, color: '#71717A', fontWeight: '600' }}>
-                      {subCat.subcategories.length} styles â€¢ {subCat.countText}
+                      {subCat.subcategories.length} styles • {subCat.countText}
                     </Text>
                   </View>
                 </View>

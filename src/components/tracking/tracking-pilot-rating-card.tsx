@@ -18,12 +18,12 @@ import { AnimatedPressable } from '@/components/common/animated-pressable';
 import { OrderStatus } from '@/services/api';
 
 const FEEDBACK_TAGS = [
-  'âš¡ Blazing 19-Min Speed',
-  'ðŸ‘” Neatly Steamed & Pressed',
-  'ðŸ›µ Polite EV Pilot',
-  'ðŸ“¦ Tamper-Proof Vault Box',
-  'ðŸ‘— Perfect Doorstep Fit',
-  'â±ï¸ Smooth 10-Min Try Window',
+  '⚡ Blazing 19-Min Speed',
+  '👔 Neatly Steamed & Pressed',
+  '🛵 Polite EV Pilot',
+  '📦 Tamper-Proof Vault Box',
+  '👗 Perfect Doorstep Fit',
+  '⏱️ Smooth 10-Min Try Window',
 ];
 
 export interface TrackingPilotRatingCardProps {
@@ -68,17 +68,17 @@ export const TrackingPilotRatingCard = React.memo(function TrackingPilotRatingCa
   const getRatingLabel = (score: number) => {
     switch (score) {
       case 5:
-        return 'â˜…â˜…â˜…â˜…â˜… Exceptional 19-Min Speed & Service';
+        return '★★★★★ Exceptional 19-Min Speed & Service';
       case 4:
-        return 'â˜…â˜…â˜…â˜…â˜† Very Good Delivery & Fit';
+        return '★★★★☆ Very Good Delivery & Fit';
       case 3:
-        return 'â˜…â˜…â˜…â˜†â˜† Satisfactory Experience';
+        return '★★★☆☆ Satisfactory Experience';
       case 2:
-        return 'â˜…â˜…â˜†â˜†â˜† Needs Improvement';
+        return '★★☆☆☆ Needs Improvement';
       case 1:
-        return 'â˜…â˜†â˜†â˜†â˜† Poor Service';
+        return '★☆☆☆☆ Poor Service';
       default:
-        return 'â˜…â˜…â˜…â˜…â˜… Tap stars to rate';
+        return '★★★★★ Tap stars to rate';
     }
   };
 
@@ -147,7 +147,7 @@ export const TrackingPilotRatingCard = React.memo(function TrackingPilotRatingCa
             ))}
           </View>
           <Text style={{ fontSize: 14, fontWeight: '900', color: '#111111' }}>
-            {existingRating.rating}.0 â˜…
+            {existingRating.rating}.0 ★
           </Text>
         </View>
 

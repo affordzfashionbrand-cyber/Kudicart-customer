@@ -56,7 +56,7 @@ export const UrbanDealsSection = React.memo(function UrbanDealsSection({
         <View style={{ backgroundColor: 'rgba(255, 255, 255, 0.1)', borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.2)', paddingHorizontal: 12, paddingVertical: 4.5, borderRadius: 999, marginTop: 9, flexDirection: 'row', alignItems: 'center' }}>
           <View style={{ width: 5, height: 5, borderRadius: 2.5, backgroundColor: '#FF5A1F', marginRight: 5 }} />
           <Text style={{ color: '#ffffff', fontSize: 9.5, fontWeight: '900', letterSpacing: 1.2, textTransform: 'uppercase' }}>
-            DROP_04 â€¢ LIVE NOW
+            DROP_04 • LIVE NOW
           </Text>
         </View>
       </View>
