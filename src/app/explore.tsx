@@ -87,6 +87,7 @@ export default function ExploreScreen() {
             initialCategory={category || 'All'}
             initialGender={(gender as 'All' | 'Men' | 'Women' | 'Kids') || 'All'}
             products={catalogProducts}
+            isLoading={isLoading}
           />
         </>
       ) : (

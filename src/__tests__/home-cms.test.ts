@@ -1,4 +1,5 @@
 import { useHomeContentStore } from '@/store/useHomeContentStore';
+import { useCartStore } from '@/store/useCartStore';
 import { handleActionPress } from '@/utils/deepLinkRouter';
 import { homeContentApi } from '@/services/api';
 import { Linking } from 'react-native';
@@ -94,6 +95,75 @@ describe('Customer App Dynamic Homepage CMS & Deep Linking', () => {
       const state = useHomeContentStore.getState();
       expect(state.isLoading).toBe(false);
       expect(state.banners.length).toBe(initialBannersCount);
+    });
+
+    it('filters unapproved (PENDING/REJECTED) banners out of customer home layout', async () => {
+      (homeContentApi.getLayout as jest.Mock).mockResolvedValue({
+        success: true,
+        data: {
+          sections: [{ id: 'sec-1', sectionKey: 'HERO_BANNER', displayName: 'Hero', displayOrder: 1, isEnabled: true }],
+          banners: [
+            {
+              id: 'b-approved',
+              placement: 'HERO_CAROUSEL',
+              tag: 'LIVE',
+              title1: 'Approved',
+              title2: 'Drop',
+              imageUrl: 'https://cdn.example.com/approved.jpg',
+              targetGender: 'All',
+              actionType: 'NONE',
+              status: 'APPROVED',
+              displayOrder: 1,
+            },
+            {
+              id: 'b-pending',
+              placement: 'HERO_CAROUSEL',
+              tag: 'PENDING',
+              title1: 'Pending',
+              title2: 'Drop',
+              imageUrl: 'https://cdn.example.com/pending.jpg',
+              targetGender: 'All',
+              actionType: 'NONE',
+              status: 'PENDING',
+              displayOrder: 2,
+            },
+            {
+              id: 'b-rejected',
+              placement: 'HERO_CAROUSEL',
+              tag: 'REJECTED',
+              title1: 'Rejected',
+              title2: 'Drop',
+              imageUrl: 'https://cdn.example.com/rejected.jpg',
+              targetGender: 'All',
+              actionType: 'NONE',
+              status: 'REJECTED',
+              displayOrder: 3,
+            },
+          ],
+          bankOffers: [],
+          curatedSections: {},
+        },
+      });
+
+      await useHomeContentStore.getState().fetchHomeLayout(true, 'All');
+
+      const banners = useHomeContentStore.getState().banners;
+      expect(banners.map((b) => b.id)).toEqual(['b-approved']);
+    });
+  });
+
+  describe('useCartStore Wishlist toggle & remove', () => {
+    it('adds, normalizes, and explicitly removes items from wishlist', () => {
+      useCartStore.getState().resetCartState();
+      useCartStore.getState().toggleWishlist('prod-101');
+      expect(useCartStore.getState().isWishlisted('prod-101')).toBe(true);
+
+      useCartStore.getState().toggleWishlist('prod-102');
+      expect(useCartStore.getState().wishlist).toEqual(['prod-101', 'prod-102']);
+
+      useCartStore.getState().removeFromWishlist('prod-101');
+      expect(useCartStore.getState().isWishlisted('prod-101')).toBe(false);
+      expect(useCartStore.getState().wishlist).toEqual(['prod-102']);
     });
   });
 

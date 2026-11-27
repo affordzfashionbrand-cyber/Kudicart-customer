@@ -12,9 +12,15 @@ export interface ProductItem {
   old: number;
   rating: string;
   category: string;
+  categoryId?: string | null;
+  gender?: string;
   wear: string;
+  tags?: string[];
+  sizes?: string[];
+  stockQuantity?: number;
+  reviewsCount?: number;
   image: string;
-  fulfillmentType?: 'DARK_STORE' | 'MARKETPLACE';
+  fulfillmentType?: 'DARK_STORE' | 'VENDOR' | 'MARKETPLACE';
   darkStoreHubId?: string;
   tryAndBuyEligible?: boolean;
   fabric?: string;

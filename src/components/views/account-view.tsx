@@ -12,7 +12,6 @@ import {
   ShieldCheck,
   Headphones,
   User,
-  Zap,
   Mail,
 } from 'lucide-react-native';
 import { SectionTitle } from '@/components/common/section-title';
@@ -23,13 +22,13 @@ import { useAddressStore } from '@/store/useAddressStore';
 import { useAuthStore } from '@/store/useAuthStore';
 import { EditProfileModal } from '@/components/account/edit-profile-modal';
 import { SettingsModal } from '@/components/account/settings-modal';
-import { Fonts, FontStyles } from '@/constants/theme';
+import { FontStyles } from '@/constants/theme';
 
 interface AccountViewProps {
   user: any;
   onOrders: () => void;
   onAddresses: () => void;
-  onTracking: () => void;
+  onTracking?: () => void;
   onSupport: () => void;
   onAuth: () => void;
   onWishlist?: () => void;
@@ -40,7 +39,6 @@ export function AccountView({
   user: propUser,
   onOrders,
   onAddresses,
-  onTracking,
   onSupport,
   onAuth,
   onWishlist,
@@ -137,7 +135,7 @@ export function AccountView({
 
             {/* Edit Profile Pill */}
             <Pressable
-              onPress={() => setIsEditProfileOpen(true)}
+              onPress={() => (isAuthenticated ? setIsEditProfileOpen(true) : onAuth())}
               hitSlop={8}
               style={({ pressed }) => ({
                 backgroundColor: pressed ? '#F4F1EA' : '#FAF8F5',
@@ -148,8 +146,8 @@ export function AccountView({
                 borderRadius: 14,
               })}
             >
-              <Text style={[FontStyles.sansBold, { fontSize: 11, fontWeight: '900', color: '#111111', letterSpacing: 0.5 }]}>
-                EDIT
+              <Text style={[FontStyles.sansExtraBold, { fontSize: 11, color: '#111111', letterSpacing: 0.5 }]}>
+                {isAuthenticated ? 'EDIT' : 'SIGN IN'}
               </Text>
             </Pressable>
           </View>
@@ -197,153 +195,192 @@ export function AccountView({
           </View>
 
           {/* Categorized Options List */}
-          <View className="pt-[18px]">
+          <View style={{ paddingTop: 18 }}>
             {/* Section 1: Atelier Activity */}
-            <Text className="font-sans text-[10.5px] font-black uppercase text-[#8A857D] tracking-wider mb-2">
+            <Text style={[FontStyles.sansExtraBold, { fontSize: 10.5, textTransform: 'uppercase', color: '#8A857D', letterSpacing: 0.9, marginBottom: 8 }]}>
               My Atelier Activity
             </Text>
 
             <AnimatedPressable
-              className="flex-row justify-between items-center py-[14px] border-b border-[#F4F1EA]"
+              style={{
+                width: '100%',
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                paddingVertical: 14,
+                borderBottomWidth: 1,
+                borderBottomColor: '#F4F1EA',
+              }}
               onPress={onOrders}
             >
-              <View className="flex-row items-center gap-3">
-                <View className="w-8 h-8 rounded-xl bg-[#FAF8F5] border border-[#E8E5DF] items-center justify-center">
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, paddingRight: 12 }}>
+                <View style={{ width: 32, height: 32, borderRadius: 12, backgroundColor: '#FAF8F5', borderWidth: 1, borderColor: '#E8E5DF', alignItems: 'center', justifyContent: 'center' }}>
                   <Package size={15} color="#111111" />
                 </View>
-                <Text className="font-sans text-[14px] font-bold text-[#111111]">My Orders</Text>
+                <Text style={[FontStyles.sansBold, { fontSize: 14, color: '#111111' }]}>My Orders</Text>
               </View>
-              <View className="w-[28px] h-[28px] rounded-full bg-[#F4F1EA] items-center justify-center">
-                <ChevronRight size={14} color="#111111" />
-              </View>
-            </AnimatedPressable>
-
-            <AnimatedPressable
-              className="flex-row justify-between items-center py-[14px] border-b border-[#F4F1EA]"
-              onPress={onTracking}
-            >
-              <View className="flex-row items-center gap-3">
-                <View className="w-8 h-8 rounded-xl bg-[#FAF8F5] border border-[#E8E5DF] items-center justify-center">
-                  <Zap size={15} color="#111111" />
-                </View>
-                <Text className="font-sans text-[14px] font-bold text-[#111111]">Live Order Tracking</Text>
-              </View>
-              <View className="w-[28px] h-[28px] rounded-full bg-[#F4F1EA] items-center justify-center">
+              <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: '#F4F1EA', alignItems: 'center', justifyContent: 'center' }}>
                 <ChevronRight size={14} color="#111111" />
               </View>
             </AnimatedPressable>
 
             {onWishlist && (
               <AnimatedPressable
-                className="flex-row justify-between items-center py-[14px] border-b border-[#F4F1EA]"
+                style={{
+                  width: '100%',
+                  flexDirection: 'row',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  paddingVertical: 14,
+                  borderBottomWidth: 1,
+                  borderBottomColor: '#F4F1EA',
+                }}
                 onPress={onWishlist}
               >
-                <View className="flex-row items-center gap-3">
-                  <View className="w-8 h-8 rounded-xl bg-[#FAF8F5] border border-[#E8E5DF] items-center justify-center">
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, paddingRight: 12 }}>
+                  <View style={{ width: 32, height: 32, borderRadius: 12, backgroundColor: '#FAF8F5', borderWidth: 1, borderColor: '#E8E5DF', alignItems: 'center', justifyContent: 'center' }}>
                     <Heart size={15} color="#111111" />
                   </View>
-                  <Text className="font-sans text-[14px] font-bold text-[#111111]">Saved Wishlist & Bag</Text>
+                  <Text style={[FontStyles.sansBold, { fontSize: 14, color: '#111111' }]}>Saved Wishlist & Bag</Text>
                 </View>
-                <View className="w-[28px] h-[28px] rounded-full bg-[#F4F1EA] items-center justify-center">
+                <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: '#F4F1EA', alignItems: 'center', justifyContent: 'center' }}>
                   <ChevronRight size={14} color="#111111" />
                 </View>
               </AnimatedPressable>
             )}
 
             {/* Section 2: Account & Addresses */}
-            <Text className="font-sans text-[10.5px] font-black uppercase text-[#8A857D] tracking-wider mt-5 mb-2">
+            <Text style={[FontStyles.sansExtraBold, { fontSize: 10.5, textTransform: 'uppercase', color: '#8A857D', letterSpacing: 0.9, marginTop: 20, marginBottom: 8 }]}>
               Account & Addresses
             </Text>
 
             <AnimatedPressable
-              className="flex-row justify-between items-center py-[14px] border-b border-[#F4F1EA]"
+              style={{
+                width: '100%',
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                paddingVertical: 14,
+                borderBottomWidth: 1,
+                borderBottomColor: '#F4F1EA',
+              }}
               onPress={onAddresses}
             >
-              <View className="flex-row items-center gap-3">
-                <View className="w-8 h-8 rounded-xl bg-[#FAF8F5] border border-[#E8E5DF] items-center justify-center">
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, paddingRight: 12 }}>
+                <View style={{ width: 32, height: 32, borderRadius: 12, backgroundColor: '#FAF8F5', borderWidth: 1, borderColor: '#E8E5DF', alignItems: 'center', justifyContent: 'center' }}>
                   <MapPin size={15} color="#111111" />
                 </View>
-                <Text className="font-sans text-[14px] font-bold text-[#111111]">My Saved Addresses</Text>
+                <Text style={[FontStyles.sansBold, { fontSize: 14, color: '#111111' }]}>My Saved Addresses</Text>
               </View>
-              <View className="w-[28px] h-[28px] rounded-full bg-[#F4F1EA] items-center justify-center">
+              <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: '#F4F1EA', alignItems: 'center', justifyContent: 'center' }}>
                 <ChevronRight size={14} color="#111111" />
               </View>
             </AnimatedPressable>
 
             <AnimatedPressable
-              className="flex-row justify-between items-center py-[14px] border-b border-[#F4F1EA]"
-              onPress={() => setIsEditProfileOpen(true)}
+              style={{
+                width: '100%',
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                paddingVertical: 14,
+                borderBottomWidth: 1,
+                borderBottomColor: '#F4F1EA',
+              }}
+              onPress={() => (isAuthenticated ? setIsEditProfileOpen(true) : onAuth())}
             >
-              <View className="flex-row items-center gap-3 flex-1 pr-2">
-                <View className="w-8 h-8 rounded-xl bg-[#FAF8F5] border border-[#E8E5DF] items-center justify-center">
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, paddingRight: 12 }}>
+                <View style={{ width: 32, height: 32, borderRadius: 12, backgroundColor: '#FAF8F5', borderWidth: 1, borderColor: '#E8E5DF', alignItems: 'center', justifyContent: 'center' }}>
                   <User size={15} color="#111111" />
                 </View>
-                <View className="flex-1">
-                  <Text className="font-sans text-[14px] font-bold text-[#111111]">Personal Details</Text>
-                  <Text className="font-sans text-[10.5px] text-[#8A857D]" numberOfLines={1}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[FontStyles.sansBold, { fontSize: 14, color: '#111111' }]}>Personal Details</Text>
+                  <Text style={[FontStyles.sansRegular, { fontSize: 10.5, color: '#8A857D' }]} numberOfLines={1}>
                     {displayName}{displayPhone ? ` • ${displayPhone}` : ''}{displayEmail ? ` • ${displayEmail}` : ''}
                   </Text>
                 </View>
               </View>
-              <View className="w-[28px] h-[28px] rounded-full bg-[#F4F1EA] items-center justify-center">
+              <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: '#F4F1EA', alignItems: 'center', justifyContent: 'center' }}>
                 <ChevronRight size={14} color="#111111" />
               </View>
             </AnimatedPressable>
 
             {!isAuthenticated && (
               <AnimatedPressable
-                className="flex-row justify-between items-center py-[14px] border-b border-[#F4F1EA]"
+                style={{
+                  width: '100%',
+                  flexDirection: 'row',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  paddingVertical: 14,
+                  borderBottomWidth: 1,
+                  borderBottomColor: '#F4F1EA',
+                }}
                 onPress={onAuth}
               >
-                <View className="flex-row items-center gap-3">
-                  <View className="w-8 h-8 rounded-xl bg-[#FAF8F5] border border-[#E8E5DF] items-center justify-center">
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, paddingRight: 12 }}>
+                  <View style={{ width: 32, height: 32, borderRadius: 12, backgroundColor: '#FAF8F5', borderWidth: 1, borderColor: '#E8E5DF', alignItems: 'center', justifyContent: 'center' }}>
                     <Phone size={15} color="#111111" />
                   </View>
-                  <Text className="font-sans text-[14px] font-bold text-[#111111]">Login / Switch Account</Text>
+                  <Text style={[FontStyles.sansBold, { fontSize: 14, color: '#111111' }]}>Login / Switch Account</Text>
                 </View>
-                <View className="w-[28px] h-[28px] rounded-full bg-[#F4F1EA] items-center justify-center">
+                <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: '#F4F1EA', alignItems: 'center', justifyContent: 'center' }}>
                   <ChevronRight size={14} color="#111111" />
                 </View>
               </AnimatedPressable>
             )}
 
             {/* Section 3: Preferences & Concierge */}
-            <Text className="font-sans text-[10.5px] font-black uppercase text-[#8A857D] tracking-wider mt-5 mb-2">
+            <Text style={[FontStyles.sansExtraBold, { fontSize: 10.5, textTransform: 'uppercase', color: '#8A857D', letterSpacing: 0.9, marginTop: 20, marginBottom: 8 }]}>
               Preferences & Support
             </Text>
 
             <AnimatedPressable
-              className="flex-row justify-between items-center py-[14px] border-b border-[#F4F1EA]"
+              style={{
+                width: '100%',
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                paddingVertical: 14,
+                borderBottomWidth: 1,
+                borderBottomColor: '#F4F1EA',
+              }}
               onPress={() => setIsSettingsOpen(true)}
             >
-              <View className="flex-row items-center gap-3">
-                <View className="w-8 h-8 rounded-xl bg-[#FAF8F5] border border-[#E8E5DF] items-center justify-center">
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, paddingRight: 12 }}>
+                <View style={{ width: 32, height: 32, borderRadius: 12, backgroundColor: '#FAF8F5', borderWidth: 1, borderColor: '#E8E5DF', alignItems: 'center', justifyContent: 'center' }}>
                   <Settings size={15} color="#111111" />
                 </View>
-                <View>
-                  <Text className="font-sans text-[14px] font-bold text-[#111111]">App Settings</Text>
-                  <Text className="font-sans text-[10.5px] text-[#8A857D]">Notifications, haptics, security & legal</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={[FontStyles.sansBold, { fontSize: 14, color: '#111111' }]}>App Settings</Text>
+                  <Text style={[FontStyles.sansRegular, { fontSize: 10.5, color: '#8A857D' }]}>Notifications, haptics, security & legal</Text>
                 </View>
               </View>
-              <View className="w-[28px] h-[28px] rounded-full bg-[#F4F1EA] items-center justify-center">
+              <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: '#F4F1EA', alignItems: 'center', justifyContent: 'center' }}>
                 <ChevronRight size={14} color="#111111" />
               </View>
             </AnimatedPressable>
 
             <AnimatedPressable
-              className="flex-row justify-between items-center py-[14px]"
+              style={{
+                width: '100%',
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                paddingVertical: 14,
+              }}
               onPress={onSupport}
             >
-              <View className="flex-row items-center gap-3">
-                <View className="w-8 h-8 rounded-xl bg-[#FAF8F5] border border-[#E8E5DF] items-center justify-center">
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, paddingRight: 12 }}>
+                <View style={{ width: 32, height: 32, borderRadius: 12, backgroundColor: '#FAF8F5', borderWidth: 1, borderColor: '#E8E5DF', alignItems: 'center', justifyContent: 'center' }}>
                   <Headphones size={15} color="#111111" />
                 </View>
-                <View>
-                  <Text className="font-sans text-[14px] font-bold text-[#111111]">Client Concierge & Support</Text>
-                  <Text className="font-sans text-[10.5px] text-[#8A857D]">24/7 try-and-buy styling & dispute help</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={[FontStyles.sansBold, { fontSize: 14, color: '#111111' }]}>Client Concierge & Support</Text>
+                  <Text style={[FontStyles.sansRegular, { fontSize: 10.5, color: '#8A857D' }]}>24/7 try-and-buy styling & dispute help</Text>
                 </View>
               </View>
-              <View className="w-[28px] h-[28px] rounded-full bg-[#F4F1EA] items-center justify-center">
+              <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: '#F4F1EA', alignItems: 'center', justifyContent: 'center' }}>
                 <ChevronRight size={14} color="#111111" />
               </View>
             </AnimatedPressable>
@@ -351,11 +388,20 @@ export function AccountView({
             {/* Sign Out Option */}
             {onLogout && user && (
               <AnimatedPressable
-                className="flex-row justify-between items-center py-[16px] mt-4 border-t border-[#F0ECE1]"
+                style={{
+                  width: '100%',
+                  flexDirection: 'row',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  paddingVertical: 16,
+                  marginTop: 16,
+                  borderTopWidth: 1,
+                  borderTopColor: '#F0ECE1',
+                }}
                 onPress={() => setIsSignOutModalOpen(true)}
               >
-                <Text className="font-sans text-[14px] font-bold text-[#DC2626]">Sign Out from Atelier</Text>
-                <View className="w-[30px] h-[30px] rounded-full bg-[#FEF2F2] border border-[#FCA5A5] items-center justify-center">
+                <Text style={[FontStyles.sansBold, { fontSize: 14, color: '#DC2626' }]}>Sign Out from Atelier</Text>
+                <View style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: '#FEF2F2', borderWidth: 1, borderColor: '#FCA5A5', alignItems: 'center', justifyContent: 'center' }}>
                   <LogOut size={14} color="#DC2626" />
                 </View>
               </AnimatedPressable>

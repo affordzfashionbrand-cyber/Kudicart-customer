@@ -8,15 +8,40 @@ export const DELIVERY_INSTRUCTIONS = [
   { id: 'guard', label: 'Leave with Guard', icon: '🏢' },
 ];
 
+function parseSelectedLabels(raw: string | null): string[] {
+  if (!raw) return [];
+  const legacyMap: Record<string, string> = {
+    door: 'Leave at Door',
+    call: 'Call Before Delivery',
+    bell: 'Do Not Ring Bell',
+    guard: 'Leave with Guard',
+  };
+  return raw
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => legacyMap[part] || part);
+}
+
 export interface CartDeliveryInstructionsSectionProps {
   selectedInstruction: string | null;
-  onSelectInstruction: (id: string | null) => void;
+  onSelectInstruction: (val: string | null) => void;
 }
 
 export const CartDeliveryInstructionsSection = React.memo(function CartDeliveryInstructionsSection({
   selectedInstruction,
   onSelectInstruction,
 }: CartDeliveryInstructionsSectionProps) {
+  const selectedLabels = parseSelectedLabels(selectedInstruction);
+
+  const handleToggle = (label: string) => {
+    const exists = selectedLabels.includes(label);
+    const next = exists
+      ? selectedLabels.filter((l) => l !== label)
+      : [...selectedLabels, label];
+    onSelectInstruction(next.length > 0 ? next.join(', ') : null);
+  };
+
   return (
     <View
       style={{
@@ -42,11 +67,11 @@ export const CartDeliveryInstructionsSection = React.memo(function CartDeliveryI
       </Text>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
         {DELIVERY_INSTRUCTIONS.map((inst) => {
-          const isSelected = selectedInstruction === inst.id;
+          const isSelected = selectedLabels.includes(inst.label);
           return (
             <Pressable
               key={inst.id}
-              onPress={() => onSelectInstruction(isSelected ? null : inst.id)}
+              onPress={() => handleToggle(inst.label)}
               style={{
                 flexDirection: 'row',
                 alignItems: 'center',

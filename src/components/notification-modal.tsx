@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -14,74 +14,36 @@ import {
 import { X, Bell, Package, Sparkles, Zap, ArrowRight, CheckCheck } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { notificationsApi, getAuthToken } from '@/services/api';
+import { useNotificationStore, NotificationItem } from '@/store/useNotificationStore';
+import { useAuthStore } from '@/store/useAuthStore';
+
+export type { NotificationItem };
 
 const bespokeEasing = Easing.bezier(0.32, 0.72, 0, 1);
-
-export interface NotificationItem {
-  id: string;
-  title: string;
-  description: string;
-  time: string;
-  type: 'order' | 'drop' | 'offer';
-  read: boolean;
-  orderId?: string;
-}
 
 interface NotificationModalProps {
   visible: boolean;
   onClose: () => void;
 }
 
-function formatRelativeTime(iso?: string): string {
-  if (!iso) return 'Just now';
-  const diffSec = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000));
-  if (diffSec < 60) return 'Just now';
-  if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m ago`;
-  if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}h ago`;
-  return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
-}
-
 export function NotificationModal({ visible, onClose }: NotificationModalProps) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const slideAnim = useRef(new Animated.Value(600)).current;
-  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
 
-  const loadNotifications = useCallback(async () => {
-    if (!getAuthToken()) {
-      setNotifications([]);
-      return;
-    }
-    setIsLoading(true);
-    try {
-      const res = await notificationsApi.list();
-      const mapped: NotificationItem[] = (res.items || []).map((n: any) => ({
-        id: n.id,
-        title: n.title,
-        description: n.body || '',
-        time: formatRelativeTime(n.createdAt),
-        type:
-          n.category === 'PAYMENT' || n.category === 'DELIVERY'
-            ? 'order'
-            : n.category === 'ALERT'
-            ? 'offer'
-            : 'order',
-        read: Boolean(n.isRead),
-        orderId: n.orderId || n.data?.orderId || undefined,
-      }));
-      setNotifications(mapped);
-    } catch {
-      setNotifications([]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const {
+    notifications,
+    unreadCount,
+    isLoading,
+    fetchNotifications,
+    markRead,
+    markAllRead,
+  } = useNotificationStore();
 
   useEffect(() => {
     if (visible) {
-      void loadNotifications();
+      void fetchNotifications();
       Animated.timing(slideAnim, {
         toValue: 0,
         duration: 400,
@@ -91,7 +53,7 @@ export function NotificationModal({ visible, onClose }: NotificationModalProps) 
     } else {
       slideAnim.setValue(600);
     }
-  }, [visible, loadNotifications, slideAnim]);
+  }, [visible, fetchNotifications, slideAnim]);
 
   const handleClose = () => {
     Animated.timing(slideAnim, {
@@ -104,21 +66,22 @@ export function NotificationModal({ visible, onClose }: NotificationModalProps) 
     });
   };
 
-  const handleMarkAllRead = async () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-    try {
-      await notificationsApi.markAllRead();
-    } catch {}
+  const handleMarkAllRead = () => {
+    void markAllRead();
   };
 
-  const handleNotificationPress = async (notif: NotificationItem) => {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === notif.id ? { ...n, read: true } : n)),
-    );
+  const handleNotificationPress = (notif: NotificationItem) => {
     if (!notif.read) {
-      notificationsApi.markRead(notif.id).catch(() => {});
+      void markRead(notif.id);
     }
     handleClose();
+    if (notif.route === '/support' || notif.ticketId) {
+      router.push({
+        pathname: '/support',
+        params: notif.orderId ? { orderId: notif.orderId } : undefined,
+      });
+      return;
+    }
     if (notif.orderId) {
       router.push({
         pathname: '/tracking',
@@ -128,8 +91,6 @@ export function NotificationModal({ visible, onClose }: NotificationModalProps) 
       router.push('/');
     }
   };
-
-  const unreadCount = notifications.filter((n) => !n.read).length;
 
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={handleClose}>
@@ -200,10 +161,16 @@ export function NotificationModal({ visible, onClose }: NotificationModalProps) 
               <View style={{ paddingVertical: 40, alignItems: 'center' }}>
                 <Bell size={28} color="#8E877E" />
                 <Text style={{ fontSize: 14, fontWeight: '800', color: '#111111', marginTop: 10 }}>
-                  {isLoading ? 'Loading updates...' : 'No notifications yet'}
+                  {!isAuthenticated
+                    ? 'Sign in for live alerts'
+                    : isLoading
+                      ? 'Loading updates...'
+                      : 'No notifications yet'}
                 </Text>
                 <Text style={{ fontSize: 12, color: '#6B6667', marginTop: 4, textAlign: 'center' }}>
-                  Live order updates, rider dispatch alerts &amp; Try &amp; Buy notifications appear here.
+                  {!isAuthenticated
+                    ? 'Sign in to receive real-time order updates, rider dispatch alerts & concierge replies.'
+                    : 'Live order updates, rider dispatch alerts & Try & Buy notifications appear here.'}
                 </Text>
               </View>
             ) : (

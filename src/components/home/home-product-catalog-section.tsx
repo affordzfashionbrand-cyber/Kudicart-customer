@@ -6,17 +6,18 @@ import { ProductCard } from '@/components/common/product-card';
 import { ProductCardSkeleton } from '@/components/common/skeleton';
 import { EmptyState } from '@/components/common/empty-state';
 import { ProductItem } from '@/data/homeData';
+import { useCatalogStore } from '@/store/useCatalogStore';
 
 interface HomeProductCatalogSectionProps {
   products: ProductItem[];
   wishlist: string[];
   onWishlist: (id: string | number) => void;
-  onBag: (id: string | number) => void;
+  onBag: (id: string | number, size?: string) => void;
   onOpenProduct: (product: any) => void;
   isLoading?: boolean;
 }
 
-const CATALOG_FILTER_TABS = ['All', 'Women', 'Men', 'Kids', 'Ethnic', 'Western', 'Footwear'];
+const DEFAULT_FILTER_TABS = ['All', 'Women', 'Men', 'Kids', 'Ethnic', 'Western', 'Footwear'];
 
 type SortType = 'FEATURED' | 'LOW_TO_HIGH' | 'HIGH_TO_LOW';
 
@@ -30,17 +31,59 @@ export const HomeProductCatalogSection = React.memo(function HomeProductCatalogS
 }: HomeProductCatalogSectionProps) {
   const [selectedFilter, setSelectedFilter] = useState<string>('All');
   const [sortOption, setSortOption] = useState<SortType>('FEATURED');
+  const catalogCategories = useCatalogStore((s) => s.categories);
+
+  const filterTabs = useMemo(() => {
+    if (!catalogCategories || catalogCategories.length === 0) {
+      return DEFAULT_FILTER_TABS;
+    }
+    const tabs: string[] = ['All'];
+    const seen = new Set<string>(['all']);
+    const pushUnique = (label?: string) => {
+      if (!label) return;
+      const trimmed = label.trim();
+      const lower = trimmed.toLowerCase();
+      if (!trimmed || seen.has(lower)) return;
+      seen.add(lower);
+      tabs.push(trimmed);
+    };
+    catalogCategories.filter((c) => c.level === 1 || !c.parentId).forEach((c) => pushUnique(c.name));
+    catalogCategories.filter((c) => c.level === 2).slice(0, 6).forEach((c) => pushUnique(c.name));
+    return tabs.length > 1 ? tabs : DEFAULT_FILTER_TABS;
+  }, [catalogCategories]);
 
   const displayedProducts = useMemo(() => {
     let list = [...products];
 
-    // Filter by selected category / wear
+    // Filter by selected category / gender / wear / subtree
     if (selectedFilter !== 'All') {
+      const target = selectedFilter.toLowerCase();
+      const matchingSubtreeIds = new Set<string>();
+      const matchingNames = new Set<string>([target]);
+      const visitDown = (node: any) => {
+        if (!node) return;
+        matchingSubtreeIds.add(node.id);
+        if (node.name) matchingNames.add(String(node.name).toLowerCase());
+        catalogCategories
+          .filter((child) => child.parentId === node.id)
+          .forEach(visitDown);
+      };
+      catalogCategories
+        .filter((c) => String(c.name || '').toLowerCase() === target)
+        .forEach(visitDown);
+
       list = list.filter((p) => {
         const cat = (p.category || '').toLowerCase();
         const wear = (p.wear || '').toLowerCase();
-        const target = selectedFilter.toLowerCase();
-        return cat === target || wear === target;
+        const gender = (p.gender || '').toLowerCase();
+        const tags = (p.tags || []).map((t) => String(t).toLowerCase());
+        return (
+          (p.categoryId && matchingSubtreeIds.has(p.categoryId)) ||
+          matchingNames.has(cat) ||
+          matchingNames.has(wear) ||
+          matchingNames.has(gender) ||
+          tags.some((t) => matchingNames.has(t))
+        );
       });
     }
 
@@ -52,7 +95,7 @@ export const HomeProductCatalogSection = React.memo(function HomeProductCatalogS
     }
 
     return list;
-  }, [products, selectedFilter, sortOption]);
+  }, [products, selectedFilter, sortOption, catalogCategories]);
 
   const toggleSort = () => {
     setSortOption((prev) => {
@@ -128,7 +171,7 @@ export const HomeProductCatalogSection = React.memo(function HomeProductCatalogS
         overScrollMode="never"
         contentContainerStyle={{ gap: 8, paddingBottom: 16 }}
       >
-        {CATALOG_FILTER_TABS.map((tab) => {
+        {filterTabs.map((tab) => {
           const isSelected = selectedFilter === tab;
           return (
             <Pressable

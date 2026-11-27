@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, ScrollView, Animated } from 'react-native';
 import { Image } from 'expo-image';
 import {
@@ -24,6 +24,8 @@ export interface CartSuccessViewProps {
   formatPrice: (price: number) => string;
 }
 
+const AUTO_REDIRECT_SECONDS = 4;
+
 export const CartSuccessView = React.memo(function CartSuccessView({
   confirmedOrder,
   confirmedOrderNumber,
@@ -39,9 +41,53 @@ export const CartSuccessView = React.memo(function CartSuccessView({
   const isDark = confirmedOrder?.isDarkStore ?? false;
   const isTry = confirmedOrder?.isTryAndBuy ?? false;
   const orderNum = confirmedOrder?.orderNumber || confirmedOrderNumber;
+  const targetOrderId = confirmedOrder?.orderId || orderNum;
   const paidAmount = confirmedOrder?.totalPaid ?? finalPayable;
   const addr = confirmedOrder?.deliveryAddress || selectedAddress;
   const orderItems = confirmedOrder?.items || [];
+
+  const [redirectSeconds, setRedirectSeconds] = useState(AUTO_REDIRECT_SECONDS);
+  const didNavigateRef = useRef(false);
+
+  useEffect(() => {
+    didNavigateRef.current = false;
+    setRedirectSeconds(AUTO_REDIRECT_SECONDS);
+
+    if (!targetOrderId) return;
+
+    const countdownInterval = setInterval(() => {
+      setRedirectSeconds((prev) => (prev > 1 ? prev - 1 : 0));
+    }, 1000);
+
+    const redirectTimer = setTimeout(() => {
+      if (didNavigateRef.current) return;
+      didNavigateRef.current = true;
+      router.replace({
+        pathname: '/tracking',
+        params: { orderId: targetOrderId },
+      });
+    }, AUTO_REDIRECT_SECONDS * 1000);
+
+    return () => {
+      clearInterval(countdownInterval);
+      clearTimeout(redirectTimer);
+    };
+  }, [router, targetOrderId]);
+
+  const handleManualTrack = () => {
+    if (didNavigateRef.current) return;
+    didNavigateRef.current = true;
+    router.replace({
+      pathname: '/tracking',
+      params: { orderId: targetOrderId },
+    });
+  };
+
+  const handleContinueShopping = () => {
+    if (didNavigateRef.current) return;
+    didNavigateRef.current = true;
+    router.replace('/');
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: '#FAF8F5' }}>
@@ -135,7 +181,7 @@ export const CartSuccessView = React.memo(function CartSuccessView({
             }}
           >
             {isDark
-              ? 'Your curated capsule is steam-pressed and being dispatched for 18-minute doorstep delivery.'
+              ? 'Your curated capsule is steam-pressed and being dispatched for 19-minute doorstep delivery.'
               : 'Your curated atelier pieces have been confirmed and will be dispatched in 2-4 business days via insured boutique courier.'}
           </Text>
 
@@ -270,8 +316,8 @@ export const CartSuccessView = React.memo(function CartSuccessView({
                 >
                   {isDark
                     ? isTry
-                      ? '18-MIN DOORSTEP TRY & BUY'
-                      : '18-MIN EXPRESS DROP'
+                      ? '19-MIN DOORSTEP TRY & BUY'
+                      : '19-MIN EXPRESS DROP'
                     : 'BOUTIQUE VENDOR STANDARD SHIPPING'}
                 </Text>
               </View>
@@ -367,7 +413,7 @@ export const CartSuccessView = React.memo(function CartSuccessView({
                   }}
                 >
                   {confirmedOrder?.etaText ||
-                    (isDark ? '⚡ Estimated: In 18 Minutes' : '📦 Estimated: 2-4 Business Days')}
+                    (isDark ? '⚡ Estimated: In 19 Minutes' : '📦 Estimated: 2-4 Business Days')}
                 </Text>
               </View>
               <Text style={{ fontSize: 10.5, color: '#71717A' }}>
@@ -425,7 +471,7 @@ export const CartSuccessView = React.memo(function CartSuccessView({
                           color: '#6B6667',
                         }}
                       >
-                        {item.brand}
+                        {item.brand || 'Affordz'}
                       </Text>
                       <Text
                         style={{
@@ -446,7 +492,7 @@ export const CartSuccessView = React.memo(function CartSuccessView({
                         }}
                       >
                         <Text style={{ fontSize: 10.5, color: '#71717A' }}>
-                          Size: {item.size} • Qty: {item.quantity}
+                          Size: {item.size || 'Free'} • Qty: {item.quantity || 1}
                         </Text>
                         {item.trialSize && (
                           <View
@@ -477,7 +523,7 @@ export const CartSuccessView = React.memo(function CartSuccessView({
                         color: '#111111',
                       }}
                     >
-                      {formatPrice(item.price * item.quantity)}
+                      {formatPrice((Number(item.price) || 0) * (Number(item.quantity) || 1))}
                     </Text>
                   </View>
                 ))}
@@ -487,6 +533,21 @@ export const CartSuccessView = React.memo(function CartSuccessView({
 
           {/* Action Buttons with 100% Full Width */}
           <View style={{ width: '100%', gap: 10, marginTop: 4 }}>
+            {targetOrderId ? (
+              <Text
+                style={{
+                  fontSize: 11,
+                  fontWeight: '700',
+                  color: '#6B6667',
+                  textAlign: 'center',
+                  marginBottom: 2,
+                }}
+              >
+                {redirectSeconds > 0
+                  ? `Redirecting to live tracking in ${redirectSeconds}s...`
+                  : 'Opening live tracking...'}
+              </Text>
+            ) : null}
             <AnimatedPressable
               containerStyle={{ width: '100%' }}
               style={{
@@ -499,12 +560,7 @@ export const CartSuccessView = React.memo(function CartSuccessView({
                 justifyContent: 'center',
                 gap: 8,
               }}
-              onPress={() =>
-                router.push({
-                  pathname: '/tracking',
-                  params: { orderId: confirmedOrder?.orderId || orderNum },
-                })
-              }
+              onPress={handleManualTrack}
             >
               <Text
                 style={{
@@ -531,7 +587,7 @@ export const CartSuccessView = React.memo(function CartSuccessView({
                 alignItems: 'center',
                 justifyContent: 'center',
               }}
-              onPress={() => router.push('/')}
+              onPress={handleContinueShopping}
             >
               <Text
                 style={{

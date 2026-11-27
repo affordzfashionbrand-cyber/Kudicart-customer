@@ -189,6 +189,13 @@ export const customerNotificationService = {
 
     const dispatchTapNavigation = (data?: Record<string, any> | null) => {
       if (!data || !onNavigate) return;
+      if (data.route === '/support' || data.ticketId) {
+        onNavigate(
+          '/support',
+          data.orderId ? { orderId: String(data.orderId) } : undefined,
+        );
+        return;
+      }
       if (data.orderId) {
         onNavigate('/tracking', { orderId: String(data.orderId) });
         return;

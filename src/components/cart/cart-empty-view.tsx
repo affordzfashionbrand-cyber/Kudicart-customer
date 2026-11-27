@@ -138,7 +138,7 @@ export const CartEmptyView = React.memo(function CartEmptyView({
             wishlist={wishlist}
             onToggleWishlist={toggleWishlist}
             title="Top Deals Curated For You"
-            subtitle="EXCLUSIVE ATELIER DISCOUNTS • 18-MIN EXPRESS DROP"
+            subtitle="EXCLUSIVE ATELIER DISCOUNTS â€¢ 19-MIN EXPRESS DROP"
           />
 
           <View style={{ marginTop: 24, marginBottom: 12 }}>

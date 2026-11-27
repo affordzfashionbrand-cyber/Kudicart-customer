@@ -43,12 +43,30 @@ export function ProductSpecsSection({
     return entries;
   }, [specifications, fabric, origin]);
 
+  const activeTrustPillars = React.useMemo(() => {
+    if (isDarkStoreProduct) return TRUST_PILLARS;
+    return [
+      TRUST_PILLARS[0],
+      {
+        icon: RotateCcw,
+        title: '7-Day Easy Returns',
+        desc: 'Standard doorstep return & exchange',
+        color: '#2563EB',
+      },
+    ];
+  }, [isDarkStoreProduct]);
+
+  const careNote = specifications?.Care || specifications?.['Care Instructions'] || specifications?.['Care Protocol'];
+  const hasMaterialSpecs = Boolean(fabric || (specifications && Object.keys(specifications).length > 0));
+  const hasProvenanceOrCare = Boolean(origin || careNote);
+  const showAccordionsHeader = hasMaterialSpecs || isDarkStoreProduct || hasProvenanceOrCare;
+
   return (
     <>
-      {/* Luxury Trust Guarantee Pillars (Ajio Luxe / Myntra standard) */}
+      {/* Trust Pillars */}
       <View style={{ paddingHorizontal: 16, marginTop: 14 }}>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-          {TRUST_PILLARS.map((pillar, idx) => {
+          {activeTrustPillars.map((pillar, idx) => {
             const IconComp = pillar.icon;
             return (
               <View
@@ -141,14 +159,15 @@ export function ProductSpecsSection({
       </View>
       )}
 
-      {/* Fabric & Artisan Accordions */}
+      {/* Fabric & Specs Accordions */}
+      {showAccordionsHeader && (
       <View style={{ paddingHorizontal: 16, marginTop: 20, gap: 10 }}>
         <Text style={{ fontSize: 9.5, fontWeight: '900', color: '#71717A', letterSpacing: 1.4, textTransform: 'uppercase' }}>
-          ATELIER CRAFTSMANSHIP & PROVENANCE
+          SPECIFICATIONS &amp; CARE
         </Text>
 
-        {/* Accordion 1: Loom & Weave Specs (rendered only when material specs exist) */}
-        {(fabric || (specifications && Object.keys(specifications).length > 0)) && (
+        {/* Accordion 1: Material & Specs (rendered only when material specs exist) */}
+        {hasMaterialSpecs && (
         <View style={{ backgroundColor: '#FFFFFF', borderRadius: 16, borderWidth: 1, borderColor: '#E8E5DF', overflow: 'hidden' }}>
           <Pressable
             onPress={() => setSpecsOpen(!specsOpen)}
@@ -200,23 +219,24 @@ export function ProductSpecsSection({
               {tryOnProtocolOpen ? <ChevronUp size={16} color="#71717A" /> : <ChevronDown size={16} color="#71717A" />}
             </Pressable>
 
-            {tryOnProtocolOpen && (
+              {tryOnProtocolOpen && (
               <View style={{ paddingHorizontal: 14, paddingBottom: 14, paddingTop: 4, gap: 6 }}>
                 <Text style={{ fontSize: 11, color: '#666666', lineHeight: 15 }}>
-                  1. Rider hands over outfit in sanitized ceremonial dust bag with hanger.
+                  1. Rider delivers your primary and backup trial sizes.
                 </Text>
                 <Text style={{ fontSize: 11, color: '#666666', lineHeight: 15 }}>
-                  2. Take your time in your personal mirror for 10 full minutes.
+                  2. Try at home for 10 minutes at your doorstep.
                 </Text>
                 <Text style={{ fontSize: 11, color: '#666666', lineHeight: 15 }}>
-                  3. Love it? Retain it immediately. Dislike fit? Hand back immediately with zero return fees or form filling.
+                  3. Keep what fits and hand back the rest directly to the rider.
                 </Text>
               </View>
             )}
           </View>
         )}
 
-        {/* Accordion 3: Weaver Collective & Care */}
+        {/* Accordion 3: Origin & Care (rendered dynamically only when origin or care specs exist) */}
+        {hasProvenanceOrCare && (
         <View style={{ backgroundColor: '#FFFFFF', borderRadius: 16, borderWidth: 1, borderColor: '#E8E5DF', overflow: 'hidden' }}>
           <Pressable
             onPress={() => setProvenanceOpen(!provenanceOpen)}
@@ -225,29 +245,30 @@ export function ProductSpecsSection({
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <ShieldCheck size={15} color="#10B981" />
               <Text style={{ fontSize: 13, fontWeight: '800', color: '#111111' }}>
-                Weaver Collective & Care
+                Origin &amp; Care Instructions
               </Text>
             </View>
             {provenanceOpen ? <ChevronUp size={16} color="#71717A" /> : <ChevronDown size={16} color="#71717A" />}
           </Pressable>
 
           {provenanceOpen && (
-            <View style={{ paddingHorizontal: 14, paddingBottom: 14, paddingTop: 4 }}>
-              <Text style={{ fontSize: 11, color: '#666666', lineHeight: 15, marginBottom: 8 }}>
-                Hand-woven by the Ansari Weaver Cluster in Varanasi over 18 working days. Directly supports 4 traditional artisan households.
-              </Text>
-              <View style={{ flexDirection: 'row', gap: 8 }}>
-                <View style={{ backgroundColor: '#F7F5F0', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 }}>
-                  <Text style={{ fontSize: 10, fontWeight: '800', color: '#111111' }}>Dry Clean Only</Text>
+            <View style={{ paddingHorizontal: 14, paddingBottom: 14, paddingTop: 4, gap: 8 }}>
+              {origin ? (
+                <Text style={{ fontSize: 11, color: '#666666', lineHeight: 15 }}>
+                  Origin: {origin}
+                </Text>
+              ) : null}
+              {careNote ? (
+                <View style={{ alignSelf: 'flex-start', backgroundColor: '#F7F5F0', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 }}>
+                  <Text style={{ fontSize: 10, fontWeight: '800', color: '#111111' }}>{careNote}</Text>
                 </View>
-                <View style={{ backgroundColor: '#F7F5F0', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 }}>
-                  <Text style={{ fontSize: 10, fontWeight: '800', color: '#111111' }}>Warm Iron with Muslin</Text>
-                </View>
-              </View>
+              ) : null}
             </View>
           )}
         </View>
+        )}
       </View>
+      )}
     </>
   );
 }

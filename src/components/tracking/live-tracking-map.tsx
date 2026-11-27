@@ -1,33 +1,20 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
   Pressable,
-  Animated,
   Platform,
   Linking,
   Modal,
   StyleSheet,
 } from 'react-native';
-import Svg, {
-  Path,
-  Circle,
-  Rect,
-  G,
-  Defs,
-  LinearGradient,
-  Stop,
-  Line,
-} from 'react-native-svg';
 import {
   MapPin,
   Store,
   Maximize2,
-  Minimize2,
   ExternalLink,
   Compass,
   Bike,
-  Map as MapIcon,
   CheckCircle2,
   AlertCircle,
   Clock,
@@ -119,46 +106,26 @@ export function LiveTrackingMap({
 }: LiveTrackingMapProps) {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const mapRef = useRef<any>(null);
-
-  // Pulse animation for live markers
-  const pulseAnim = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    const pulseLoop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: 1,
-          duration: 1800,
-          useNativeDriver: Platform.OS !== 'web',
-        }),
-        Animated.timing(pulseAnim, {
-          toValue: 0,
-          duration: 0,
-          useNativeDriver: Platform.OS !== 'web',
-        }),
-      ]),
-    );
-    pulseLoop.start();
-    return () => pulseLoop.stop();
-  }, [pulseAnim]);
+  const webIframeRef = useRef<any>(null);
+  const fullscreenWebIframeRef = useRef<any>(null);
 
   const hasDriverAssigned = Boolean(driver && driver.name && driver.name !== 'Assigning delivery partner...');
   const hasLiveLocation = Boolean(
     hasDriverAssigned &&
-    driver?.currentLocation?.latitude &&
-    driver?.currentLocation?.longitude
+    typeof driver?.currentLocation?.latitude === 'number' &&
+    typeof driver?.currentLocation?.longitude === 'number'
   );
   const isStale = Boolean(driver?.isStale);
 
   const driverLat = driver?.currentLocation?.latitude;
   const driverLng = driver?.currentLocation?.longitude;
+  const driverHeading = driver?.currentLocation?.heading ?? 0;
 
   // Derive route polyline coordinates
   const polylineCoords = useMemo(() => {
     if (route?.coordinates && Array.isArray(route.coordinates) && route.coordinates.length > 1) {
       return route.coordinates.map(([lat, lng]) => ({ latitude: lat, longitude: lng }));
     }
-    // If live driver location is ready, line from driver to destination
     if (hasLiveLocation && driverLat !== undefined && driverLng !== undefined) {
       return [
         { latitude: driverLat, longitude: driverLng },
@@ -171,8 +138,204 @@ export function LiveTrackingMap({
     ];
   }, [route, hasLiveLocation, driverLat, driverLng, pickupCoordinates, deliveryCoordinates]);
 
+  // Smoothly track live driver updates on native Google Maps
+  useEffect(() => {
+    if (Platform.OS === 'web' || !mapRef.current || !hasLiveLocation || driverLat === undefined || driverLng === undefined) {
+      return;
+    }
+    try {
+      mapRef.current.fitToCoordinates(
+        [
+          { latitude: deliveryCoordinates.latitude, longitude: deliveryCoordinates.longitude },
+          { latitude: driverLat, longitude: driverLng },
+        ],
+        {
+          edgePadding: { top: 64, right: 54, bottom: 88, left: 54 },
+          animated: true,
+        },
+      );
+    } catch {}
+  }, [driverLat, driverLng, hasLiveLocation, deliveryCoordinates.latitude, deliveryCoordinates.longitude]);
+
+  const driverName = driver?.name || 'Delivery Partner';
+  const isStraightLineRoute = Boolean(route?.isStraightLineReference);
+
+  // Push live GPS / route updates to Web Leaflet iframe without reloading map tiles
+  const pushWebMapUpdate = useCallback((targetIframe: any) => {
+    if (Platform.OS !== 'web' || !targetIframe?.contentWindow) return;
+    try {
+      targetIframe.contentWindow.postMessage(
+        {
+          type: 'TRACKING_UPDATE',
+          pickup: pickupCoordinates,
+          delivery: deliveryCoordinates,
+          driver:
+            hasLiveLocation && driverLat !== undefined && driverLng !== undefined
+              ? {
+                  latitude: driverLat,
+                  longitude: driverLng,
+                  heading: driverHeading,
+                  name: driverName,
+                }
+              : null,
+          polyline: polylineCoords.map((p) => [p.latitude, p.longitude]),
+          isStraightLine: isStraightLineRoute,
+        },
+        '*',
+      );
+    } catch {}
+  }, [
+    pickupCoordinates,
+    deliveryCoordinates,
+    hasLiveLocation,
+    driverLat,
+    driverLng,
+    driverHeading,
+    driverName,
+    polylineCoords,
+    isStraightLineRoute,
+  ]);
+
+  useEffect(() => {
+    pushWebMapUpdate(webIframeRef.current);
+    pushWebMapUpdate(fullscreenWebIframeRef.current);
+  }, [pushWebMapUpdate]);
+
+  const initialWebMapHtml = useMemo(() => {
+    const centerLat = (deliveryCoordinates.latitude + pickupCoordinates.latitude) / 2;
+    const centerLng = (deliveryCoordinates.longitude + pickupCoordinates.longitude) / 2;
+    const initialPolyline = JSON.stringify(polylineCoords.map((p) => [p.latitude, p.longitude]));
+    const initialPickup = JSON.stringify(pickupCoordinates);
+    const initialDelivery = JSON.stringify(deliveryCoordinates);
+    const initialDriver =
+      hasLiveLocation && driverLat !== undefined && driverLng !== undefined
+        ? JSON.stringify({
+            latitude: driverLat,
+            longitude: driverLng,
+            heading: driverHeading,
+            name: driver?.name || 'Delivery Partner',
+          })
+        : 'null';
+    const escapedHub = String(hubName || 'Express Hub').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+    return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    html, body, #map { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #F3F1EC; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
+    .leaflet-control-attribution { display: none !important; }
+    .hub-pin { width: 28px; height: 28px; border-radius: 14px; background: #111111; border: 2px solid #FFFFFF; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-size: 13px; box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+    .dest-pin { width: 32px; height: 32px; border-radius: 16px; background: #FF5A1F; border: 2.5px solid #FFFFFF; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-size: 14px; box-shadow: 0 3px 10px rgba(255,90,31,0.45); }
+    .driver-pin { width: 36px; height: 36px; border-radius: 18px; background: #111111; border: 2.5px solid #FF5A1F; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font-size: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.35); transition: transform 0.35s ease; }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <script>
+    var map = L.map('map', { zoomControl: false }).setView([${centerLat}, ${centerLng}], 14);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+
+    var pickup = ${initialPickup};
+    var delivery = ${initialDelivery};
+    var driverData = ${initialDriver};
+    var routeCoords = ${initialPolyline};
+
+    var pickupMarker = L.marker([pickup.latitude, pickup.longitude], {
+      icon: L.divIcon({ className: '', html: '<div class="hub-pin">🏪</div>', iconSize: [28, 28], iconAnchor: [14, 14] })
+    }).addTo(map).bindPopup("${escapedHub}");
+
+    var destMarker = L.marker([delivery.latitude, delivery.longitude], {
+      icon: L.divIcon({ className: '', html: '<div class="dest-pin">📍</div>', iconSize: [32, 32], iconAnchor: [16, 16] })
+    }).addTo(map).bindPopup("Delivery Destination");
+
+    var driverMarker = null;
+    function syncDriver(d) {
+      if (d && typeof d.latitude === 'number' && typeof d.longitude === 'number') {
+        var html = '<div class="driver-pin" style="transform: rotate(' + (d.heading || 0) + 'deg)">🛵</div>';
+        if (!driverMarker) {
+          driverMarker = L.marker([d.latitude, d.longitude], {
+            icon: L.divIcon({ className: '', html: html, iconSize: [36, 36], iconAnchor: [18, 18] })
+          }).addTo(map);
+        } else {
+          driverMarker.setLatLng([d.latitude, d.longitude]);
+          driverMarker.setIcon(L.divIcon({ className: '', html: html, iconSize: [36, 36], iconAnchor: [18, 18] }));
+        }
+      } else if (driverMarker) {
+        map.removeLayer(driverMarker);
+        driverMarker = null;
+      }
+    }
+
+    var routeLine = L.polyline(routeCoords, {
+      color: ${route?.isStraightLineReference ? "'#94A3B8'" : "'#FF5A1F'"},
+      weight: ${route?.isStraightLineReference ? 3 : 5},
+      dashArray: ${route?.isStraightLineReference ? "'8, 8'" : 'null'},
+      lineCap: 'round'
+    }).addTo(map);
+
+    function fitView() {
+      var pts = [[delivery.latitude, delivery.longitude]];
+      if (driverData && typeof driverData.latitude === 'number') {
+        pts.push([driverData.latitude, driverData.longitude]);
+      } else {
+        pts.push([pickup.latitude, pickup.longitude]);
+      }
+      if (pts.length > 1) {
+        map.fitBounds(pts, { padding: [48, 48], maxZoom: 16 });
+      }
+    }
+
+    syncDriver(driverData);
+    fitView();
+
+    window.addEventListener('message', function(ev) {
+      var msg = ev.data;
+      if (!msg || typeof msg !== 'object') return;
+      if (msg.type === 'RECENTER') {
+        fitView();
+        return;
+      }
+      if (msg.type === 'TRACKING_UPDATE') {
+        if (msg.pickup) {
+          pickup = msg.pickup;
+          pickupMarker.setLatLng([pickup.latitude, pickup.longitude]);
+        }
+        if (msg.delivery) {
+          delivery = msg.delivery;
+          destMarker.setLatLng([delivery.latitude, delivery.longitude]);
+        }
+        driverData = msg.driver || null;
+        syncDriver(driverData);
+        if (Array.isArray(msg.polyline) && msg.polyline.length > 1) {
+          routeLine.setLatLngs(msg.polyline);
+          routeLine.setStyle({
+            color: msg.isStraightLine ? '#94A3B8' : '#FF5A1F',
+            weight: msg.isStraightLine ? 3 : 5,
+            dashArray: msg.isStraightLine ? '8, 8' : null
+          });
+        }
+      }
+    });
+  </script>
+</body>
+</html>`;
+    // Intentionally initialize HTML once per mount/hub so live GPS updates stream via postMessage without flashing
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hubName]);
+
   // Recenter camera on driver & destination
   const handleRecenter = () => {
+    if (Platform.OS === 'web') {
+      try {
+        webIframeRef.current?.contentWindow?.postMessage({ type: 'RECENTER' }, '*');
+        fullscreenWebIframeRef.current?.contentWindow?.postMessage({ type: 'RECENTER' }, '*');
+      } catch {}
+      return;
+    }
     if (!mapRef.current) return;
     try {
       const pointsToFit = [
@@ -277,55 +440,48 @@ export function LiveTrackingMap({
     );
   };
 
-  const renderMapCanvas = (mapHeight: number) => {
-    const isWebOrNoNative = Platform.OS === 'web' || !NativeMapView;
+  const renderMapCanvas = (mapHeight: number, isModal = false) => {
+    const isWeb = Platform.OS === 'web';
 
     return (
       <View style={[styles.mapCard, { height: mapHeight }]}>
-        {isWebOrNoNative ? (
-          // Web Preview / Fallback SVG Map Surface
+        {isWeb ? (
+          // Real-Time Interactive Leaflet GPS Map on Web
           <View style={styles.webFallbackContainer}>
-            <Svg width="100%" height="100%" viewBox="0 0 800 460">
-              <Defs>
-                <LinearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <Stop offset="0%" stopColor="#F9F7F2" />
-                  <Stop offset="100%" stopColor="#F1EDE5" />
-                </LinearGradient>
-              </Defs>
-              <Rect width="800" height="460" fill="url(#bgGrad)" />
-              {/* Road Grid */}
-              <Line x1="100" y1="370" x2="700" y2="370" stroke="#E5E0D8" strokeWidth="18" />
-              <Line x1="230" y1="100" x2="230" y2="400" stroke="#E5E0D8" strokeWidth="18" />
-              <Line x1="100" y1="270" x2="700" y2="270" stroke="#E5E0D8" strokeWidth="18" />
-              <Line x1="520" y1="100" x2="520" y2="400" stroke="#E5E0D8" strokeWidth="18" />
-              <Line x1="100" y1="110" x2="700" y2="110" stroke="#E5E0D8" strokeWidth="18" />
-
-              {/* Active Route */}
-              <Path
-                d="M 140 370 L 230 370 L 230 270 L 380 270 L 380 190 L 520 190 L 520 110 L 660 110"
-                stroke="#FF5A1F"
-                strokeWidth="6"
-                fill="none"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-
-              {/* Store Point */}
-              <Circle cx="140" cy="370" r="14" fill="#111111" />
-              <Circle cx="140" cy="370" r="6" fill="#FFFFFF" />
-
-              {/* Dropoff Point */}
-              <Circle cx="660" cy="110" r="14" fill="#FF5A1F" />
-              <Circle cx="660" cy="110" r="6" fill="#FFFFFF" />
-
-              {/* Live Driver Beacon on Web */}
-              {hasLiveLocation && (
-                <G>
-                  <Circle cx="450" cy="190" r="18" fill="#111111" />
-                  <Circle cx="450" cy="190" r="8" fill="#FF5A1F" />
-                </G>
-              )}
-            </Svg>
+            <iframe
+              ref={isModal ? fullscreenWebIframeRef : webIframeRef}
+              title={isModal ? 'Live Delivery Radar Fullscreen' : 'Live Delivery Radar'}
+              srcDoc={initialWebMapHtml}
+              onLoad={() =>
+                pushWebMapUpdate(
+                  isModal ? fullscreenWebIframeRef.current : webIframeRef.current,
+                )
+              }
+              style={{
+                width: '100%',
+                height: '100%',
+                border: 'none',
+                display: 'block',
+              }}
+            />
+          </View>
+        ) : !NativeMapView ? (
+          // Clean GPS Telemetry Fallback if react-native-maps is unavailable in test/simulator
+          <View
+            style={[
+              styles.webFallbackContainer,
+              { alignItems: 'center', justifyContent: 'center', padding: 20 },
+            ]}
+          >
+            <Bike size={28} color="#FF5A1F" />
+            <Text style={{ fontSize: 13, fontWeight: '800', color: '#111111', marginTop: 8 }}>
+              {hasLiveLocation
+                ? `Live GPS: ${driverLat?.toFixed(4)}, ${driverLng?.toFixed(4)}`
+                : 'Awaiting Live Driver GPS Signal'}
+            </Text>
+            <Text style={{ fontSize: 11, color: '#6B6667', marginTop: 4, textAlign: 'center' }}>
+              {hubName} → {destinationAddress || 'Delivery Destination'}
+            </Text>
           </View>
         ) : (
           // Production Native Google Map
@@ -384,6 +540,7 @@ export function LiveTrackingMap({
                 title={driver.name}
                 description={driver.vehicle || 'Affordz Delivery Partner'}
                 anchor={{ x: 0.5, y: 0.5 }}
+                rotation={driverHeading}
               >
                 <View style={styles.driverMarker}>
                   <Bike size={18} color="#FFFFFF" />
@@ -488,7 +645,7 @@ export function LiveTrackingMap({
             </View>
 
             <View style={{ flex: 1, padding: 14 }}>
-              {renderMapCanvas(520)}
+              {renderMapCanvas(520, true)}
             </View>
           </View>
         </View>

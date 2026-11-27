@@ -51,7 +51,9 @@ import { WishlistView } from '@/components/views/wishlist-view';
 import { AccountView } from '@/components/views/account-view';
 import { DarkStoreView } from '@/components/views/dark-store-view';
 import { NotificationModal } from '@/components/notification-modal';
-import { notificationsApi } from '@/services/api';
+import { useNotificationStore } from '@/store/useNotificationStore';
+import { useOrderStore } from '@/store/useOrderStore';
+import { TERMINAL_ORDER_STATUSES } from '@/contracts/order-contracts';
 
 import { AuthModal } from '@/components/auth-modal';
 import { AddressModal } from '@/components/address-modal';
@@ -106,7 +108,10 @@ export default function Page() {
   // Screen Tabs & Active Filters
   const [tab, setTab] = useState('HOME');
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
-  const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const unreadNotifications = useNotificationStore((s) => s.unreadCount);
+  const fetchNotifications = useNotificationStore((s) => s.fetchNotifications);
+  const orders = useOrderStore((s) => s.orders);
+  const fetchOrders = useOrderStore((s) => s.fetchOrders);
 
   useEffect(() => {
     if (!params.tab) return;
@@ -121,23 +126,23 @@ export default function Page() {
   }, [params.tab, router]);
 
   useEffect(() => {
-    if (!isAuthenticated) {
-      setUnreadNotifications(0);
-      return;
-    }
-    let cancelled = false;
-    notificationsApi
-      .list()
-      .then((res) => {
-        if (!cancelled && typeof res?.unreadCount === 'number') {
-          setUnreadNotifications(res.unreadCount);
-        }
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [isAuthenticated, isNotificationsOpen]);
+    if (!isAuthenticated) return;
+    void fetchNotifications();
+    void fetchOrders();
+  }, [isAuthenticated, isNotificationsOpen, fetchNotifications, fetchOrders]);
+
+  const hasActiveOrder = useMemo(
+    () => orders.some((o) => o && !TERMINAL_ORDER_STATUSES.includes(o.status as any)),
+    [orders],
+  );
+
+  useEffect(() => {
+    if (!isAuthenticated || !hasActiveOrder) return;
+    const pollTimer = setInterval(() => {
+      void fetchOrders();
+    }, 30000);
+    return () => clearInterval(pollTimer);
+  }, [isAuthenticated, hasActiveOrder, fetchOrders]);
 
   const handleSelectTab = useCallback(
     (nextTab: string) => {
@@ -184,7 +189,7 @@ export default function Page() {
   const [toast, setToast] = useState('');
   const toastAnim = useRef(new Animated.Value(100)).current;
 
-  // Smart Sticky Category Bar — show on scroll-up, hide on scroll-down
+  // Smart Sticky Category Bar â€” show on scroll-up, hide on scroll-down
   const CATEGORY_BAR_HEIGHT = 170;
   const lastScrollY = useRef(0);
   const categoryTranslateY = useRef(new Animated.Value(0)).current;
@@ -196,7 +201,7 @@ export default function Page() {
     const currentY = event.nativeEvent.contentOffset.y;
     const diff = currentY - lastScrollY.current;
 
-    // Near the top — always show
+    // Near the top â€” always show
     if (currentY <= CATEGORY_BAR_HEIGHT) {
       if (!isCategoryVisible.current) {
         isCategoryVisible.current = true;
@@ -208,7 +213,7 @@ export default function Page() {
         }).start();
       }
     } else if (diff > 12 && isCategoryVisible.current) {
-      // Scrolling DOWN past the section — hide it
+      // Scrolling DOWN past the section â€” hide it
       isCategoryVisible.current = false;
       Animated.spring(categoryTranslateY, {
         toValue: -CATEGORY_BAR_HEIGHT,
@@ -217,7 +222,7 @@ export default function Page() {
         friction: 12,
       }).start();
     } else if (diff < -12 && !isCategoryVisible.current) {
-      // Scrolling UP — reveal it
+      // Scrolling UP â€” reveal it
       isCategoryVisible.current = true;
       Animated.spring(categoryTranslateY, {
         toValue: 0,
@@ -232,6 +237,7 @@ export default function Page() {
 
   // Initial Data Fetch
   useEffect(() => {
+    void useCartStore.getState().hydrateWishlist();
     fetchCategories();
     fetchDarkStores();
     fetchCoupons();
@@ -262,50 +268,131 @@ export default function Page() {
     return () => sub.remove();
   }, [isSearchOverlayVisible, query, tab]);
 
+  const catalogCategories = useCatalogStore((s) => s.categories);
+
+  const flatCategories = useMemo(() => {
+    const out: any[] = [];
+    const visit = (nodes: any[]) => {
+      for (const node of nodes) {
+        out.push(node);
+        if (Array.isArray(node.children) && node.children.length > 0) visit(node.children);
+        if (Array.isArray(node.subcategories) && node.subcategories.length > 0) visit(node.subcategories);
+      }
+    };
+    visit(catalogCategories || []);
+    return out;
+  }, [catalogCategories]);
+
   // Derived Active Product Catalog normalized to ProductItem (Live API prioritized)
   const activeProducts = useMemo<ProductItem[]>(() => {
     if (storeProducts && storeProducts.length > 0) {
-      return storeProducts.map((p) => ({
-        id: p.id,
-        brand: p.brand,
-        name: p.title,
-        price: p.price,
-        old: p.originalPrice || Math.round(p.price * 1.3),
-        rating: String(p.rating || '4.8'),
-        category: p.category || 'Women',
-        wear: (p as any).wear || 'Tops',
-        image: p.image || (p.galleryImages && p.galleryImages[0]) || '',
-        fulfillmentType: (p as any).fulfillmentType,
-        tryAndBuyEligible: (p as any).tryAndBuyEligible ?? true,
-        fabric: (p as any).fabric,
-        description: (p as any).description,
-      }));
+      return storeProducts.map((p) => {
+        const matchedCat = flatCategories.find(
+          (c) =>
+            (p.categoryId && c.id === p.categoryId) ||
+            (p.category && String(c.name || '').toLowerCase() === String(p.category).toLowerCase()),
+        );
+        const derivedWear =
+          (p as any).wear ||
+          (matchedCat?.parentId
+            ? flatCategories.find((parent) => parent.id === matchedCat.parentId)?.name
+            : undefined) ||
+          p.category ||
+          'Tops';
+        return {
+          id: p.id,
+          brand: p.brand,
+          name: p.title,
+          price: p.price,
+          old: p.originalPrice || Math.round(p.price * 1.3),
+          rating: String(p.rating || '4.8'),
+          category: p.category || 'Women',
+          categoryId: p.categoryId || matchedCat?.id || null,
+          gender: p.gender || matchedCat?.gender || undefined,
+          wear: derivedWear,
+          tags: Array.isArray(p.tags) ? p.tags : [],
+          sizes: Array.isArray(p.sizes) && p.sizes.length > 0 ? p.sizes : ['S', 'M', 'L'],
+          stockQuantity: typeof p.stockQuantity === 'number' ? p.stockQuantity : 10,
+          reviewsCount: typeof p.reviewsCount === 'number' ? p.reviewsCount : 0,
+          image: p.image || (p.galleryImages && p.galleryImages[0]) || '',
+          fulfillmentType: (p as any).fulfillmentType,
+          tryAndBuyEligible: (p as any).tryAndBuyEligible ?? true,
+          fabric: (p as any).fabric,
+          description: (p as any).description,
+        };
+      });
     }
     return [];
-  }, [storeProducts]);
+  }, [storeProducts, flatCategories]);
 
   // Filtered Products for Shop / Search
   const filtered = useMemo<ProductItem[]>(() => {
+    const collectSubtreeIdsAndNames = (target: string) => {
+      const ids = new Set<string>();
+      const names = new Set<string>();
+      const normalized = target.toLowerCase();
+      names.add(normalized);
+      ids.add(target);
+      const seedNodes = flatCategories.filter(
+        (c) => c.id === target || String(c.name || '').toLowerCase() === normalized,
+      );
+      const visitDown = (node: any) => {
+        if (!node) return;
+        ids.add(node.id);
+        if (node.name) names.add(String(node.name).toLowerCase());
+        flatCategories
+          .filter((child) => child.parentId === node.id)
+          .forEach(visitDown);
+      };
+      seedNodes.forEach(visitDown);
+      return { ids, names };
+    };
+
+    const wearMatcher = selectedWear !== 'All' ? collectSubtreeIdsAndNames(selectedWear) : null;
+    const catMatcher = category !== 'All' ? collectSubtreeIdsAndNames(category) : null;
+
     return activeProducts.filter((product) => {
       const pName = (product.name || '').toLowerCase();
       const pBrand = (product.brand || '').toLowerCase();
-      const pCat = product.category || 'All';
-      const pWear = product.wear || 'All';
+      const pCat = (product.category || '').toLowerCase();
+      const pWear = (product.wear || '').toLowerCase();
+      const pGender = (product.gender || '').toLowerCase();
+      const pTags = (product.tags || []).map((t) => String(t).toLowerCase());
 
       const matchQuery = !query || pName.includes(query.toLowerCase()) || pBrand.includes(query.toLowerCase());
-      const matchGender = selectedGender === 'All' || pCat === selectedGender || pCat === 'All';
-      const matchWear = selectedWear === 'All' || pWear === selectedWear;
-      const matchCategory = category === 'All' || pCat === category;
+      const genderTarget = selectedGender.toLowerCase();
+      const matchGender =
+        selectedGender === 'All' ||
+        pGender === genderTarget ||
+        pGender === 'unisex' ||
+        pCat === genderTarget ||
+        pCat === 'all' ||
+        pTags.includes(genderTarget);
+
+      const matchWear =
+        !wearMatcher ||
+        (product.categoryId && wearMatcher.ids.has(product.categoryId)) ||
+        wearMatcher.names.has(pCat) ||
+        wearMatcher.names.has(pWear) ||
+        pTags.some((t) => wearMatcher.names.has(t));
+
+      const matchCategory =
+        !catMatcher ||
+        (product.categoryId && catMatcher.ids.has(product.categoryId)) ||
+        catMatcher.names.has(pCat) ||
+        catMatcher.names.has(pGender) ||
+        pTags.some((t) => catMatcher.names.has(t));
+
       const matchPrice = maxPriceFilter === null || product.price <= maxPriceFilter;
 
       return matchQuery && matchGender && matchWear && matchCategory && matchPrice;
     });
-  }, [activeProducts, query, selectedGender, selectedWear, category, maxPriceFilter]);
+  }, [activeProducts, flatCategories, query, selectedGender, selectedWear, category, maxPriceFilter]);
 
   // Formatted Selected Address text
   const selectedAddressText = useMemo(() => {
     const selected = addresses.find((a) => a.id === selectedAddressId) || addresses[0];
-    return selected ? `${selected.label} • ${selected.city}` : 'Select Delivery Address';
+    return selected ? `${selected.label} â€¢ ${selected.city}` : 'Select Delivery Address';
   }, [addresses, selectedAddressId]);
 
   // Total Bag Counter
@@ -323,31 +410,37 @@ export default function Page() {
     ]).start(() => {
       setToast('');
     });
-  }, [toastAnim]);
+  }, [toastAnim, setToast]);
 
   // Actions
-  const addToBag = useCallback((productId: string | number) => {
+  const addToBag = useCallback((productId: string | number, selectedSize?: string) => {
     const product = activeProducts.find((p) => String(p.id) === String(productId));
     if (!product) return;
+
+    const availableSizes = Array.isArray(product.sizes) && product.sizes.length > 0 ? product.sizes : ['M'];
+    const chosenSize = selectedSize && availableSizes.includes(selectedSize)
+      ? selectedSize
+      : (selectedSize || availableSizes[0] || 'M');
 
     addItem({
       id: String(product.id),
       brand: product.brand,
       title: product.name,
-      description: '',
+      description: product.description || '',
       price: product.price,
       originalPrice: product.old || product.price,
       discount: '',
       rating: Number(product.rating) || 4.8,
-      reviewsCount: 120,
-      stockQuantity: 10,
+      reviewsCount: typeof product.reviewsCount === 'number' ? product.reviewsCount : 0,
+      stockQuantity: typeof product.stockQuantity === 'number' ? product.stockQuantity : 10,
       readyToShip: true,
-      sizes: ['S', 'M', 'L'],
+      sizes: availableSizes,
       image: product.image,
       altText: product.name,
       galleryImages: [product.image],
       category: product.category,
-    }, 'M', 'Default', 1);
+      fulfillmentType: product.fulfillmentType as any,
+    }, chosenSize, 'Default', 1);
 
     showToast(`Added ${product.brand} to Bag`);
   }, [activeProducts, addItem, showToast]);
@@ -439,7 +532,7 @@ export default function Page() {
   }, [executeSearch]);
 
   const handleBrandSelect = useCallback((tile: VendorBrandTile) => {
-    const cleanQuery = tile.brand.replace(/[®|]/g, '').trim();
+    const cleanQuery = tile.brand.replace(/[Â®|]/g, '').trim();
     setQuery(cleanQuery);
     executeSearch(cleanQuery);
   }, [executeSearch]);
@@ -541,7 +634,7 @@ export default function Page() {
           />
         ) : (
           <>
-            {/* Smart Sticky Category Bar — shown at top & on scroll-up, hidden on scroll-down */}
+            {/* Smart Sticky Category Bar â€” shown at top & on scroll-up, hidden on scroll-down */}
             {tab === 'HOME' && (
               <Animated.View
                 style={{
@@ -576,7 +669,7 @@ export default function Page() {
                       {/* Compact Hero Banner Carousel with Isolated Auto-Advance Interval */}
                       <HeroBannerSection onBannerPress={handleBannerPress} />
 
-                      {/* Hyperlocal 18-Min Instant Drop Serviceability Banner */}
+                      {/* Hyperlocal 19-Min Instant Drop Serviceability Banner */}
                       {!serviceability.isServiceable ? (
                         <View
                           style={{
@@ -607,16 +700,16 @@ export default function Page() {
 
                             <View style={{ backgroundColor: '#FFFFFF', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10, borderWidth: 1, borderColor: '#FECACA' }}>
                               <Text style={[FontStyles.sansBold, { fontSize: 10, color: '#B91C1C' }]}>
-                                {serviceability.distanceKm} KM (MAX 8.0 KM)
+                                {serviceability.distanceKm} KM (MAX {serviceability.maxRadiusKm.toFixed(1)} KM)
                               </Text>
                             </View>
                           </View>
 
                           <Text style={[FontStyles.sansBold, { fontSize: 13, color: '#991B1B', lineHeight: 18 }]}>
-                            Instant 18-minute delivery is not available at {selectedAddress?.locality || selectedAddress?.city || 'this location'}.
+                            Instant 19-minute delivery is not available at {selectedAddress?.locality || selectedAddress?.city || 'this location'}.
                           </Text>
                           <Text style={[FontStyles.sansRegular, { fontSize: 11, color: '#7F1D1D', marginTop: 3, lineHeight: 16 }]}>
-                            Our Ather 450X EV quick-commerce fleet operates within 8.0 km of our Express Hub. Items can only be ordered via Standard Boutique Dispatch (2-4 Days) or choose another location.
+                            Our Ather 450X EV quick-commerce fleet operates within {serviceability.maxRadiusKm.toFixed(1)} km of our Express Hub. Items can only be ordered via Standard Boutique Dispatch (2-4 Days) or choose another location.
                           </Text>
 
                           <Pressable
@@ -659,7 +752,7 @@ export default function Page() {
                           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                             <Zap size={13} color="#15803D" fill="#15803D" />
                             <Text style={[FontStyles.sansBold, { fontSize: 11, color: '#15803D' }]}>
-                              ⚡ 18-Min Instant Drop Available at {selectedAddress?.locality || selectedAddress?.city || 'Your Area'}
+                              âš¡ 19-Min Instant Drop Available at {selectedAddress?.locality || selectedAddress?.city || 'Your Area'}
                             </Text>
                           </View>
                           <Text style={[FontStyles.sansBold, { fontSize: 10, color: '#166534' }]}>
@@ -715,7 +808,7 @@ export default function Page() {
                               singleLine={true}
                             />
                             <Text style={[FontStyles.sansRegular, { fontSize: 9.5, color: '#6B6667', marginTop: 1.5 }]} numberOfLines={1}>
-                              Try sizes • Keep what fits
+                              Try sizes â€¢ Keep what fits
                             </Text>
                           </View>
                         </View>
@@ -816,13 +909,22 @@ export default function Page() {
               onWishlist={toggleWishlist}
               onBag={addToBag}
               onOpen={handleOpenProduct}
+              isLoading={isLoading}
             />
 
             {/* Affordz Promise & Doorstep Trust Pillars */}
             <AffordzPromiseSection />
 
             {/* Modern Redefined Editorial Showcase */}
-            <ModernRedefinedBanner onExploreDrop={() => setTab('SHOP')} />
+            <ModernRedefinedBanner
+              onExploreDrop={(banner) => {
+                if (banner?.actionType && banner.actionType !== 'NONE') {
+                  handleBannerPress(banner);
+                } else {
+                  setTab('SHOP');
+                }
+              }}
+            />
 
             {/* At last of the homepage: Full App Product Catalog with Category Filters & Sorting */}
             <HomeProductCatalogSection
@@ -858,10 +960,11 @@ export default function Page() {
             products={wishlistProductsList}
             allProducts={activeProducts}
             onBag={addToBag}
-            onWishlist={toggleWishlist}
+            onWishlist={(id) => useCartStore.getState().removeFromWishlist(String(id))}
             onOpen={handleOpenProduct}
             onExplore={() => setTab('SHOP')}
             onGoToBag={() => router.push('/cart')}
+            isLoading={isLoading}
           />
         )}
 
@@ -915,79 +1018,93 @@ export default function Page() {
       </Animated.View>
 
       {/* Hyper-Local Fashion Dark Store Selection Modal */}
-      <SelectDarkStoreModal
-        visible={isDarkStoreModalOpen}
-        onClose={closeDarkStoreModal}
-        onSelectStore={(store) => {
-          setToast(`Connected to ${store.shortName} • ${store.deliveryMinutes}m Drop`);
-          Animated.sequence([
-            Animated.timing(toastAnim, { toValue: 0, duration: 250, useNativeDriver: Platform.OS !== 'web' }),
-            Animated.delay(2200),
-            Animated.timing(toastAnim, { toValue: 100, duration: 250, useNativeDriver: Platform.OS !== 'web' }),
-          ]).start();
-        }}
-      />
+      {isDarkStoreModalOpen && (
+        <SelectDarkStoreModal
+          visible={isDarkStoreModalOpen}
+          onClose={closeDarkStoreModal}
+          onSelectStore={(store) => {
+            setToast(`Connected to ${store.shortName} • ${store.deliveryMinutes}m Drop`);
+            Animated.sequence([
+              Animated.timing(toastAnim, { toValue: 0, duration: 250, useNativeDriver: Platform.OS !== 'web' }),
+              Animated.delay(2200),
+              Animated.timing(toastAnim, { toValue: 100, duration: 250, useNativeDriver: Platform.OS !== 'web' }),
+            ]).start();
+          }}
+        />
+      )}
 
       {/* Auth Modal */}
-      <AuthModal
-        visible={isAuthModalOpen}
-        onClose={() => setIsAuthModalOpen(false)}
-        onSuccess={() => setIsAuthModalOpen(false)}
-      />
+      {isAuthModalOpen && (
+        <AuthModal
+          visible={isAuthModalOpen}
+          onClose={() => setIsAuthModalOpen(false)}
+          onSuccess={() => setIsAuthModalOpen(false)}
+        />
+      )}
 
       {/* Address Selection Modal */}
-      <AddressModal
-        visible={isAddressModalOpen}
-        onClose={() => setIsAddressModalOpen(false)}
-        selectedAddressId={selectedAddressId}
-        onSelectAddress={(addr) => setSelectedAddressId(addr.id)}
-      />
+      {isAddressModalOpen && (
+        <AddressModal
+          visible={isAddressModalOpen}
+          onClose={() => setIsAddressModalOpen(false)}
+          selectedAddressId={selectedAddressId}
+          onSelectAddress={(addr) => setSelectedAddressId(addr.id)}
+        />
+      )}
 
-      {/* Upfront 18-Min Location Onboarding & Serviceability Modal */}
-      <LocationOnboardingModal
-        visible={isLocationModalOpen}
-        onClose={() => setIsLocationModalOpen(false)}
-        onConfirm={(addr) => {
-          setSelectedAddressId(addr.id);
-          setIsLocationModalOpen(false);
-        }}
-      />
+      {/* Upfront 19-Min Location Onboarding & Serviceability Modal */}
+      {isLocationModalOpen && (
+        <LocationOnboardingModal
+          visible={isLocationModalOpen}
+          onClose={() => setIsLocationModalOpen(false)}
+          onConfirm={(addr) => {
+            setSelectedAddressId(addr.id);
+            setIsLocationModalOpen(false);
+          }}
+        />
+      )}
 
       {/* Interactive Bank Offers Bottom Sheet Modal */}
-      <BankOffersModal
-        visible={isBankModalOpen}
-        onClose={() => setIsBankModalOpen(false)}
-        currentBankIndex={currentBankIndex}
-        onSelectOffer={(idx) => {
-          setCurrentBankIndex(idx);
-          setIsBankModalOpen(false);
-        }}
-        onCopyCode={handleCopyBankCode}
-        copiedCode={copiedBankCode}
-      />
+      {isBankModalOpen && (
+        <BankOffersModal
+          visible={isBankModalOpen}
+          onClose={() => setIsBankModalOpen(false)}
+          currentBankIndex={currentBankIndex}
+          onSelectOffer={(idx) => {
+            setCurrentBankIndex(idx);
+            setIsBankModalOpen(false);
+          }}
+          onCopyCode={handleCopyBankCode}
+          copiedCode={copiedBankCode}
+        />
+      )}
 
       {/* Doorstep Try & Buy Explainer Modal */}
-      <TryBuyModal
-        visible={isTryAndBuyModalOpen}
-        onClose={() => setIsTryAndBuyModalOpen(false)}
-        onExplore={() => {
-          setIsTryAndBuyModalOpen(false);
-          setTab('SHOP');
-        }}
-      />
+      {isTryAndBuyModalOpen && (
+        <TryBuyModal
+          visible={isTryAndBuyModalOpen}
+          onClose={() => setIsTryAndBuyModalOpen(false)}
+          onExplore={() => {
+            setIsTryAndBuyModalOpen(false);
+            setTab('SHOP');
+          }}
+        />
+      )}
 
       {/* Live Search Suggestions Autocomplete & Trending Overlay */}
-      <SearchSuggestionsOverlay
-        visible={isSearchOverlayVisible}
-        query={query}
-        onQueryChange={setQuery}
-        onSelectQuery={handleSelectSearchQuery}
-        onOpenProduct={(product) => {
-          setIsSearchOverlayVisible(false);
-          handleOpenProduct(product);
-        }}
-        onClose={() => setIsSearchOverlayVisible(false)}
-      />
+      {isSearchOverlayVisible && (
+        <SearchSuggestionsOverlay
+          visible={isSearchOverlayVisible}
+          query={query}
+          onQueryChange={setQuery}
+          onSelectQuery={handleSelectSearchQuery}
+          onOpenProduct={(product) => {
+            setIsSearchOverlayVisible(false);
+            handleOpenProduct(product);
+          }}
+          onClose={() => setIsSearchOverlayVisible(false)}
+        />
+      )}
 
       {/* Live Notifications Modal */}
       <NotificationModal

@@ -16,6 +16,7 @@ import {
 } from 'lucide-react-native';
 
 import { useCartStore } from '@/store/useCartStore';
+import { useCatalogStore } from '@/store/useCatalogStore';
 import { useAddressStore, checkAddressServiceability } from '@/store/useAddressStore';
 import { LocationOnboardingModal } from '@/components/location/location-onboarding-modal';
 import { useOrderStore } from '@/store/useOrderStore';
@@ -57,7 +58,6 @@ export default function CheckoutScreen() {
     items,
     itemTotal,
     deliveryFee,
-    taxes,
     grandTotal,
     giftWrapFee,
     splitOrderCount,
@@ -65,10 +65,19 @@ export default function CheckoutScreen() {
     discountAmount,
     giftWrap,
     donationAmount,
+    needGstInvoice,
+    gstin,
+    gstBusinessName,
+    tryAndBuySlotExpiresAt,
     applyCoupon,
     removeCoupon,
     toggleGiftWrap,
     setDonation,
+    setNeedGstInvoice,
+    setGstin,
+    setGstBusinessName,
+    fetchCart,
+    syncGuestCartToServer,
     removeItem,
     updateQuantity,
     addItem,
@@ -78,6 +87,7 @@ export default function CheckoutScreen() {
     clearBuyNowItem,
     updateBuyNowQuantity,
   } = useCartStore();
+  const { activeCoupons, fetchCoupons, darkStores, fetchDarkStores } = useCatalogStore();
 
   const { mode } = useLocalSearchParams<{ mode?: string }>();
   const isBuyNowMode = mode === 'buyNow' && Boolean(buyNowItem);
@@ -95,7 +105,7 @@ export default function CheckoutScreen() {
     return items;
   }, [isBuyNowMode, buyNowItem, items]);
 
-  // Pricing calculations: strictly isolated to checkoutItems
+  // Pricing calculations: strictly isolated to checkoutItems (MRP is GST-inclusive -> taxes = 0)
   const activeItemTotal = useMemo(() => {
     if (isBuyNowMode && buyNowItem) {
       return buyNowItem.price * buyNowItem.quantity;
@@ -103,12 +113,7 @@ export default function CheckoutScreen() {
     return itemTotal;
   }, [isBuyNowMode, buyNowItem, itemTotal]);
 
-  const activeTaxes = useMemo(() => {
-    if (isBuyNowMode && buyNowItem) {
-      return Math.round(activeItemTotal * 0.05);
-    }
-    return taxes;
-  }, [isBuyNowMode, buyNowItem, activeItemTotal, taxes]);
+  const activeTaxes = 0;
 
   const activeDeliveryFee = useMemo(() => {
     if (isBuyNowMode && buyNowItem) {
@@ -126,7 +131,7 @@ export default function CheckoutScreen() {
     if (isBuyNowMode && buyNowItem) {
       return Math.max(
         0,
-        activeItemTotal - activeDiscountAmount + activeTaxes + activeDeliveryFee + activeGiftWrapFee + donationAmount,
+        activeItemTotal - activeDiscountAmount + activeDeliveryFee + activeGiftWrapFee + donationAmount,
       );
     }
     return grandTotal;
@@ -135,25 +140,37 @@ export default function CheckoutScreen() {
     buyNowItem,
     activeItemTotal,
     activeDiscountAmount,
-    activeTaxes,
     activeDeliveryFee,
     activeGiftWrapFee,
     donationAmount,
     grandTotal,
   ]);
 
-  const { addresses, selectedAddressId, setSelectedAddressId } = useAddressStore();
+  const { addresses, selectedAddressId, previewAddress, setSelectedAddressId, addAddress } = useAddressStore();
   const { checkout, isCheckingOut } = useOrderStore();
   const { isAuthenticated, user } = useAuthStore();
+
+  useEffect(() => {
+    if (activeCoupons.length === 0) {
+      fetchCoupons().catch(() => {});
+    }
+    if (darkStores.length === 0) {
+      fetchDarkStores().catch(() => {});
+    }
+    if (isAuthenticated && !isBuyNowMode) {
+      syncGuestCartToServer().catch(() => {});
+    }
+  }, [isAuthenticated, isBuyNowMode]);
 
   // Screen UI State
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
   const [selectedPaymentCategory, setSelectedPaymentCategory] = useState<'RAZORPAY' | 'COD'>('RAZORPAY');
   const [tryAndBuyEnabled, setTryAndBuyEnabled] = useState<boolean>(true);
-  const [selectedInstruction, setSelectedInstruction] = useState<string | null>('call');
+  const [selectedInstruction, setSelectedInstruction] = useState<string | null>('Call Before Delivery');
   const [isItemsExpanded, setIsItemsExpanded] = useState<boolean>(true);
   const [isAddressModalOpen, setIsAddressModalOpen] = useState<boolean>(false);
   const [isLocationModalOpen, setIsLocationModalOpen] = useState<boolean>(false);
+  const [gstinError, setGstinError] = useState<string | null>(null);
 
   // Coupon Input State
   const [couponInput, setCouponInput] = useState<string>('');
@@ -168,20 +185,49 @@ export default function CheckoutScreen() {
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [isProcessingPayment, setIsProcessingPayment] = useState<boolean>(false);
 
-  // Dark Store vs Vendor Invariant (strictly isolate DARK_STORE items in mixed bags)
+  // Selected Address & Serviceability (reactive to darkStores and address edits)
+  const selectedAddress = useMemo(() => {
+    return addresses.find((a) => a.id === selectedAddressId) || addresses[0] || previewAddress || null;
+  }, [addresses, selectedAddressId, previewAddress]);
+
+  const addressServiceability = useMemo(() => {
+    void darkStores;
+    return checkAddressServiceability(selectedAddress);
+  }, [selectedAddress, darkStores]);
+
+  // Dark Store vs Vendor Invariant & Try & Buy Eligibility
   const darkStoreItems = useMemo(() => {
     return checkoutItems.filter((it) => it.fulfillmentType === 'DARK_STORE');
   }, [checkoutItems]);
+  const eligibleDarkStoreItems = useMemo(() => {
+    return darkStoreItems.filter((it) => it.tryAndBuyEligible !== false && it.isTryAndBuy !== false);
+  }, [darkStoreItems]);
   const hasDarkStoreItems = darkStoreItems.length > 0;
   const hasMixedCart = hasDarkStoreItems && darkStoreItems.length < checkoutItems.length;
+  const hasIneligibleDarkStoreItem = hasDarkStoreItems && eligibleDarkStoreItems.length < darkStoreItems.length;
+  const isTryAndBuyEligible =
+    eligibleDarkStoreItems.length > 0 &&
+    !hasIneligibleDarkStoreItem &&
+    (!selectedAddress || addressServiceability.isServiceable);
+
+  const tryAndBuyDisabledReason = useMemo(() => {
+    if (!hasDarkStoreItems) return null;
+    if (hasIneligibleDarkStoreItem) {
+      return 'One or more Dark Store items in your bag are not eligible for Doorstep Try & Buy.';
+    }
+    if (selectedAddress && !addressServiceability.isServiceable) {
+      return `Doorstep Try & Buy is unavailable outside the ${(addressServiceability.maxRadiusKm ?? 3).toFixed(1)} km Express Hub radius.`;
+    }
+    return null;
+  }, [hasDarkStoreItems, hasIneligibleDarkStoreItem, selectedAddress, addressServiceability]);
 
   useEffect(() => {
-    if (!hasDarkStoreItems && checkoutItems.length > 0) {
+    if (!isTryAndBuyEligible) {
       setTryAndBuyEnabled(false);
-    } else if (hasDarkStoreItems) {
+    } else {
       setTryAndBuyEnabled(true);
     }
-  }, [hasDarkStoreItems, checkoutItems.length]);
+  }, [isTryAndBuyEligible]);
 
   // Toast State
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -255,10 +301,14 @@ export default function CheckoutScreen() {
       altText: deal.title,
       galleryImages: [deal.image],
       category: deal.category,
-      tryAndBuyEligible: Boolean(deal.tryAndBuyEligible),
+      tryAndBuyEligible: deal.tryAndBuyEligible !== false,
     };
-    await addItem(productPayload, deal.sizes[0] || 'M');
-    showToast(`Added ${deal.brand} to Bag!`);
+    const ok = await addItem(productPayload, deal.sizes[0] || 'M');
+    if (ok) {
+      showToast(`Added ${deal.brand} to Bag!`);
+    } else {
+      showToast('Could not update bag. Please try again.');
+    }
   }, [addItem, showToast]);
 
   const handleOpenProduct = useCallback((productId: string) => {
@@ -268,16 +318,7 @@ export default function CheckoutScreen() {
     });
   }, [router]);
 
-  // Selected Address & Serviceability
-  const selectedAddress = useMemo(() => {
-    return addresses.find((a) => a.id === selectedAddressId) || addresses[0];
-  }, [addresses, selectedAddressId]);
-
-  const addressServiceability = useMemo(() => {
-    return checkAddressServiceability(selectedAddress);
-  }, [selectedAddress]);
-
-  // Pricing calculations
+  // Pricing calculations (remove duplicate selectedAddress/addressServiceability definitions below)
   const totalMrp = useMemo(() => {
     return checkoutItems.reduce((acc, item) => {
       const orig = item.originalPrice && item.originalPrice > item.price ? item.originalPrice : Math.round(item.price * 1.35);
@@ -318,19 +359,50 @@ export default function CheckoutScreen() {
       return;
     }
 
+    let resolvedAddress = selectedAddress;
+    if (!resolvedAddress.id) {
+      try {
+        resolvedAddress = await addAddress({
+          label: resolvedAddress.label || 'Home',
+          recipientName: resolvedAddress.recipientName || user?.name || 'Affordz Customer',
+          recipientPhone: resolvedAddress.recipientPhone || user?.phone || '',
+          line1: resolvedAddress.line1 || resolvedAddress.locality || 'Delivery Location',
+          line2: resolvedAddress.line2,
+          locality: resolvedAddress.locality || resolvedAddress.city || 'Bengaluru',
+          city: resolvedAddress.city || 'Bengaluru',
+          state: resolvedAddress.state,
+          pincode: resolvedAddress.pincode || '560038',
+          latitude: resolvedAddress.latitude,
+          longitude: resolvedAddress.longitude,
+          isDefault: addresses.length === 0,
+        });
+      } catch {
+        setIsAddressModalOpen(true);
+        return;
+      }
+    }
+
     if (hasDarkStoreItems && !addressServiceability.isServiceable) {
       setPaymentError(
         addressServiceability.reason ||
           addressServiceability.statusText ||
-          '18-min Express Dark Store delivery is unavailable at this address. Please choose a serviceable address.',
+          '19-min Express Dark Store delivery is unavailable at this address. Please choose a serviceable address.',
       );
       return;
     }
 
+    const cleanGstin = gstin?.trim().toUpperCase() || '';
+    if (needGstInvoice && cleanGstin && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(cleanGstin)) {
+      const msg = 'Invalid GSTIN format. Please enter a valid 15-character GSTIN (e.g. 29AABCU9603R1ZM).';
+      setGstinError(msg);
+      setPaymentError(msg);
+      return;
+    }
+    setGstinError(null);
     setPaymentError(null);
 
     const isCod = selectedPaymentCategory === 'COD';
-    const effectiveTryAndBuy = hasDarkStoreItems && tryAndBuyEnabled;
+    const effectiveTryAndBuy = isTryAndBuyEligible && tryAndBuyEnabled;
     const isDark = hasDarkStoreItems;
     const isTry = effectiveTryAndBuy;
 
@@ -368,18 +440,18 @@ export default function CheckoutScreen() {
             pincode: selectedAddress.pincode,
           }
         : null,
-      recipientName: user?.name || 'Affordz Customer',
-      recipientPhone: user?.phone || '',
+      recipientName: selectedAddress?.recipientName || user?.name || 'Affordz Customer',
+      recipientPhone: selectedAddress?.recipientPhone || user?.phone || '',
       items: orderItemsSnapshot,
       etaText: isDark
-        ? (isTry ? '⚡ In 18 Minutes • Doorstep Try & Buy concierge' : '⚡ In 18 Minutes • Express Drop')
+        ? (isTry ? '⚡ In 19 Minutes • Doorstep Try & Buy concierge' : '⚡ In 19 Minutes • Express Drop')
         : '📦 In 2-4 Business Days • Insured Courier',
       paymentMethod: isCod ? 'Cash on Delivery (COD)' : 'Prepaid Online (Razorpay)',
       placedAt: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
     };
 
     const cartSignature = JSON.stringify({
-      addressId: selectedAddress.id,
+      addressId: resolvedAddress.id,
       paymentMethod: isCod ? 'COD' : 'RAZORPAY',
       couponCode: activeCouponCode || '',
       giftWrap: Boolean(giftWrap),
@@ -387,6 +459,9 @@ export default function CheckoutScreen() {
       isTryAndBuy: Boolean(effectiveTryAndBuy),
       isBuyNow: isBuyNowMode,
       deliveryInstructions: selectedInstruction || '',
+      needGstInvoice: Boolean(needGstInvoice),
+      customerGstin: cleanGstin,
+      gstBusinessName: gstBusinessName?.trim() || '',
       items: orderItemsSnapshot.map((i) => `${i.productId}:${i.size}:${i.quantity}`),
     });
 
@@ -402,11 +477,16 @@ export default function CheckoutScreen() {
     }
 
     setIsProcessingPayment(true);
+
+    if (!isBuyNowMode) {
+      await syncGuestCartToServer();
+    }
+
     let order: any = pendingCheckoutRef.current.order;
     if (!order || isCod) {
       try {
         order = await checkout({
-          addressId: selectedAddress.id,
+          addressId: resolvedAddress.id,
           paymentMethod: isCod ? 'COD' : 'RAZORPAY',
           couponCode: activeCouponCode || undefined,
           isTryAndBuy: effectiveTryAndBuy,
@@ -414,6 +494,9 @@ export default function CheckoutScreen() {
           giftWrap: Boolean(giftWrap),
           donationAmount: Number(donationAmount || 0),
           deliveryInstructions: selectedInstruction || undefined,
+          needGstInvoice: Boolean(needGstInvoice),
+          customerGstin: cleanGstin || undefined,
+          gstBusinessName: gstBusinessName?.trim() || undefined,
           idempotencyKey: pendingCheckoutRef.current.idempotencyKey,
           items: orderItemsSnapshot,
         });
@@ -429,7 +512,8 @@ export default function CheckoutScreen() {
 
     if (!order) {
       setIsProcessingPayment(false);
-      setPaymentError('Failed to initialize order with server. Please try again.');
+      const storeErr = useOrderStore.getState().error;
+      setPaymentError(storeErr || 'Failed to initialize order with server. Please try again.');
       return;
     }
 
@@ -575,6 +659,9 @@ export default function CheckoutScreen() {
         }
       }
     } catch (err: any) {
+      if (err?.status === 409 || err?.status === 404) {
+        pendingCheckoutRef.current = null;
+      }
       setPaymentError(
         err?.message || 'Payment initiation or verification failed. Your bag items are preserved.',
       );
@@ -626,29 +713,32 @@ export default function CheckoutScreen() {
       <View
         style={{
           paddingTop,
+          paddingBottom: 10,
           backgroundColor: 'rgba(250, 248, 245, 0.96)',
           borderBottomWidth: 1,
           borderBottomColor: '#E8E5DF',
           flexDirection: 'row',
           alignItems: 'center',
           justifyContent: 'space-between',
-          height: 60 + paddingTop,
+          gap: 10,
+          minHeight: 62 + paddingTop,
           paddingHorizontal: 16,
           zIndex: 20,
         }}
       >
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+        <View style={{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
           <AnimatedPressable
             onPress={() => {
-              if (isBuyNowMode) {
-                clearBuyNowItem();
-              }
               safeBack(router);
+              if (isBuyNowMode) {
+                setTimeout(() => clearBuyNowItem(), 0);
+              }
             }}
             style={{
-              width: 40,
-              height: 40,
-              borderRadius: 20,
+              width: 38,
+              height: 38,
+              borderRadius: 19,
+              flexShrink: 0,
               backgroundColor: '#FFFFFF',
               alignItems: 'center',
               justifyContent: 'center',
@@ -658,11 +748,16 @@ export default function CheckoutScreen() {
           >
             <ArrowLeft size={18} color="#1A1817" />
           </AnimatedPressable>
-          <View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'nowrap' }}>
               <EditorialText
-                text={isBuyNowMode ? 'Buy Now Checkout' : 'Shopping Bag'}
-                style={{ fontSize: 17, color: '#1A1817' }}
+                first={isBuyNowMode ? 'Buy Now ' : 'Shopping '}
+                second={isBuyNowMode ? 'Checkout' : 'Bag'}
+                fontSize={17}
+                lineHeight={22}
+                singleLine
+                numberOfLines={1}
+                style={{ flexShrink: 1, color: '#1A1817' }}
               />
               <View
                 style={{
@@ -670,6 +765,7 @@ export default function CheckoutScreen() {
                   paddingHorizontal: 7,
                   paddingVertical: 2,
                   borderRadius: 10,
+                  flexShrink: 0,
                 }}
               >
                 <Text
@@ -687,12 +783,13 @@ export default function CheckoutScreen() {
               </View>
             </View>
             <Text
+              numberOfLines={1}
               style={[
                 FontStyles.sansMedium,
                 {
                   fontSize: 10,
                   color: '#8A8580',
-                  letterSpacing: 0.8,
+                  letterSpacing: 0.7,
                   marginTop: 2,
                 },
               ]}
@@ -709,8 +806,9 @@ export default function CheckoutScreen() {
             flexDirection: 'row',
             alignItems: 'center',
             gap: 4,
+            flexShrink: 0,
             backgroundColor: '#F0ECE4',
-            paddingHorizontal: 10,
+            paddingHorizontal: 9,
             paddingVertical: 5,
             borderRadius: 20,
           }}
@@ -742,8 +840,10 @@ export default function CheckoutScreen() {
           gap: 16,
         }}
       >
-        {/* Flash Urgency Timer */}
-        <CartFlashUrgencyTimer />
+        {/* Reserved Try & Buy Slot Timer (only when eligible Dark Store items have Try & Buy enabled) */}
+        {isTryAndBuyEligible && tryAndBuyEnabled && (
+          <CartFlashUrgencyTimer expiresAt={tryAndBuySlotExpiresAt} />
+        )}
 
         {/* 1. Delivery Address Card */}
         <CartDeliveryAddressSection
@@ -786,6 +886,8 @@ export default function CheckoutScreen() {
         <CartTryBuySection
           hasDarkStoreItems={hasDarkStoreItems}
           hasMixedCart={hasMixedCart}
+          isEligible={isTryAndBuyEligible}
+          disabledReason={tryAndBuyDisabledReason}
           tryAndBuyEnabled={tryAndBuyEnabled}
           onToggleTryAndBuy={() => setTryAndBuyEnabled((v) => !v)}
         />
@@ -813,6 +915,7 @@ export default function CheckoutScreen() {
             couponInput={couponInput}
             setCouponInput={setCouponInput}
             couponFeedback={couponFeedback}
+            activeCoupons={activeCoupons}
             handleApplyCouponCode={handleApplyCouponCode}
             handleRemoveCoupon={handleRemoveCoupon}
           />
@@ -844,6 +947,19 @@ export default function CheckoutScreen() {
           deliveryFee={activeDeliveryFee}
           taxes={activeTaxes}
           finalPayable={finalPayable}
+          needGstInvoice={needGstInvoice}
+          onToggleGstInvoice={() => {
+            setNeedGstInvoice(!needGstInvoice);
+            setGstinError(null);
+          }}
+          gstin={gstin}
+          onChangeGstin={(value) => {
+            setGstin(value);
+            if (gstinError) setGstinError(null);
+          }}
+          gstBusinessName={gstBusinessName}
+          onChangeGstBusinessName={setGstBusinessName}
+          gstinError={gstinError}
           formatPrice={formatPrice}
         />
 

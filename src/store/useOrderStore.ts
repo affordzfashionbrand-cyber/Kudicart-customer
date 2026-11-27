@@ -10,7 +10,7 @@ import {
 } from '@/services/api';
 import type { CheckoutResponseContract, OrderStatus } from '@/contracts/order-contracts';
 import { useCartStore } from './useCartStore';
-import { registerAuthLogoutReset } from './useAuthStore';
+import { registerAuthLoginCallback, registerAuthLogoutReset } from './useAuthStore';
 
 export function isOrderItemEligibleForReview(
   order: OrderModel | null | undefined,
@@ -85,7 +85,7 @@ interface OrderState {
     orderId: string,
     selections: Record<string, 'KEEP' | 'RETURN'>,
   ) => Promise<OrderModel>;
-  fetchTracking: (orderId: string) => Promise<TrackingModel | null>;
+  fetchTracking: (orderId: string, signal?: AbortSignal) => Promise<TrackingModel | null>;
   updateLiveLocation: (orderId: string, location: any, route?: any) => void;
   updateLiveStatus: (orderId: string, status: OrderStatus | string) => void;
   updateLiveArrival: (orderId: string, arrivedAt?: string, payload?: any) => void;
@@ -226,6 +226,7 @@ export const useOrderStore = create<OrderState>((set, get) => ({
         state.activeTracking?.orderId === orderId
           ? {
               ...state.activeTracking,
+              items: updated.items || state.activeTracking.items,
               tryAndBuySession: updated.tryAndBuySession,
             }
           : state.activeTracking,
@@ -233,9 +234,9 @@ export const useOrderStore = create<OrderState>((set, get) => ({
     return updated;
   },
 
-  fetchTracking: async (orderId: string) => {
+  fetchTracking: async (orderId: string, signal?: AbortSignal) => {
     try {
-      const tracking = await ordersApi.trackOrder(orderId);
+      const tracking = await ordersApi.trackOrder(orderId, signal);
       if (tracking) {
         const existing = get().orders.find(
           (o) => o.id === tracking.orderId || o.orderNumber === tracking.orderNumber,
@@ -244,6 +245,7 @@ export const useOrderStore = create<OrderState>((set, get) => ({
           ...(existing || ({} as OrderModel)),
           id: tracking.orderId,
           orderNumber: tracking.orderNumber,
+          fulfillmentType: tracking.fulfillmentType || existing?.fulfillmentType,
           customerId: existing?.customerId || '',
           status: tracking.status,
           paymentMethod: (tracking.paymentMethod as any) || existing?.paymentMethod || 'COD',
@@ -277,6 +279,7 @@ export const useOrderStore = create<OrderState>((set, get) => ({
             trialSize: it.trialSize,
             fulfillmentType: it.fulfillmentType,
             isTryAndBuy: it.isTryAndBuy,
+            tryAndBuyDecision: it.tryAndBuyDecision,
           })),
           driver: tracking.driver || existing?.driver || undefined,
         };
@@ -302,7 +305,11 @@ export const useOrderStore = create<OrderState>((set, get) => ({
       }
       return tracking;
     } catch (err: any) {
-      console.warn('Error fetching live order tracking:', err?.message || err);
+      const msg = String(err?.message || err || '');
+      if (err?.isAborted || err?.status === 408 || /abort|cancel|timeout/i.test(msg)) {
+        return null;
+      }
+      console.warn('Error fetching live order tracking:', msg);
       return null;
     }
   },
@@ -314,9 +321,16 @@ export const useOrderStore = create<OrderState>((set, get) => ({
       if (!state.activeTracking || state.activeTracking.orderId !== orderId) {
         return state;
       }
+      const nextEta =
+        typeof route?.durationMinutes === 'number'
+          ? route.durationMinutes
+          : typeof location?.etaMinutes === 'number'
+            ? location.etaMinutes
+            : state.activeTracking.etaMinutes;
       return {
         activeTracking: {
           ...state.activeTracking,
+          etaMinutes: nextEta,
           driver: state.activeTracking.driver
             ? {
                 ...state.activeTracking.driver,
@@ -326,6 +340,13 @@ export const useOrderStore = create<OrderState>((set, get) => ({
             : null,
           route: route !== undefined ? route : state.activeTracking.route,
         },
+        activeOrder:
+          state.activeOrder?.id === orderId
+            ? { ...state.activeOrder, etaMinutes: nextEta }
+            : state.activeOrder,
+        orders: state.orders.map((o) =>
+          o.id === orderId ? { ...o, etaMinutes: nextEta } : o,
+        ),
       };
     });
   },
@@ -456,4 +477,8 @@ export const useOrderStore = create<OrderState>((set, get) => ({
 
 registerAuthLogoutReset(() => {
   useOrderStore.getState().resetOrders();
+});
+
+registerAuthLoginCallback(() => {
+  useOrderStore.getState().fetchOrders().catch(() => {});
 });

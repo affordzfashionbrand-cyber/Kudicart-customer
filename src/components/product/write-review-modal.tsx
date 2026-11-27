@@ -51,7 +51,7 @@ const PRAISE_TAGS = [
   'Crisp Handloom Texture',
   'Rich Golden Zari',
   'Flattering Drape',
-  '18-Min Quick Drop',
+  '19-Min Quick Drop',
   'Breathable Fabric',
   'Perfect Blouse Piece',
   'Neat Finishing',

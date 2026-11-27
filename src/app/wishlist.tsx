@@ -16,8 +16,12 @@ export default function WishlistScreen() {
   const insets = useSafeAreaInsets();
   const paddingTop = Platform.OS === 'android' ? insets.top + 10 : insets.top;
 
-  const { products: storeProducts } = useCatalogStore();
-  const { wishlist: storeWishlist, toggleWishlist, addItem } = useCartStore();
+  const { products: storeProducts, isLoading: catalogLoading } = useCatalogStore();
+  const { wishlist: storeWishlist, removeFromWishlist, addItem, hydrateWishlist } = useCartStore();
+
+  React.useEffect(() => {
+    void hydrateWishlist();
+  }, [hydrateWishlist]);
 
   // Active products catalog
   const activeProducts = useMemo<ProductItem[]>(() => {
@@ -33,9 +37,12 @@ export default function WishlistScreen() {
             old: p.originalPrice || Math.round(p.price * 1.3),
             rating: String(p.rating || '4.8'),
             category: p.category || 'Women',
-            wear: (p as any).wear || 'Tops',
+            wear: (p as any).wear || p.category || 'Tops',
             image: p.image || (p.galleryImages && p.galleryImages[0]) || '',
-          });
+            fulfillmentType: (p as any).fulfillmentType,
+            sizes: Array.isArray((p as any).sizes) ? (p as any).sizes : ['S', 'M', 'L'],
+            stockQuantity: (p as any).stockQuantity,
+          } as any);
         }
       });
     }
@@ -44,36 +51,39 @@ export default function WishlistScreen() {
 
   // Wishlist products
   const wishlistProducts = useMemo(() => {
-    return activeProducts.filter((product) => storeWishlist.includes(String(product.id)));
+    const normalizedSet = new Set(storeWishlist.map((id) => String(id)));
+    return activeProducts.filter((product) => normalizedSet.has(String(product.id)));
   }, [activeProducts, storeWishlist]);
 
   const handleBag = useCallback(
-    (productId: string | number) => {
-      const product = activeProducts.find((p) => String(p.id) === String(productId));
+    (productId: string | number, selectedSize?: string) => {
+      const product: any = activeProducts.find((p) => String(p.id) === String(productId));
       if (!product) return;
+      const productSizes = Array.isArray(product.sizes) && product.sizes.length > 0 ? product.sizes : ['M'];
+      const chosenSize = selectedSize && productSizes.includes(selectedSize)
+        ? selectedSize
+        : (selectedSize || productSizes[0] || 'M');
       addItem(
         {
           id: String(product.id),
           brand: product.brand,
           title: product.name,
-          description: '',
+          description: product.description || '',
           price: product.price,
           originalPrice: product.old || product.price,
           discount: '',
           rating: Number(product.rating) || 4.8,
-          reviewsCount: Number((product as any).reviewsCount) || 0,
-          stockQuantity: typeof (product as any).stockQuantity === 'number' ? (product as any).stockQuantity : 1,
-          readyToShip: (product as any).readyToShip !== false,
-          sizes:
-            Array.isArray((product as any).sizes) && (product as any).sizes.length > 0
-              ? (product as any).sizes
-              : ['M'],
+          reviewsCount: Number(product.reviewsCount) || 0,
+          stockQuantity: typeof product.stockQuantity === 'number' ? product.stockQuantity : 1,
+          readyToShip: product.readyToShip !== false,
+          sizes: productSizes,
           image: product.image,
           altText: product.name,
           galleryImages: [product.image],
           category: product.category,
+          fulfillmentType: product.fulfillmentType,
         },
-        'M',
+        chosenSize,
         'Default',
         1
       );
@@ -132,8 +142,9 @@ export default function WishlistScreen() {
       <WishlistView
         products={wishlistProducts}
         allProducts={activeProducts}
+        isLoading={catalogLoading}
         onBag={handleBag}
-        onWishlist={(id) => toggleWishlist(String(id))}
+        onWishlist={(id) => removeFromWishlist(String(id))}
         onOpen={handleOpenProduct}
         onExplore={() => router.push('/')}
         onGoToBag={() => router.push('/cart')}

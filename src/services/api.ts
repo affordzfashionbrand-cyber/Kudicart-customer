@@ -117,8 +117,39 @@ export async function request<T>(
     ...((options.headers as Record<string, string>) || {}),
   };
 
+  const timeoutMs =
+    endpoint.includes('/orders/checkout') || endpoint.includes('/payments/')
+      ? 25000
+      : 15000;
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 6000);
+  const timeoutId = setTimeout(() => {
+    try {
+      controller.abort(new Error(`Request timed out after ${Math.round(timeoutMs / 1000)}s`));
+    } catch {
+      controller.abort();
+    }
+  }, timeoutMs);
+
+  let externalAbortCleanup: (() => void) | null = null;
+  if (options.signal) {
+    if (options.signal.aborted) {
+      try {
+        controller.abort((options.signal as any).reason || new Error('Request aborted by caller'));
+      } catch {
+        controller.abort();
+      }
+    } else {
+      const onExternalAbort = () => {
+        try {
+          controller.abort((options.signal as any)?.reason || new Error('Request aborted by caller'));
+        } catch {
+          controller.abort();
+        }
+      };
+      options.signal.addEventListener('abort', onExternalAbort, { once: true });
+      externalAbortCleanup = () => options.signal?.removeEventListener('abort', onExternalAbort);
+    }
+  }
 
   try {
     const res = await fetch(url, {
@@ -127,6 +158,7 @@ export async function request<T>(
       signal: controller.signal,
     });
     clearTimeout(timeoutId);
+    externalAbortCleanup?.();
 
     if (!res.ok) {
       if (res.status === 401) {
@@ -182,13 +214,20 @@ export async function request<T>(
     return JSON.parse(text) as T;
   } catch (error: any) {
     clearTimeout(timeoutId);
+    externalAbortCleanup?.();
+    const errMsg = typeof error === 'string' ? error : String(error?.message || error || '');
     const isAborted =
       error?.name === 'AbortError' ||
-      error?.message?.includes('canceled') ||
-      error?.message?.includes('aborted');
-    if (!isAborted) {
-      console.warn(`[Affordz API] ${endpoint} request error:`, error?.message || error);
+      /abort|cancel|timeout/i.test(errMsg);
+    if (isAborted) {
+      const abortErr = createApiError(
+        'Request timed out or was cancelled. Please check your connection and try again.',
+        408,
+      ) as ApiError & { isAborted?: boolean };
+      abortErr.isAborted = true;
+      throw abortErr;
     }
+    console.warn(`[Affordz API] ${endpoint} request error:`, errMsg);
     throw error;
   }
 }
@@ -363,8 +402,10 @@ export interface ApiProduct {
   altText: string;
   galleryImages: string[];
   category: string;
+  categoryId?: string | null;
   gender?: string;
   wear?: string;
+  tags?: string[];
   fulfillmentType?: 'DARK_STORE' | 'VENDOR';
   darkStoreHubId?: string;
   darkStoreHub?: { id: string; name: string; locality: string; deliveryMinutes: number };
@@ -512,6 +553,7 @@ export interface CartItemModel {
   size: string;
   trialSize?: string | null;
   isTryAndBuy?: boolean;
+  tryAndBuyEligible?: boolean;
   fulfillmentType?: 'DARK_STORE' | 'VENDOR';
   darkStoreHub?: any;
   color?: string | null;
@@ -760,6 +802,10 @@ export interface OrderModel {
   discountAmount?: number;
   couponCode?: string | null;
   isTryAndBuy?: boolean;
+  deliveryInstructions?: string | null;
+  needGstInvoice?: boolean;
+  customerGstin?: string | null;
+  gstBusinessName?: string | null;
   isArrived?: boolean;
   arrivedAt?: string | null;
   handoverOtp?: string;
@@ -798,6 +844,8 @@ export interface TrackingModel {
   orderId: string;
   orderNumber: string;
   version?: number;
+  fulfillmentType?: string;
+  hubName?: string;
   status: OrderStatus;
   trackingActive?: boolean;
   isArrived?: boolean;
@@ -887,7 +935,65 @@ export interface CheckoutPayload {
   giftWrap?: boolean;
   donationAmount?: number;
   deliveryInstructions?: string;
+  needGstInvoice?: boolean;
+  customerGstin?: string;
+  gstBusinessName?: string;
   idempotencyKey?: string;
+}
+
+export interface OrderInvoiceModel {
+  invoiceNumber: string;
+  invoiceDate: string;
+  orderId: string;
+  orderNumber: string;
+  paymentMethod: string;
+  paymentStatus: string;
+  mrpGstInclusive: boolean;
+  seller: {
+    name: string;
+    address: string;
+    gstin: string;
+    placeOfSupply: string;
+  };
+  buyer: {
+    name: string;
+    phone: string | null;
+    address: string;
+    needGstInvoice: boolean;
+    gstin: string | null;
+    businessName: string | null;
+  };
+  items: Array<{
+    id: string;
+    productId: string;
+    title: string;
+    brand: string;
+    size: string;
+    hsnCode: string;
+    quantity: number;
+    unitMrp: number;
+    lineGross: number;
+    taxableValue: number;
+    cgstRate: number;
+    cgstAmount: number;
+    sgstRate: number;
+    sgstAmount: number;
+    totalGst: number;
+  }>;
+  totals: {
+    itemTotal: number;
+    discountAmount: number;
+    couponCode: string | null;
+    deliveryFee: number;
+    giftWrapFee: number;
+    donationAmount: number;
+    taxableSubtotal: number;
+    cgstTotal: number;
+    sgstTotal: number;
+    totalGstIncluded: number;
+    grandTotal: number;
+  };
+  html: string;
 }
 
 function mapRawOrder(raw: any): OrderModel {
@@ -940,6 +1046,9 @@ export const ordersApi = {
       giftWrap: Boolean(rawPayload.giftWrap),
       donationAmount: Number(rawPayload.donationAmount || 0),
       deliveryInstructions: rawPayload.deliveryInstructions || undefined,
+      needGstInvoice: Boolean(rawPayload.needGstInvoice),
+      customerGstin: rawPayload.customerGstin?.trim() || undefined,
+      gstBusinessName: rawPayload.gstBusinessName?.trim() || undefined,
       items: rawPayload.items?.map((it: any) => ({
         productId: it.productId || it.id,
         title: it.title,
@@ -985,7 +1094,7 @@ export const ordersApi = {
         deliveryFee: res.deliveryFeeTotal,
         taxAmount: res.taxesTotal,
         grandTotal: res.grandTotal,
-        etaMinutes: 18,
+        etaMinutes: 19,
         razorpayOrderId: res.razorpayOrderId,
         razorpayKeyId: gatewayKeyId,
         checkoutGroupId: res.checkoutGroupId,
@@ -1060,17 +1169,24 @@ export const ordersApi = {
     return mapRawOrder(res?.order || res);
   },
 
-  trackOrder: async (orderId: string): Promise<TrackingModel> => {
+  trackOrder: async (orderId: string, signal?: AbortSignal): Promise<TrackingModel> => {
     const res = await request<any>(
       `/api/v1/orders/${encodeURIComponent(orderId)}/track`,
+      signal ? { signal } : {},
     );
     return {
       ...res,
       deliveryCoordinates: res.deliveryCoordinates || res.customerCoords || undefined,
+      pickupCoordinates: res.pickupCoordinates || undefined,
       driver: res.driver
         ? {
             ...res.driver,
-            vehicle: res.driver.vehicle || res.driver.vehicleRegistration || '',
+            vehicle:
+              res.driver.vehicle ||
+              (res.driver.vehicleRegistration
+                ? `${res.driver.vehicleType || 'EV'} (${res.driver.vehicleRegistration})`
+                : res.driver.vehicleType || ''),
+            rating: typeof res.driver.rating === 'number' ? res.driver.rating : null,
             currentLocation: res.driver.currentLocation || res.driverLocation || null,
           }
         : null,
@@ -1080,6 +1196,12 @@ export const ordersApi = {
   getOrderRoute: async (orderId: string): Promise<any> => {
     return await request<any>(
       `/api/v1/orders/${encodeURIComponent(orderId)}/route`,
+    );
+  },
+
+  getInvoice: async (orderId: string): Promise<OrderInvoiceModel> => {
+    return await request<OrderInvoiceModel>(
+      `/api/v1/orders/${encodeURIComponent(orderId)}/invoice`,
     );
   },
 };
@@ -1258,6 +1380,7 @@ export interface HomeLayoutBanner {
   tag?: string | null;
   title1: string;
   title2?: string | null;
+  discountText?: string | null;
   imageUrl: string;
   mobileImageUrl?: string | null;
   targetGender: string;
@@ -1267,6 +1390,9 @@ export interface HomeLayoutBanner {
   categoryName?: string | null;
   productId?: string | null;
   productTitle?: string | null;
+  vendorId?: string | null;
+  vendorName?: string | null;
+  status?: 'PENDING' | 'APPROVED' | 'REJECTED';
   displayOrder: number;
 }
 

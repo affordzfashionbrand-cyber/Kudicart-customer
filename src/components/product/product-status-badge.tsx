@@ -4,7 +4,8 @@ import { View, Text } from 'react-native';
 interface ProductStatusBadgeProps {
   isDarkStoreProduct: boolean;
   brand: string;
-  darkStoreName?: string;
+  darkStoreName?: string | null;
+  vendorName?: string | null;
   distanceKm?: number;
 }
 
@@ -12,8 +13,13 @@ export function ProductStatusBadge({
   isDarkStoreProduct,
   brand,
   darkStoreName = 'Affordz Express Hub',
-  distanceKm = 1.2,
+  vendorName,
+  distanceKm,
 }: ProductStatusBadgeProps) {
+  const distanceLabel = typeof distanceKm === 'number' && Number.isFinite(distanceKm)
+    ? ` (${distanceKm.toFixed(1)} km)`
+    : '';
+
   return (
     <View
       style={{
@@ -36,11 +42,12 @@ export function ProductStatusBadge({
             borderRadius: 14,
             borderWidth: 1,
             borderColor: '#E8E5DF',
+            flexShrink: 1,
           }}
         >
           <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#22C55E' }} />
-          <Text style={{ fontSize: 9.5, fontWeight: '800', color: '#111111', textTransform: 'uppercase' }}>
-            {brand} • {darkStoreName} ({distanceKm} km)
+          <Text numberOfLines={1} style={{ fontSize: 9.5, fontWeight: '800', color: '#111111', textTransform: 'uppercase' }}>
+            {brand} • {darkStoreName || 'Express Hub'}{distanceLabel}
           </Text>
         </View>
       ) : (
@@ -55,11 +62,12 @@ export function ProductStatusBadge({
             borderRadius: 14,
             borderWidth: 1,
             borderColor: '#E8E5DF',
+            flexShrink: 1,
           }}
         >
           <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#D4AF37' }} />
-          <Text style={{ fontSize: 9.5, fontWeight: '800', color: '#111111', textTransform: 'uppercase' }}>
-            Boutique Collective • Made to Order
+          <Text numberOfLines={1} style={{ fontSize: 9.5, fontWeight: '800', color: '#111111', textTransform: 'uppercase' }}>
+            {brand}{vendorName ? ` • ${vendorName}` : ''}
           </Text>
         </View>
       )}
@@ -70,10 +78,11 @@ export function ProductStatusBadge({
           paddingHorizontal: 8,
           paddingVertical: 4,
           borderRadius: 10,
+          marginLeft: 8,
         }}
       >
         <Text style={{ fontSize: 9, fontWeight: '900', color: '#FFFFFF', letterSpacing: 0.8 }}>
-          {isDarkStoreProduct ? 'RUNWAY VAULT' : 'EXCLUSIVE'}
+          {isDarkStoreProduct ? '19M EXPRESS' : 'DIRECT DISPATCH'}
         </Text>
       </View>
     </View>

@@ -10,16 +10,18 @@ import {
   Tag,
 } from 'lucide-react-native';
 import { AnimatedPressable } from '@/components/common/animated-pressable';
+import { ProductCard } from '@/components/common/product-card';
+import { ProductCardSkeleton } from '@/components/common/skeleton';
 import { EditorialText } from '@/components/common/section-title';
 import { ProductItem, formatPrice } from '@/data/homeData';
-import { WishlistItemCard } from '@/components/wishlist/wishlist-item-card';
-import { WishlistEmptyState } from '@/components/wishlist/wishlist-empty-state';
 import { Fonts, FontStyles } from '@/constants/theme';
+import { WishlistEmptyState } from '@/components/wishlist/wishlist-empty-state';
 
 export interface WishlistViewProps {
   products: ProductItem[];
   allProducts?: ProductItem[];
-  onBag: (id: string | number) => void;
+  isLoading?: boolean;
+  onBag: (id: string | number, size?: string) => void;
   onWishlist: (id: string | number) => void;
   onOpen: (product: any) => void;
   onExplore: () => void;
@@ -31,6 +33,7 @@ type FilterCategory = 'ALL' | 'WOMEN' | 'MEN' | 'EXPRESS' | 'DEALS';
 export const WishlistView = React.memo(function WishlistView({
   products,
   allProducts = [],
+  isLoading = false,
   onBag,
   onWishlist,
   onOpen,
@@ -89,26 +92,37 @@ export const WishlistView = React.memo(function WishlistView({
 
   // Actions
   const handleMoveToBag = useCallback(
-    (product: ProductItem) => {
-      onBag(product.id);
+    (product: ProductItem, sizeOverride?: string) => {
+      const chosenSize =
+        sizeOverride ||
+        selectedSizes[String(product.id)] ||
+        (Array.isArray((product as any).sizes) && (product as any).sizes[0]) ||
+        'M';
+      onBag(product.id, chosenSize);
       setMovedToBagMap((prev) => ({ ...prev, [String(product.id)]: true }));
       setTimeout(() => {
         setMovedToBagMap((prev) => ({ ...prev, [String(product.id)]: false }));
       }, 1600);
     },
-    [onBag]
+    [onBag, selectedSizes]
   );
 
   const handleMoveAllToBag = useCallback(() => {
     if (products.length === 0 || isMovingAll) return;
     setIsMovingAll(true);
-    products.forEach((p) => onBag(p.id));
+    products.forEach((p) => {
+      const chosenSize =
+        selectedSizes[String(p.id)] ||
+        (Array.isArray((p as any).sizes) && (p as any).sizes[0]) ||
+        'M';
+      onBag(p.id, chosenSize);
+    });
     setAllMovedSuccess(true);
     setTimeout(() => {
       setIsMovingAll(false);
       setAllMovedSuccess(false);
     }, 2000);
-  }, [products, onBag, isMovingAll]);
+  }, [products, onBag, isMovingAll, selectedSizes]);
 
   const handleSelectSize = useCallback((productId: string | number, size: string) => {
     setSelectedSizes((prev) => ({ ...prev, [String(productId)]: size }));
@@ -170,7 +184,15 @@ export const WishlistView = React.memo(function WishlistView({
           </View>
         </View>
 
-        {products.length > 0 ? (
+        {isLoading && products.length === 0 ? (
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
+            {[1, 2, 3, 4].map((idx) => (
+              <View key={`wish-skel-${idx}`} style={{ width: '48%', marginBottom: 18 }}>
+                <ProductCardSkeleton cardWidth={165} />
+              </View>
+            ))}
+          </View>
+        ) : products.length > 0 ? (
           <>
             {/* Valuation Summary Bar */}
             <View
@@ -255,7 +277,7 @@ export const WishlistView = React.memo(function WishlistView({
                   { id: 'ALL', label: `All (${products.length})` },
                   ...(womenCount > 0 ? [{ id: 'WOMEN', label: `Women (${womenCount})` }] : []),
                   ...(menCount > 0 ? [{ id: 'MEN', label: `Men (${menCount})` }] : []),
-                  { id: 'EXPRESS', label: '⚡ 18M Express Drop' },
+                  { id: 'EXPRESS', label: '⚡ 19M Express Drop' },
                   ...(dealsCount > 0 ? [{ id: 'DEALS', label: `Deals (${dealsCount})` }] : []),
                 ].map((chip) => {
                   const isSelected = activeFilter === chip.id;
@@ -292,19 +314,27 @@ export const WishlistView = React.memo(function WishlistView({
 
             {/* Product Cards Grid */}
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
-              {filteredProducts.map((product) => (
-                <View key={product.id} style={{ width: '48.5%', marginBottom: 14 }}>
-                  <WishlistItemCard
-                    product={product}
-                    selectedSize={selectedSizes[String(product.id)] || 'M'}
-                    isMovedToBag={Boolean(movedToBagMap[String(product.id)])}
-                    onSelectSize={handleSelectSize}
-                    onMoveToBag={handleMoveToBag}
-                    onRemove={onWishlist}
-                    onOpen={onOpen}
-                  />
-                </View>
-              ))}
+              {filteredProducts.map((product) => {
+                const productSizes =
+                  Array.isArray((product as any).sizes) && (product as any).sizes.length > 0
+                    ? (product as any).sizes
+                    : ['S', 'M', 'L', 'XL'];
+                return (
+                  <View key={product.id} style={{ width: '48%', marginBottom: 18 }}>
+                    <ProductCard
+                      product={product}
+                      wished={true}
+                      sizes={productSizes}
+                      selectedSize={selectedSizes[String(product.id)] || productSizes[0]}
+                      onSelectSize={handleSelectSize}
+                      isAddedToBag={Boolean(movedToBagMap[String(product.id)])}
+                      onWishlist={onWishlist}
+                      onBag={(id, sz) => handleMoveToBag(product, sz)}
+                      onOpen={onOpen}
+                    />
+                  </View>
+                );
+              })}
             </View>
           </>
         ) : (
@@ -365,7 +395,7 @@ export const WishlistView = React.memo(function WishlistView({
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[FontStyles.sansBold, { fontSize: 11.5, fontWeight: '800', color: '#111111' }]}>
-                  18-Minute Express Try & Buy
+                  19-Minute Express Try & Buy
                 </Text>
                 <Text style={[FontStyles.sansRegular, { fontSize: 10.5, color: '#71717A', lineHeight: 14 }]}>
                   Dispatched in minutes from hyper-local temperature-controlled dark stores.

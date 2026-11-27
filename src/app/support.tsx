@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   KeyboardAvoidingView,
   BackHandler,
   Alert,
+  RefreshControl,
 } from 'react-native';
 import {
   ArrowLeft,
@@ -25,6 +26,7 @@ import {
   SupportTicketCategory,
   SupportTicketPriority,
 } from '@/store/useSupportStore';
+import { useOrderStore } from '@/store/useOrderStore';
 import { safeBack } from '@/utils/navigation';
 import { Fonts, FontStyles } from '@/constants/theme';
 import { AnimatedPressable } from '@/components/common/animated-pressable';
@@ -69,14 +71,30 @@ export default function SupportScreen() {
   const paddingTop = Platform.OS === 'android' ? insets.top + 10 : insets.top;
 
   const { tickets, createTicket, fetchTickets, isLoading } = useSupportStore();
+  const orders = useOrderStore((s) => s.orders);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const matchedOrderNumber = useMemo(() => {
+    if (!params.orderId) return undefined;
+    const match = orders.find((o) => o.id === params.orderId || o.orderNumber === params.orderId);
+    return match?.orderNumber || params.orderId;
+  }, [orders, params.orderId]);
 
   const [selectedCategory, setSelectedCategory] = useState<SupportTicketCategory>(() =>
     resolveSupportCategory(params.category),
   );
   const [selectedPriority, setSelectedPriority] = useState<SupportTicketPriority>('NORMAL');
-  const [subject, setSubject] = useState(params.orderId ? `Inquiry regarding Drop #${params.orderId}` : '');
+  const [subject, setSubject] = useState(
+    matchedOrderNumber ? `Inquiry regarding Drop #${matchedOrderNumber}` : '',
+  );
   const [message, setMessage] = useState('');
   const [submitted, setSubmitted] = useState(false);
+
+  const onRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    await fetchTickets();
+    setIsRefreshing(false);
+  }, [fetchTickets]);
 
   useEffect(() => {
     if (params.category) {
@@ -144,10 +162,24 @@ export default function SupportScreen() {
           </Text>
 
           <AnimatedPressable
-            style={{ width: '100%', backgroundColor: '#111111', borderRadius: 999, paddingVertical: 14, alignItems: 'center', justifyContent: 'center' }}
-            onPress={() => safeBack(router, '/')}
+            style={{ width: '100%', backgroundColor: '#111111', borderRadius: 999, paddingVertical: 14, alignItems: 'center', justifyContent: 'center', marginBottom: 10 }}
+            onPress={() => {
+              setSubmitted(false);
+              setSubject('');
+              setMessage('');
+              void fetchTickets();
+            }}
           >
             <Text style={[FontStyles.sansBold, { fontSize: 12, fontWeight: '900', color: '#FFFFFF', letterSpacing: 1, textTransform: 'uppercase' }]}>
+              VIEW MY TICKETS
+            </Text>
+          </AnimatedPressable>
+
+          <AnimatedPressable
+            style={{ width: '100%', backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#D9D9D5', borderRadius: 999, paddingVertical: 14, alignItems: 'center', justifyContent: 'center' }}
+            onPress={() => safeBack(router, '/')}
+          >
+            <Text style={[FontStyles.sansBold, { fontSize: 12, fontWeight: '900', color: '#111111', letterSpacing: 1, textTransform: 'uppercase' }]}>
               BACK TO EXPLORE
             </Text>
           </AnimatedPressable>
@@ -203,6 +235,14 @@ export default function SupportScreen() {
         overScrollMode="never"
         keyboardShouldPersistTaps="handled"
         decelerationRate="normal"
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={onRefresh}
+            tintColor="#FF5A1F"
+            colors={['#FF5A1F']}
+          />
+        }
       >
         <View style={{ paddingTop: 18, paddingBottom: 14 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 3 }}>
@@ -231,7 +271,7 @@ export default function SupportScreen() {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={[FontStyles.sansBold, { fontSize: 11.5, fontWeight: '900', color: '#C2410C', textTransform: 'uppercase' }]}>
-                LINKED TO DROP #{params.orderId}
+                LINKED TO DROP #{matchedOrderNumber}
               </Text>
               <Text style={[FontStyles.sansRegular, { fontSize: 10.5, color: '#9A3412', marginTop: 1 }]}>
                 Our team has immediate access to your order items and assigned delivery partner.
@@ -468,9 +508,23 @@ export default function SupportScreen() {
                     </Text>
                   ) : null}
                   {t.resolutionRemarks ? (
-                    <View style={{ marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: '#F4F1EA' }}>
-                      <Text style={[FontStyles.sansBold, { fontSize: 10.5, fontWeight: '800', color: '#065F46' }]}>
-                        Resolution: {t.resolutionRemarks}
+                    <View
+                      style={{
+                        marginTop: 8,
+                        paddingTop: 8,
+                        borderTopWidth: 1,
+                        borderTopColor: '#F4F1EA',
+                        backgroundColor: '#F0FDF4',
+                        borderRadius: 10,
+                        paddingHorizontal: 10,
+                        paddingBottom: 8,
+                      }}
+                    >
+                      <Text style={[FontStyles.sansBold, { fontSize: 10, fontWeight: '900', color: '#065F46', textTransform: 'uppercase', letterSpacing: 0.6 }]}>
+                        Concierge Response
+                      </Text>
+                      <Text style={[FontStyles.sansMedium, { fontSize: 11.5, color: '#111111', marginTop: 2, lineHeight: 16 }]}>
+                        {t.resolutionRemarks}
                       </Text>
                     </View>
                   ) : null}

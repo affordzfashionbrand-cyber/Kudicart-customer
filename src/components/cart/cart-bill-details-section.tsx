@@ -1,6 +1,6 @@
 import React from 'react';
-import { View, Text, Pressable } from 'react-native';
-import { Gift, Check, Heart, ShieldCheck, RotateCcw, Lock } from 'lucide-react-native';
+import { View, Text, Pressable, TextInput } from 'react-native';
+import { Gift, Check, Heart, ShieldCheck, RotateCcw, Lock, FileText } from 'lucide-react-native';
 import { AnimatedPriceTicker } from '@/components/common/animated-price-ticker';
 
 export interface CartBillDetailsSectionProps {
@@ -11,12 +11,19 @@ export interface CartBillDetailsSectionProps {
   toggleGiftWrap: () => void;
   donationAmount: number;
   setDonation: (amount: number) => void;
+  needGstInvoice?: boolean;
+  onToggleGstInvoice?: () => void;
+  gstin?: string | null;
+  onChangeGstin?: (val: string) => void;
+  gstBusinessName?: string | null;
+  onChangeGstBusinessName?: (val: string) => void;
+  gstinError?: string | null;
   totalMrp: number;
   discountOnMrp: number;
   discountAmount: number;
   couponCode: string | null;
   deliveryFee: number;
-  taxes: number;
+  taxes?: number;
   finalPayable: number;
   formatPrice: (val: number) => string;
 }
@@ -29,12 +36,18 @@ export const CartBillDetailsSection = React.memo(function CartBillDetailsSection
   toggleGiftWrap,
   donationAmount,
   setDonation,
+  needGstInvoice = false,
+  onToggleGstInvoice,
+  gstin,
+  onChangeGstin,
+  gstBusinessName,
+  onChangeGstBusinessName,
+  gstinError,
   totalMrp,
   discountOnMrp,
   discountAmount,
   couponCode,
   deliveryFee,
-  taxes,
   finalPayable,
   formatPrice,
 }: CartBillDetailsSectionProps) {
@@ -162,6 +175,111 @@ export const CartBillDetailsSection = React.memo(function CartBillDetailsSection
         </View>
       </View>
 
+      {/* 9b. GST Tax Invoice Option */}
+      {onToggleGstInvoice && (
+        <View
+          style={{
+            backgroundColor: '#FFFFFF',
+            borderRadius: 18,
+            padding: 16,
+            borderWidth: 1,
+            borderColor: '#E8E5DF',
+            marginBottom: 14,
+          }}
+        >
+          <Pressable
+            onPress={onToggleGstInvoice}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
+              <View
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 16,
+                  backgroundColor: needGstInvoice ? '#FFF7ED' : '#F7F5F0',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                }}
+              >
+                <FileText size={16} color={needGstInvoice ? '#FF5A1F' : '#111111'} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 12.5, fontWeight: '800', color: '#111111' }}>
+                  Get GST Invoice
+                </Text>
+                <Text style={{ fontSize: 10.5, color: '#71717A' }}>
+                  Add optional GSTIN &amp; company name for tax credit
+                </Text>
+              </View>
+            </View>
+            <View
+              style={{
+                width: 20,
+                height: 20,
+                borderRadius: 4,
+                borderWidth: 1.5,
+                borderColor: needGstInvoice ? '#111111' : '#D9D9D5',
+                backgroundColor: needGstInvoice ? '#111111' : '#FFFFFF',
+                justifyContent: 'center',
+                alignItems: 'center',
+              }}
+            >
+              {needGstInvoice && <Check size={13} color="#FFFFFF" strokeWidth={3} />}
+            </View>
+          </Pressable>
+
+          {needGstInvoice && (
+            <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#F4F1EA', gap: 8 }}>
+              <TextInput
+                value={gstBusinessName || ''}
+                onChangeText={(t) => onChangeGstBusinessName?.(t)}
+                placeholder="Company / Business Name (Optional)"
+                placeholderTextColor="#A0A0A0"
+                style={{
+                  height: 40,
+                  borderWidth: 1,
+                  borderColor: '#D9D9D5',
+                  borderRadius: 10,
+                  paddingHorizontal: 12,
+                  backgroundColor: '#FAF8F5',
+                  fontSize: 12,
+                  color: '#111111',
+                }}
+              />
+              <TextInput
+                value={gstin || ''}
+                onChangeText={(t) => onChangeGstin?.(t.toUpperCase())}
+                placeholder="15-Digit GSTIN (e.g. 29AABCU9603R1ZM)"
+                placeholderTextColor="#A0A0A0"
+                autoCapitalize="characters"
+                maxLength={15}
+                style={{
+                  height: 40,
+                  borderWidth: 1,
+                  borderColor: gstinError ? '#EF4444' : '#D9D9D5',
+                  borderRadius: 10,
+                  paddingHorizontal: 12,
+                  backgroundColor: '#FAF8F5',
+                  fontSize: 12,
+                  fontWeight: '700',
+                  color: '#111111',
+                }}
+              />
+              {gstinError ? (
+                <Text style={{ fontSize: 10.5, color: '#DC2626', fontWeight: '700' }}>
+                  {gstinError}
+                </Text>
+              ) : null}
+            </View>
+          )}
+        </View>
+      )}
+
       {/* 10. Detailed Price Breakdown */}
       <View
         style={{
@@ -220,7 +338,7 @@ export const CartBillDetailsSection = React.memo(function CartBillDetailsSection
             <Text style={{ fontSize: 13, color: '#4A4A4A' }}>
               {splitOrderCount && splitOrderCount > 1
                 ? `Delivery (${splitOrderCount} Shipments)`
-                : '18-Min Express Vault Delivery'}
+                : '19-Min Express Vault Delivery'}
             </Text>
             <Text style={{ fontSize: 13, fontWeight: '800', color: deliveryFee === 0 ? '#15803D' : '#111111' }}>
               {deliveryFee === 0 ? 'FREE' : formatPrice(deliveryFee)}
@@ -243,9 +361,10 @@ export const CartBillDetailsSection = React.memo(function CartBillDetailsSection
             </View>
           )}
 
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-            <Text style={{ fontSize: 13, color: '#4A4A4A' }}>Taxes & GST (5%)</Text>
-            <Text style={{ fontSize: 13, fontWeight: '700', color: '#111111' }}>{formatPrice(taxes)}</Text>
+          <View style={{ paddingTop: 2 }}>
+            <Text style={{ fontSize: 10.5, color: '#71717A', fontWeight: '600' }}>
+              All prices are inclusive of applicable GST (MRP)
+            </Text>
           </View>
 
           {/* Total Amount */}

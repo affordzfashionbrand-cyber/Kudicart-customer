@@ -663,7 +663,7 @@ export function resolveProductGalleryShots(product: {
   image?: string;
   galleryImages?: string[];
 }): GalleryShot[] {
-  const defaultLabels = ['Lookbook View', 'Craftsmanship Detail', 'Model Drape', 'Back Styling', 'Atelier Finish'];
+  const defaultLabels = ['Primary View', 'Detail View', 'Side View', 'Back View', 'Close-up'];
   const rawUris = Array.isArray(product.galleryImages)
     ? product.galleryImages.filter((u): u is string => typeof u === 'string' && u.trim().length > 0)
     : [];

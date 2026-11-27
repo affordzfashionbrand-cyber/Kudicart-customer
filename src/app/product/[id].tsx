@@ -13,6 +13,7 @@ import {
   Platform,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import * as Linking from 'expo-linking';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ShoppingBag, AlertCircle } from 'lucide-react-native';
 
@@ -20,6 +21,7 @@ import { useCartStore } from '@/store/useCartStore';
 import { useCatalogStore } from '@/store/useCatalogStore';
 import { useDarkStore } from '@/store/useDarkStore';
 import { useAuthStore } from '@/store/useAuthStore';
+import { useAddressStore, checkAddressServiceability } from '@/store/useAddressStore';
 import { AuthModal } from '@/components/auth-modal';
 import { catalogApi, ApiProduct } from '@/services/api';
 import { safeBack } from '@/utils/navigation';
@@ -53,7 +55,7 @@ export default function ProductDetailScreen() {
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
 
-  const { products: storeProducts } = useCatalogStore();
+  const { products: storeProducts, darkStores, fetchDarkStores } = useCatalogStore();
   const {
     addItem,
     updateQuantity,
@@ -64,7 +66,23 @@ export default function ProductDetailScreen() {
   } = useCartStore();
   const { selectedDarkStore } = useDarkStore();
   const { isAuthenticated } = useAuthStore();
+  const { addresses, selectedAddressId, previewAddress } = useAddressStore();
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+
+  const selectedAddress = useMemo(() => {
+    return addresses.find((a) => a.id === selectedAddressId) || addresses[0] || previewAddress || null;
+  }, [addresses, selectedAddressId, previewAddress]);
+
+  const addressServiceability = useMemo(() => {
+    void darkStores;
+    return checkAddressServiceability(selectedAddress);
+  }, [selectedAddress, darkStores]);
+
+  useEffect(() => {
+    if (darkStores.length === 0) {
+      fetchDarkStores().catch(() => {});
+    }
+  }, [darkStores.length, fetchDarkStores]);
 
   const totalCartCount = useMemo(() => {
     return cartItems.reduce((acc, curr) => acc + curr.quantity, 0);
@@ -212,29 +230,75 @@ export default function ProductDetailScreen() {
 
   const currentQuantity = currentCartItem ? currentCartItem.quantity : 0;
 
-  // Pincode & Delivery State
-  const [pincode, setPincode] = useState('560038');
-  const [pincodeInput, setPincodeInput] = useState('560038');
+  // Pincode & Delivery State (reactive to selected address & 3 km Dark Store radius)
+  const [pincode, setPincode] = useState(selectedAddress?.pincode || '600074');
+  const [pincodeInput, setPincodeInput] = useState(selectedAddress?.pincode || '600074');
+  const [manualPincodeChecked, setManualPincodeChecked] = useState(false);
   const [isEditingPincode, setIsEditingPincode] = useState(false);
   const [copiedCoupon, setCopiedCoupon] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (selectedAddress?.pincode && /^\d{6}$/.test(selectedAddress.pincode)) {
+      setPincode(selectedAddress.pincode);
+      setPincodeInput(selectedAddress.pincode);
+      setManualPincodeChecked(false);
+    }
+  }, [selectedAddress?.id, selectedAddress?.pincode, selectedAddress?.latitude, selectedAddress?.longitude]);
+
   const deliveryEstimate = useMemo(() => {
-    const isBangalore = pincode.startsWith('560');
-    if (isBangalore && isDarkStoreProduct) {
+    if (!isDarkStoreProduct) {
+      return {
+        is18Min: false,
+        badge: 'BOUTIQUE ARTISAN SHIPPING',
+        etaText: 'Delivered in 2-3 business days',
+        hub: product?.vendor?.storeName || 'Artisan Workshop',
+      };
+    }
+
+    if (!manualPincodeChecked && selectedAddress) {
+      if (addressServiceability.isServiceable) {
+        const mins = selectedDarkStore?.deliveryMinutes || product?.darkStoreHub?.deliveryMinutes || 19;
+        return {
+          is18Min: true,
+          badge: `${mins}-MIN DOORSTEP DROP`,
+          etaText: `Concierge arrives in ${mins} minutes (${addressServiceability.distanceKm} km)`,
+          hub: addressServiceability.nearestHubName || selectedDarkStore?.name || product?.darkStoreHub?.name || 'Affordz Express Hub',
+        };
+      }
+      return {
+        is18Min: false,
+        badge: 'OUTSIDE 3 KM EXPRESS RADIUS',
+        etaText: addressServiceability.reason || `Outside 3 km dark store radius (${addressServiceability.distanceKm} km away)`,
+        hub: addressServiceability.nearestHubName || 'Outside Express Radius',
+      };
+    }
+
+    const pinCheck = checkAddressServiceability({
+      id: 'pin-check',
+      userId: '',
+      label: 'PIN',
+      line1: '',
+      locality: '',
+      city: pincode.startsWith('560') ? 'Bengaluru' : 'Chennai',
+      pincode,
+      isDefault: false,
+    });
+    if (pinCheck.isServiceable) {
+      const mins = selectedDarkStore?.deliveryMinutes || product?.darkStoreHub?.deliveryMinutes || 19;
       return {
         is18Min: true,
-        badge: '18-MIN DOORSTEP DROP',
-        etaText: 'Concierge arrives in 18 minutes',
-        hub: selectedDarkStore?.name || product?.darkStoreHub?.name || 'Affordz Express Hub',
+        badge: `${mins}-MIN DOORSTEP DROP`,
+        etaText: `Concierge arrives in ${mins} minutes`,
+        hub: pinCheck.nearestHubName || selectedDarkStore?.name || product?.darkStoreHub?.name || 'Affordz Express Hub',
       };
     }
     return {
       is18Min: false,
-      badge: 'BOUTIQUE ARTISAN SHIPPING',
-      etaText: 'Delivered in 2-3 business days',
-      hub: product?.vendor?.storeName || 'Artisan Workshop',
+      badge: 'OUTSIDE 3 KM EXPRESS RADIUS',
+      etaText: '19-min Express delivery is unavailable for this PIN code',
+      hub: product?.vendor?.storeName || 'Outside Express Radius',
     };
-  }, [pincode, isDarkStoreProduct, selectedDarkStore, product]);
+  }, [pincode, isDarkStoreProduct, manualPincodeChecked, selectedAddress, addressServiceability, selectedDarkStore, product]);
 
   const isNative = Platform.OS !== 'web';
 
@@ -308,6 +372,7 @@ export default function ProductDetailScreen() {
     if (code.length === 6 && /^\d+$/.test(code)) {
       setPincode(code);
       setPincodeInput(code);
+      setManualPincodeChecked(true);
       setIsEditingPincode(false);
       showToast(`Delivery updated for PIN ${code}`);
     } else {
@@ -370,12 +435,36 @@ export default function ProductDetailScreen() {
   };
 
   const handleShare = async () => {
+    const deepLinkUrl = Linking.createURL(`/product/${product.id}`);
+    const webUrl = `https://affordz.com/product/${product.id}`;
+    const shareTitle = `${product.brand} — ${productTitle}`;
+    const shareMessage = `Check out ${productTitle} by ${product.brand} on Affordz!\n${webUrl}\nOpen in app: ${deepLinkUrl}`;
+
     try {
-      await Share.share({
-        message: `Look at this handcrafted ${productTitle} on Affordz: affordz://product/${product.id}`,
-      });
+      if (Platform.OS === 'web') {
+        const nav: any = typeof navigator !== 'undefined' ? navigator : null;
+        if (nav && typeof nav.share === 'function') {
+          await nav.share({ title: shareTitle, text: shareMessage, url: webUrl });
+          return;
+        }
+        if (nav?.clipboard && typeof nav.clipboard.writeText === 'function') {
+          await nav.clipboard.writeText(webUrl);
+          showToast('Product link copied!');
+          return;
+        }
+      }
+      await Share.share(
+        {
+          title: shareTitle,
+          message: shareMessage,
+          url: webUrl,
+        },
+        {
+          dialogTitle: shareTitle,
+        },
+      );
     } catch {
-      // Ignored
+      // Share cancelled or unavailable
     }
   };
 
@@ -388,7 +477,7 @@ export default function ProductDetailScreen() {
 
     const effectiveSize = selectedSize || availableProductSizes[0] || 'M';
 
-    await addItem(
+    const addedOk = await addItem(
       {
         id: String(product.id),
         brand: product.brand,
@@ -408,13 +497,19 @@ export default function ProductDetailScreen() {
         category: product.category || 'Apparel',
         fulfillmentType: product.fulfillmentType,
         tryAndBuyEligible: product.tryAndBuyEligible,
+        darkStoreHub: product.darkStoreHub,
+        vendor: product.vendor,
       },
       effectiveSize,
       selectedColor,
       1,
     );
 
-    showToast(`Added Size ${effectiveSize} to Bag`);
+    if (addedOk) {
+      showToast(`Added Size ${effectiveSize} to Bag`);
+    } else {
+      showToast('Could not add item to bag. Please try again.');
+    }
   };
 
   const executeBuyNow = async () => {
@@ -432,7 +527,8 @@ export default function ProductDetailScreen() {
       originalPrice: productMrp,
       size: effectiveSize,
       trialSize: null,
-      isTryAndBuy: isDark && Boolean(product.tryAndBuyEligible),
+      tryAndBuyEligible: isDark && product.tryAndBuyEligible !== false,
+      isTryAndBuy: isDark && product.tryAndBuyEligible !== false,
       fulfillmentType: product.fulfillmentType || 'VENDOR',
       darkStoreHub: product.darkStoreHub || null,
       color: selectedColor || 'Standard',
@@ -525,6 +621,7 @@ export default function ProductDetailScreen() {
           isDarkStoreProduct={isDarkStoreProduct}
           brand={product.brand}
           darkStoreName={selectedDarkStore?.name || product.darkStoreHub?.name}
+          vendorName={product.vendor?.storeName}
           distanceKm={selectedDarkStore?.distanceKm}
         />
 
@@ -541,6 +638,7 @@ export default function ProductDetailScreen() {
           discountPct={discountPct}
           isWished={isWished}
           onToggleWishlist={handleToggleWishlist}
+          modelFitNote={product.specifications?.['Model Fit'] || null}
         />
 
         {/* 4. Product Identity & Pricing Block */}
@@ -556,12 +654,15 @@ export default function ProductDetailScreen() {
           onSelectColor={handleSelectColor}
           colors={product.colors}
           certification={product.certification}
+          stockBadge={product.stockBadge}
         />
 
-        {/* 5. Hyper-Local 18-Minute Try & Buy Card & Delivery Checker */}
+        {/* 5. Hyper-Local 19-Minute Try & Buy Card & Delivery Checker */}
         <ProductDeliverySection
           isDarkStoreProduct={isDarkStoreProduct}
           selectedDarkStoreDeliveryMinutes={selectedDarkStore?.deliveryMinutes || product.darkStoreHub?.deliveryMinutes}
+          stockQuantity={product.stockQuantity}
+          vendorName={product.vendor?.storeName}
           pincode={pincode}
           pincodeInput={pincodeInput}
           isEditingPincode={isEditingPincode}
@@ -577,13 +678,14 @@ export default function ProductDetailScreen() {
           onCopyCoupon={handleCopyCoupon}
         />
 
-        {/* 6. Size & Fit Selector with Secondary Fit-Check Trial Size */}
+        {/* 6. Size & Fit Selector */}
         <View
           onLayout={(e) => {
             sizeSectionLayoutY.current = e.nativeEvent.layout.y;
           }}
         >
           <ProductSizeSection
+            sizes={availableProductSizes}
             selectedSize={selectedSize}
             onSelectSize={(sz) => {
               setSelectedSize(sz);
@@ -611,8 +713,8 @@ export default function ProductDetailScreen() {
           ensembleProducts={allRelatedProducts.slice(0, 4)}
           wishlist={wishlist}
           onToggleWishlist={(epId) => toggleWishlist(epId)}
-          onAddToCart={(ep: any) => {
-            addItem(
+          onAddToCart={async (ep: any) => {
+            const addedOk = await addItem(
               {
                 id: String(ep.id),
                 brand: ep.brand,
@@ -630,12 +732,14 @@ export default function ProductDetailScreen() {
                 altText: ep.name,
                 galleryImages: [ep.image],
                 category: ep.category,
+                fulfillmentType: ep.fulfillmentType,
+                tryAndBuyEligible: ep.tryAndBuyEligible,
               },
               'M',
               'Default',
               1,
             );
-            showToast(`Added ${ep.name} to bag`);
+            showToast(addedOk ? `Added ${ep.name} to bag` : 'Could not add item to bag');
           }}
           onOpenProduct={(epId) => router.push({ pathname: '/product/[id]', params: { id: epId } })}
         />
@@ -657,10 +761,10 @@ export default function ProductDetailScreen() {
             currentProductId={String(product.id)}
             wishlist={wishlist}
             onWishlist={(epId) => toggleWishlist(String(epId))}
-            onBag={(epId) => {
+            onBag={async (epId) => {
               const p = allRelatedProducts.find((pr) => String(pr.id) === String(epId));
               if (p) {
-                addItem(
+                const addedOk = await addItem(
                   {
                     id: String(p.id),
                     brand: p.brand,
@@ -678,12 +782,14 @@ export default function ProductDetailScreen() {
                     altText: p.name,
                     galleryImages: [p.image],
                     category: p.category,
+                    fulfillmentType: (p as any).fulfillmentType,
+                    tryAndBuyEligible: (p as any).tryAndBuyEligible,
                   },
                   'M',
                   'Default',
                   1,
                 );
-                showToast(`Added ${p.brand} to Bag`);
+                showToast(addedOk ? `Added ${p.brand} to Bag` : 'Could not add item to bag');
               }
             }}
             onOpenProduct={(ep) =>

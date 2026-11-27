@@ -9,7 +9,7 @@ import {
   NativeSyntheticEvent,
   NativeScrollEvent,
 } from 'react-native';
-import { Image } from 'expo-image';
+import { LazyImage } from '@/components/common/lazy-image';
 import {
   Zap,
   Ruler,
@@ -34,29 +34,31 @@ export interface ProductGalleryProps {
   shotLabels?: string[];
   productTitle?: string;
   brand?: string;
+  modelFitNote?: string | null;
 }
 
 const DEFAULT_SHOT_LABELS = [
-  'Lookbook Drape',
-  'Weave & Zari Detail',
-  'Model Fall & Pleats',
-  'Pallu & Border Motif',
-  'Atelier Runway',
-  'Craftsmanship Detail',
+  'Primary View',
+  'Detail View',
+  'Side View',
+  'Close-up Texture',
+  'Styling View',
+  'Full Look',
 ];
 
-export function ProductGallery({
+export const ProductGallery = React.memo(function ProductGallery({
   galleryImages,
   activeImageIndex,
   onSelectImage,
   isDarkStoreProduct,
-  deliveryMinutes = 18,
+  deliveryMinutes = 19,
   discountPct,
   isWished = false,
   onToggleWishlist,
   shotLabels,
-  productTitle = 'Handloom Apparel',
-  brand = 'Atelier',
+  productTitle = 'Product',
+  brand = 'Affordz',
+  modelFitNote,
 }: ProductGalleryProps) {
   const [stageWidth, setStageWidth] = useState<number>(360);
   const [isLightboxOpen, setIsLightboxOpen] = useState<boolean>(false);
@@ -149,11 +151,12 @@ export function ProductGallery({
                 backgroundColor: '#F3EFEA',
               }}
             >
-              <Image
+              <LazyImage
                 source={{ uri: imgUri }}
                 style={{ width: '100%', height: '100%' }}
                 contentFit="cover"
                 contentPosition="top"
+                priority={idx === 0 ? 'high' : 'normal'}
                 transition={200}
               />
             </Pressable>
@@ -332,27 +335,31 @@ export function ProductGallery({
             zIndex: 10,
           }}
         >
-          {/* Fit Spec Badge */}
-          <View
-            style={{
-              backgroundColor: 'rgba(255, 255, 255, 0.94)',
-              paddingHorizontal: 10,
-              paddingVertical: 5,
-              borderRadius: 12,
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: 4.5,
-              shadowColor: '#000',
-              shadowOffset: { width: 0, height: 2 },
-              shadowOpacity: 0.08,
-              shadowRadius: 3,
-            }}
-          >
-            <Ruler size={11} color="#FF5A1F" />
-            <Text style={[FontStyles.sansBold, { fontSize: 9.5, color: '#111111' }]}>
-              Model is 5&apos;9&quot; wearing S
-            </Text>
-          </View>
+          {/* Optional Fit Spec Badge */}
+          {modelFitNote ? (
+            <View
+              style={{
+                backgroundColor: 'rgba(255, 255, 255, 0.94)',
+                paddingHorizontal: 10,
+                paddingVertical: 5,
+                borderRadius: 12,
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 4.5,
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.08,
+                shadowRadius: 3,
+              }}
+            >
+              <Ruler size={11} color="#FF5A1F" />
+              <Text style={[FontStyles.sansBold, { fontSize: 9.5, color: '#111111' }]}>
+                {modelFitNote}
+              </Text>
+            </View>
+          ) : (
+            <View />
+          )}
 
           {/* Luxury Multi-Image Pagination Pill */}
           <View
@@ -446,7 +453,7 @@ export function ProductGallery({
                       elevation: isSelected ? 4 : 1,
                     }}
                   >
-                    <Image
+                    <LazyImage
                       source={{ uri: imgUri }}
                       style={{ width: '100%', height: '100%' }}
                       contentFit="cover"
@@ -546,10 +553,11 @@ export function ProductGallery({
 
           {/* Lightbox Full-Bleed Image Viewport */}
           <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 12 }}>
-            <Image
+            <LazyImage
               source={{ uri: galleryImages[lightboxIndex] }}
               style={{ width: '100%', height: '88%' }}
               contentFit="contain"
+              priority="high"
               transition={250}
             />
 
@@ -626,7 +634,7 @@ export function ProductGallery({
                       opacity: isSelected ? 1 : 0.6,
                     }}
                   >
-                    <Image
+                    <LazyImage
                       source={{ uri }}
                       style={{ width: '100%', height: '100%' }}
                       contentFit="cover"
@@ -642,4 +650,4 @@ export function ProductGallery({
       </Modal>
     </View>
   );
-}
+});

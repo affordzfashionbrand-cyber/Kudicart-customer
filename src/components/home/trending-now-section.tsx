@@ -1,7 +1,8 @@
-import React from 'react';
-import { View, Text, Pressable, ScrollView } from 'react-native';
+import React, { useCallback } from 'react';
+import { View, Text, Pressable, FlatList, Platform } from 'react-native';
 import { SectionTitle } from '@/components/common/section-title';
 import { ProductCard } from '@/components/common/product-card';
+import { ProductCardSkeleton } from '@/components/common/skeleton';
 import { ProductItem } from '@/data/homeData';
 
 interface TrendingNowSectionProps {
@@ -10,8 +11,9 @@ interface TrendingNowSectionProps {
   isFilterActive: boolean;
   onResetFilter: () => void;
   onWishlist: (id: string | number) => void;
-  onBag: (id: string | number) => void;
+  onBag: (id: string | number, size?: string) => void;
   onOpen: (product: any) => void;
+  isLoading?: boolean;
 }
 
 export const TrendingNowSection = React.memo(function TrendingNowSection({
@@ -22,7 +24,25 @@ export const TrendingNowSection = React.memo(function TrendingNowSection({
   onWishlist,
   onBag,
   onOpen,
+  isLoading = false,
 }: TrendingNowSectionProps) {
+  const trendingList = React.useMemo(() => products.slice(0, 8), [products]);
+
+  const renderProduct = useCallback(
+    ({ item }: { item: ProductItem }) => (
+      <View className="w-[180px] mr-[16px]">
+        <ProductCard
+          product={item}
+          wished={wishlist.includes(String(item.id))}
+          onWishlist={onWishlist}
+          onBag={onBag}
+          onOpen={onOpen}
+        />
+      </View>
+    ),
+    [wishlist, onWishlist, onBag, onOpen],
+  );
+
   return (
     <View className="bg-white py-[30px] px-5 mb-[36px] rounded-[32px] mx-2 border border-[#D9D9D5]">
       <View className="flex-row justify-between items-start mb-4">
@@ -41,25 +61,27 @@ export const TrendingNowSection = React.memo(function TrendingNowSection({
           </Pressable>
         )}
       </View>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        nestedScrollEnabled={true}
-        overScrollMode="never"
-        className="-mx-5 px-5"
-      >
-        {products.slice(0, 8).map((product) => (
-          <View key={product.id} className="w-[180px] mr-[16px]">
-            <ProductCard
-              product={product}
-              wished={wishlist.includes(String(product.id))}
-              onWishlist={onWishlist}
-              onBag={onBag}
-              onOpen={onOpen}
-            />
-          </View>
-        ))}
-      </ScrollView>
+      {isLoading && trendingList.length === 0 ? (
+        <View style={{ flexDirection: 'row', gap: 16 }}>
+          <ProductCardSkeleton cardWidth={180} />
+          <ProductCardSkeleton cardWidth={180} />
+        </View>
+      ) : (
+        <FlatList
+          data={trendingList}
+          horizontal
+          keyExtractor={(item) => String(item.id)}
+          renderItem={renderProduct}
+          showsHorizontalScrollIndicator={false}
+          nestedScrollEnabled={true}
+          overScrollMode="never"
+          initialNumToRender={4}
+          maxToRenderPerBatch={4}
+          windowSize={3}
+          removeClippedSubviews={Platform.OS !== 'web'}
+          className="-mx-5 px-5"
+        />
+      )}
     </View>
   );
 });

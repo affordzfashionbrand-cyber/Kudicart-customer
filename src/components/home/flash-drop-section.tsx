@@ -10,16 +10,43 @@ export interface FlashDropSectionProps {
   onExplore: () => void;
 }
 
-function computeInitialSeconds(metadata: any): number {
+function getTargetTimestamp(metadata: any): number | null {
   if (metadata?.endsAt) {
-    const diff = Math.floor((new Date(metadata.endsAt).getTime() - Date.now()) / 1000);
-    if (Number.isFinite(diff) && diff > 0) return diff;
+    const parsed = new Date(metadata.endsAt).getTime();
+    if (Number.isFinite(parsed)) return parsed;
   }
   const mins = Number(metadata?.endsInMinutes);
   if (Number.isFinite(mins) && mins > 0) {
-    return Math.round(mins * 60);
+    return Date.now() + Math.round(mins * 60 * 1000);
   }
-  return 45 * 60;
+  return null;
+}
+
+function computeInitialSeconds(metadata: any): { seconds: number; isScheduled: boolean; isExpired: boolean } {
+  if (metadata?.endsAt) {
+    const targetMs = new Date(metadata.endsAt).getTime();
+    if (Number.isFinite(targetMs)) {
+      const diff = Math.floor((targetMs - Date.now()) / 1000);
+      return {
+        seconds: diff > 0 ? diff : 0,
+        isScheduled: true,
+        isExpired: diff <= 0,
+      };
+    }
+  }
+  const mins = Number(metadata?.endsInMinutes);
+  if (Number.isFinite(mins) && mins > 0) {
+    return {
+      seconds: Math.round(mins * 60),
+      isScheduled: true,
+      isExpired: false,
+    };
+  }
+  return {
+    seconds: 45 * 60,
+    isScheduled: false,
+    isExpired: false,
+  };
 }
 
 export const FlashDropSection = React.memo(function FlashDropSection({
@@ -28,20 +55,47 @@ export const FlashDropSection = React.memo(function FlashDropSection({
   const sectionConfig = useHomeContentStore((s) =>
     s.sections.find((sec) => sec.sectionKey === 'FLASH_DROP'),
   );
-  const [flashTimeLeft, setFlashTimeLeft] = useState(() =>
-    computeInitialSeconds(sectionConfig?.metadata),
-  );
+  const meta = sectionConfig?.metadata;
+  const initialState = computeInitialSeconds(meta);
+  const [flashTimeLeft, setFlashTimeLeft] = useState(initialState.seconds);
+  const [isExpired, setIsExpired] = useState(initialState.isExpired);
 
   useEffect(() => {
-    setFlashTimeLeft(computeInitialSeconds(sectionConfig?.metadata));
-  }, [sectionConfig?.metadata]);
+    const next = computeInitialSeconds(meta);
+    setFlashTimeLeft(next.seconds);
+    setIsExpired(next.isExpired);
 
-  useEffect(() => {
+    const targetTs = getTargetTimestamp(meta);
     const timer = setInterval(() => {
-      setFlashTimeLeft((prev) => (prev > 0 ? prev - 1 : 0));
+      if (targetTs !== null) {
+        const diff = Math.floor((targetTs - Date.now()) / 1000);
+        if (diff <= 0) {
+          setFlashTimeLeft(0);
+          setIsExpired(true);
+        } else {
+          setFlashTimeLeft(diff);
+          setIsExpired(false);
+        }
+      } else {
+        setFlashTimeLeft((prev) => (prev > 0 ? prev - 1 : 0));
+      }
     }, 1000);
     return () => clearInterval(timer);
-  }, []);
+  }, [meta]);
+
+  if (sectionConfig && !sectionConfig.isEnabled) {
+    return null;
+  }
+
+  const badgeText =
+    meta?.badgeText ||
+    (isExpired ? 'DROP_ENDED • STAY TUNED' : 'DROP_04 • 00:28');
+  const sectionTitleText = sectionConfig?.title || 'FLASH ATELIER';
+  const subtitleText =
+    sectionConfig?.subtitle ||
+    (isExpired
+      ? 'This flash drop has ended. Next curation unlocks soon.'
+      : null);
 
   const flashHours = String(Math.floor(flashTimeLeft / 3600)).padStart(2, '0');
   const flashMinutes = String(Math.floor((flashTimeLeft % 3600) / 60)).padStart(2, '0');
@@ -68,24 +122,30 @@ export const FlashDropSection = React.memo(function FlashDropSection({
           borderColor: 'rgba(255, 255, 255, 0.16)',
           marginBottom: 12,
         }}>
-          <View style={{ width: 5, height: 5, borderRadius: 2.5, backgroundColor: '#FF5A1F' }} />
+          <View style={{ width: 5, height: 5, borderRadius: 2.5, backgroundColor: isExpired ? '#71717A' : '#FF5A1F' }} />
           <Text style={{ fontSize: 9.5, fontWeight: '900', letterSpacing: 1.8, color: '#ffffff', textTransform: 'uppercase' }}>
-            DROP_04 • 00:28
+            {badgeText}
           </Text>
         </View>
 
         {/* Heading & Subtitle */}
         <SectionTitle
-          label="FLASH ATELIER"
-          firstLine="New drop"
-          secondLine="live now."
+          label={sectionTitleText}
+          firstLine={isExpired ? 'Drop' : 'New drop'}
+          secondLine={isExpired ? 'closed.' : 'live now.'}
           align="center"
           inverted={true}
           marginBottom={8}
         />
-        <Text style={{ fontSize: 13, color: '#D9D9D5', textAlign: 'center', marginBottom: 22, letterSpacing: 0.2 }}>
-          SEEN IT. WANTED IT. WEAR IT. <Text style={{ color: '#ffffff', fontWeight: '900' }}>NOW.</Text>
-        </Text>
+        {subtitleText ? (
+          <Text style={{ fontSize: 13, color: '#D9D9D5', textAlign: 'center', marginBottom: 22, letterSpacing: 0.2 }}>
+            {subtitleText}
+          </Text>
+        ) : (
+          <Text style={{ fontSize: 13, color: '#D9D9D5', textAlign: 'center', marginBottom: 22, letterSpacing: 0.2 }}>
+            SEEN IT. WANTED IT. WEAR IT. <Text style={{ color: '#ffffff', fontWeight: '900' }}>NOW.</Text>
+          </Text>
+        )}
 
         {/* Live Countdown Timer with Micro-Labels */}
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 24 }}>

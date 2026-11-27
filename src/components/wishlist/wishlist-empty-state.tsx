@@ -1,16 +1,17 @@
 import React from 'react';
-import { View, Text, Pressable } from 'react-native';
-import { Image } from 'expo-image';
-import { Heart, ShoppingBag, Sparkles, ArrowRight } from 'lucide-react-native';
+import { View, Text } from 'react-native';
+import { Heart, Sparkles, ArrowRight } from 'lucide-react-native';
 import { AnimatedPressable } from '@/components/common/animated-pressable';
+import { ProductCard } from '@/components/common/product-card';
 import { EditorialText } from '@/components/common/section-title';
-import { ProductItem, formatPrice } from '@/data/homeData';
+import { ProductItem } from '@/data/homeData';
+import { useCartStore } from '@/store/useCartStore';
 
 interface WishlistEmptyStateProps {
   discoveryProducts: ProductItem[];
   onExplore: () => void;
   onWishlist: (id: string | number) => void;
-  onBag: (id: string | number) => void;
+  onBag: (id: string | number, size?: string) => void;
   onOpen: (product: ProductItem) => void;
 }
 
@@ -21,6 +22,7 @@ export const WishlistEmptyState = React.memo(function WishlistEmptyState({
   onBag,
   onOpen,
 }: WishlistEmptyStateProps) {
+  const wishlistIds = useCartStore((s) => s.wishlist);
   return (
     <View style={{ marginTop: 8 }}>
       {/* Hero Atelier Empty Card */}
@@ -91,7 +93,7 @@ export const WishlistEmptyState = React.memo(function WishlistEmptyState({
               marginBottom: 22,
             }}
           >
-            Curate your personal atelier capsule. Tap the heart on any piece you love to save it for instant 18-minute doorstep try & buy.
+            Curate your personal atelier capsule. Tap the heart on any piece you love to save it for instant 19-minute doorstep try & buy.
           </Text>
 
           <AnimatedPressable
@@ -161,84 +163,14 @@ export const WishlistEmptyState = React.memo(function WishlistEmptyState({
 
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
           {discoveryProducts.slice(0, 4).map((product) => (
-            <View
-              key={product.id}
-              style={{
-                width: '48.5%',
-                marginBottom: 16,
-                backgroundColor: '#FFFFFF',
-                borderRadius: 18,
-                overflow: 'hidden',
-                borderWidth: 1,
-                borderColor: '#E8E5DF',
-              }}
-            >
-              <View style={{ width: '100%', height: 165, position: 'relative' }}>
-                <Pressable onPress={() => onOpen(product)} style={{ width: '100%', height: '100%' }}>
-                  <Image source={{ uri: product.image }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
-                </Pressable>
-
-                <AnimatedPressable
-                  onPress={() => onWishlist(product.id)}
-                  style={{
-                    position: 'absolute',
-                    top: 8,
-                    right: 8,
-                    width: 30,
-                    height: 30,
-                    borderRadius: 15,
-                    backgroundColor: 'rgba(255,255,255,0.92)',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <Heart size={15} color="#111111" strokeWidth={2} />
-                </AnimatedPressable>
-              </View>
-
-              <View style={{ paddingHorizontal: 8, paddingTop: 8, paddingBottom: 8 }}>
-                <Text
-                  style={{
-                    fontSize: 8.5,
-                    color: '#71717A',
-                    fontWeight: '800',
-                    letterSpacing: 1,
-                    textTransform: 'uppercase',
-                    marginBottom: 2,
-                  }}
-                >
-                  {product.brand}
-                </Text>
-
-                <EditorialText
-                  text={product.name}
-                  fontSize={12.5}
-                  lineHeight={16}
-                  color="#111111"
-                  singleLine
-                  numberOfLines={1}
-                  style={{ marginBottom: 4 }}
-                />
-
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <Text style={{ fontSize: 13, fontWeight: '900', color: '#111111' }}>
-                    {formatPrice(product.price)}
-                  </Text>
-                  <AnimatedPressable
-                    onPress={() => onBag(product.id)}
-                    style={{
-                      width: 26,
-                      height: 26,
-                      borderRadius: 13,
-                      backgroundColor: '#111111',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    <ShoppingBag size={12} color="#FFFFFF" strokeWidth={2.2} />
-                  </AnimatedPressable>
-                </View>
-              </View>
+            <View key={product.id} style={{ width: '48.5%', marginBottom: 16 }}>
+              <ProductCard
+                product={product}
+                wished={wishlistIds.includes(String(product.id))}
+                onWishlist={onWishlist}
+                onBag={onBag}
+                onOpen={onOpen}
+              />
             </View>
           ))}
         </View>

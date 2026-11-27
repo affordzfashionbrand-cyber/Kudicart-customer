@@ -508,7 +508,7 @@ export const COMPLETE_CATEGORY_HIERARCHY: DepartmentCategoryDef[] = [
     image: 'https://images.unsplash.com/photo-1549298916-b41d501d3772?auto=format&fit=crop&w=600&q=80',
     banner: 'https://images.unsplash.com/photo-1556906781-9a412961c28c?auto=format&fit=crop&w=1200&q=80',
     gender: 'Unisex',
-    badge: '18M DROP READY',
+    badge: '19M DROP READY',
     subcategories: [
       {
         id: 'sub-footwear-sneakers',

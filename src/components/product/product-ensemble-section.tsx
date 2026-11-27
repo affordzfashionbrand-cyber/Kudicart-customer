@@ -49,7 +49,7 @@ export function ProductEnsembleSection({
           <View key={ep.id} style={{ width: 175 }}>
             <ProductCard
               product={ep}
-              badge="18M DROP"
+              badge="19M DROP"
               wished={wishlist.includes(String(ep.id))}
               onWishlist={() => onToggleWishlist(String(ep.id))}
               onBag={() => onAddToCart(ep)}

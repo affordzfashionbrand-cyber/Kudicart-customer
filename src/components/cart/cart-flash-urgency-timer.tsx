@@ -3,26 +3,39 @@ import { View, Text, Animated, Platform } from 'react-native';
 import { Zap, Clock, ShieldCheck } from 'lucide-react-native';
 
 interface CartFlashUrgencyTimerProps {
+  expiresAt?: number | null;
   initialSeconds?: number;
   initialMinutes?: number;
 }
 
 export const CartFlashUrgencyTimer: React.FC<CartFlashUrgencyTimerProps> = ({
+  expiresAt,
   initialSeconds,
   initialMinutes,
 }) => {
   const duration = initialMinutes ? initialMinutes * 60 : (initialSeconds || 900);
-  const [secondsLeft, setSecondsLeft] = useState<number>(duration);
+  const computeRemaining = () => {
+    if (typeof expiresAt === 'number' && expiresAt > 0) {
+      return Math.max(0, Math.floor((expiresAt - Date.now()) / 1000));
+    }
+    return duration;
+  };
+  const [secondsLeft, setSecondsLeft] = useState<number>(computeRemaining);
   const progressAnim = useRef(new Animated.Value(1)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
+    setSecondsLeft(computeRemaining());
     const timer = setInterval(() => {
-      setSecondsLeft((prev) => (prev > 0 ? prev - 1 : 0));
+      if (typeof expiresAt === 'number' && expiresAt > 0) {
+        setSecondsLeft(Math.max(0, Math.floor((expiresAt - Date.now()) / 1000)));
+      } else {
+        setSecondsLeft((prev) => (prev > 0 ? prev - 1 : 0));
+      }
     }, 1000);
 
     return () => clearInterval(timer);
-  }, []);
+  }, [expiresAt, duration]);
 
   useEffect(() => {
     Animated.timing(progressAnim, {
@@ -95,7 +108,9 @@ export const CartFlashUrgencyTimer: React.FC<CartFlashUrgencyTimerProps> = ({
             }}
             numberOfLines={1}
           >
-            Reserved Try & Buy Slot
+            {secondsLeft > 0
+              ? 'Reserved Try & Buy Slot'
+              : 'Slot window ended — re-verifying at checkout'}
           </Text>
         </View>
 

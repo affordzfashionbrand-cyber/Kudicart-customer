@@ -4,7 +4,6 @@ import {
   Text,
   Modal,
   Pressable,
-  TextInput,
   ScrollView,
   Platform,
   KeyboardAvoidingView,
@@ -19,9 +18,7 @@ import {
   CheckCircle2,
   AlertTriangle,
   X,
-  Search,
   Zap,
-  ChevronRight,
   Home,
   Briefcase,
   Building,
@@ -33,12 +30,9 @@ import { FontStyles } from '@/constants/theme';
 import {
   useAddressStore,
   checkAddressServiceability,
-  DARK_STORE_HUB,
-  ServiceabilityResult,
 } from '@/store/useAddressStore';
 import { useAuthStore } from '@/store/useAuthStore';
 import { AddressModel } from '@/services/api';
-import { geocodePincode } from '@/services/geocoding';
 import { MapLocationPicker } from './map-location-picker';
 import { AuthModal } from '@/components/auth-modal';
 
@@ -62,9 +56,6 @@ export const LocationOnboardingModal: React.FC<LocationOnboardingModalProps> = (
     fetchAddresses,
   } = useAddressStore();
 
-  const [pincodeInput, setPincodeInput] = useState('');
-  const [isCheckingPincode, setIsCheckingPincode] = useState(false);
-  const [pincodeResult, setPincodeResult] = useState<ServiceabilityResult | null>(null);
   const [isDetectingLocation, setIsDetectingLocation] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [isPermissionBlocked, setIsPermissionBlocked] = useState(false);
@@ -152,74 +143,6 @@ export const LocationOnboardingModal: React.FC<LocationOnboardingModalProps> = (
     }
   }, []);
 
-  // Check 6-digit pincode against active darkstores
-  const handleCheckPincode = useCallback(async () => {
-    const pin = pincodeInput.trim().replace(/\D/g, '');
-    if (pin.length !== 6) {
-      setLocationError('Please enter a valid 6-digit Indian PIN code.');
-      setPincodeResult(null);
-      return;
-    }
-
-    setIsCheckingPincode(true);
-    setLocationError(null);
-
-    try {
-      const geocoded = await geocodePincode(pin);
-      if (geocoded) {
-        const serv = checkAddressServiceability({
-          id: '',
-          userId: '',
-          label: geocoded.locality,
-          line1: geocoded.formattedAddress,
-          locality: geocoded.locality,
-          city: geocoded.city,
-          pincode: pin,
-          latitude: geocoded.latitude,
-          longitude: geocoded.longitude,
-          isDefault: false,
-        });
-        setPincodeResult(serv);
-      } else {
-        // Fallback serviceability evaluation
-        const serv = checkAddressServiceability({
-          id: '',
-          userId: '',
-          label: 'Custom Pincode',
-          line1: 'Doorstep Delivery',
-          locality: 'Area',
-          city: 'Chennai',
-          pincode: pin,
-          isDefault: false,
-        });
-        setPincodeResult(serv);
-      }
-    } catch (err: any) {
-      console.warn('[LocationModal] Pincode check error:', err);
-      setLocationError(err?.message || 'Unable to check PIN code serviceability.');
-    } finally {
-      setIsCheckingPincode(false);
-    }
-  }, [pincodeInput]);
-
-  // Open map picker for confirmed pincode location
-  const handleOpenMapFromPincode = useCallback(async () => {
-    const pin = pincodeInput.trim().replace(/\D/g, '');
-    const geocoded = await geocodePincode(pin);
-    if (geocoded) {
-      setMapPickerInitialCoords({
-        latitude: geocoded.latitude,
-        longitude: geocoded.longitude,
-      });
-    } else {
-      setMapPickerInitialCoords({
-        latitude: DARK_STORE_HUB.latitude,
-        longitude: DARK_STORE_HUB.longitude,
-      });
-    }
-    setIsMapPickerOpen(true);
-  }, [pincodeInput]);
-
   // Address confirmed callback from Map Location Picker
   const handleMapAddressConfirmed = useCallback(
     (newAddr: AddressModel) => {
@@ -256,7 +179,7 @@ export const LocationOnboardingModal: React.FC<LocationOnboardingModalProps> = (
                         },
                       ]}
                     >
-                      18-MIN INSTANT COMMERCE
+                      19-MIN INSTANT COMMERCE
                     </Text>
                   </View>
                   <Text style={[FontStyles.sansBold, { fontSize: 18, color: '#111111' }]}>
@@ -287,16 +210,9 @@ export const LocationOnboardingModal: React.FC<LocationOnboardingModalProps> = (
                   . Select your location to verify availability.
                 </Text>
 
-                {/* 1. Detect Current GPS Location Button */}
-                <Pressable
-                  onPress={handleDetectCurrentLocation}
-                  disabled={isDetectingLocation}
-                  style={({ pressed }) => [
-                    styles.gpsButton,
-                    pressed && { backgroundColor: '#FFF7ED' },
-                  ]}
-                >
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 }}>
+                {/* 1. Detect Current GPS Location Card with explicit Enable Button */}
+                <View style={styles.gpsButton}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1, marginRight: 10 }}>
                     <View style={styles.gpsIconCircle}>
                       {isDetectingLocation ? (
                         <ActivityIndicator size="small" color="#FF5A1F" />
@@ -311,123 +227,29 @@ export const LocationOnboardingModal: React.FC<LocationOnboardingModalProps> = (
                       <Text
                         style={[FontStyles.sansRegular, { fontSize: 11, color: '#8A857D', marginTop: 1 }]}
                       >
-                        Tap to acquire GPS and fine-tune on interactive map
+                        Detect GPS and fine-tune on interactive map
                       </Text>
                     </View>
                   </View>
-                  <ChevronRight size={18} color="#8A857D" />
-                </Pressable>
-
-                {/* 2. Pincode Radius Checker */}
-                <View style={styles.pincodeBox}>
-                  <Text
-                    style={[
-                      FontStyles.sansBold,
-                      {
-                        fontSize: 10,
-                        color: '#8A857D',
-                        letterSpacing: 1,
-                        textTransform: 'uppercase',
-                        marginBottom: 8,
-                      },
+                  <Pressable
+                    onPress={handleDetectCurrentLocation}
+                    disabled={isDetectingLocation}
+                    accessibilityRole="button"
+                    accessibilityLabel="Enable GPS location"
+                    style={({ pressed }) => [
+                      styles.enableGpsBtn,
+                      pressed && { opacity: 0.88 },
+                      isDetectingLocation && { opacity: 0.65 },
                     ]}
                   >
-                    ENTER PINCODE TO CHECK RADIUS
-                  </Text>
-
-                  <View style={{ flexDirection: 'row', gap: 8 }}>
-                    <View style={styles.pincodeInputWrapper}>
-                      <Search size={15} color="#8A857D" />
-                      <TextInput
-                        value={pincodeInput}
-                        onChangeText={(val) => {
-                          setPincodeInput(val);
-                          setPincodeResult(null);
-                        }}
-                        placeholder="Enter 6-digit Pincode (e.g. 600074)"
-                        placeholderTextColor="#A8A29E"
-                        keyboardType="numeric"
-                        maxLength={6}
-                        style={[FontStyles.sansMedium, styles.pincodeInput]}
-                      />
-                    </View>
-
-                    <Pressable
-                      onPress={handleCheckPincode}
-                      disabled={isCheckingPincode}
-                      style={({ pressed }) => [
-                        styles.checkBtn,
-                        pressed && { opacity: 0.88 },
-                      ]}
-                    >
-                      {isCheckingPincode ? (
-                        <ActivityIndicator size="small" color="#FFFFFF" />
-                      ) : (
-                        <Text style={[FontStyles.sansBold, { fontSize: 11.5, color: '#FFFFFF' }]}>
-                          CHECK
-                        </Text>
-                      )}
-                    </Pressable>
-                  </View>
-
-                  {/* Pincode Result Banner */}
-                  {pincodeResult && (
-                    <View style={{ marginTop: 10 }}>
-                      {pincodeResult.isServiceable ? (
-                        <View style={styles.serviceableBanner}>
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                            <CheckCircle2 size={15} color="#059669" />
-                            <Text style={[FontStyles.sansBold, { fontSize: 12, color: '#059669' }]}>
-                              AVAILABLE FOR 18-MIN DROP!
-                            </Text>
-                          </View>
-                          <Text
-                            style={[
-                              FontStyles.sansRegular,
-                              { fontSize: 11, color: '#047857', marginTop: 2 },
-                            ]}
-                          >
-                            Pincode {pincodeInput} is ~{pincodeResult.distanceKm} km from{' '}
-                            {pincodeResult.nearestHubName} (Within 8.0 km radius).
-                          </Text>
-                          <Pressable
-                            onPress={handleOpenMapFromPincode}
-                            style={styles.confirmPincodeBtn}
-                          >
-                            <Text style={[FontStyles.sansBold, { fontSize: 11.5, color: '#FFFFFF' }]}>
-                              PINPOINT ON MAP & DELIVER HERE
-                            </Text>
-                          </Pressable>
-                        </View>
-                      ) : (
-                        <View style={styles.unserviceableBanner}>
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                            <AlertTriangle size={15} color="#DC2626" />
-                            <Text style={[FontStyles.sansBold, { fontSize: 12, color: '#DC2626' }]}>
-                              NOT AVAILABLE FOR THIS PLACE
-                            </Text>
-                          </View>
-                          <Text
-                            style={[
-                              FontStyles.sansRegular,
-                              { fontSize: 11, color: '#B91C1C', marginTop: 2, lineHeight: 15 },
-                            ]}
-                          >
-                            {pincodeResult.reason ||
-                              `Distance is ${pincodeResult.distanceKm} km, which exceeds our 8.0 km instant drop radius.`}
-                          </Text>
-                          <Pressable
-                            onPress={handleOpenMapFromPincode}
-                            style={styles.openMapAnywayBtn}
-                          >
-                            <Text style={[FontStyles.sansBold, { fontSize: 11, color: '#DC2626' }]}>
-                              VIEW ON MAP
-                            </Text>
-                          </Pressable>
-                        </View>
-                      )}
-                    </View>
-                  )}
+                    {isDetectingLocation ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <Text style={[FontStyles.sansBold, { fontSize: 11.5, color: '#FFFFFF' }]}>
+                        Enable
+                      </Text>
+                    )}
+                  </Pressable>
                 </View>
 
                 {locationError && (
@@ -452,14 +274,14 @@ export const LocationOnboardingModal: React.FC<LocationOnboardingModalProps> = (
                   </View>
                 )}
 
-                {/* 3. SAVED ADDRESSES SECTION (Strictly Saved Addresses Only) */}
-                <View style={{ marginTop: 8, marginBottom: 12 }}>
+                {/* 2. SAVED ADDRESSES SECTION (+ Add New at top above address list) */}
+                <View style={{ marginTop: 4, marginBottom: 12 }}>
                   <View
                     style={{
                       flexDirection: 'row',
                       alignItems: 'center',
                       justifyContent: 'space-between',
-                      marginBottom: 8,
+                      marginBottom: 10,
                     }}
                   >
                     <Text
@@ -481,10 +303,11 @@ export const LocationOnboardingModal: React.FC<LocationOnboardingModalProps> = (
                         setMapPickerInitialCoords(undefined);
                         setIsMapPickerOpen(true);
                       }}
-                      style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+                      accessibilityRole="button"
+                      style={styles.addNewTopBtn}
                     >
-                      <Plus size={13} color="#FF5A1F" />
-                      <Text style={[FontStyles.sansBold, { fontSize: 11, color: '#FF5A1F' }]}>
+                      <Plus size={13} color="#FFFFFF" strokeWidth={2.5} />
+                      <Text style={[FontStyles.sansBold, { fontSize: 11, color: '#FFFFFF' }]}>
                         Add New
                       </Text>
                     </Pressable>
@@ -562,14 +385,14 @@ export const LocationOnboardingModal: React.FC<LocationOnboardingModalProps> = (
                                 <View style={styles.serviceableTag}>
                                   <Zap size={11} color="#059669" fill="#059669" />
                                   <Text style={[FontStyles.sansBold, { fontSize: 10, color: '#059669' }]}>
-                                    AVAILABLE • 18-MIN DROP
+                                    AVAILABLE • 19-MIN DROP
                                   </Text>
                                 </View>
                               ) : (
                                 <View style={styles.unserviceableTag}>
                                   <AlertTriangle size={11} color="#DC2626" />
                                   <Text style={[FontStyles.sansBold, { fontSize: 10, color: '#DC2626' }]}>
-                                    OUT OF 18-MIN DELIVERY ZONE
+                                    OUT OF 19-MIN DELIVERY ZONE
                                   </Text>
                                 </View>
                               )}
@@ -749,6 +572,24 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFF7ED',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  enableGpsBtn: {
+    backgroundColor: '#FF5A1F',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 68,
+  },
+  addNewTopBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#111111',
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
   },
   pincodeBox: {
     backgroundColor: '#FAF8F5',

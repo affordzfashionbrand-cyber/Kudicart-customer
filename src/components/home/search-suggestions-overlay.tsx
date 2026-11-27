@@ -517,7 +517,7 @@ export const SearchSuggestionsOverlay = React.memo(function SearchSuggestionsOve
                               }}
                             >
                               <Zap size={8} color="#FF5A1F" fill="#FF5A1F" />
-                              <Text style={{ fontSize: 8, color: '#ffffff', fontFamily: Fonts.sansBold }}>18M DROP</Text>
+                              <Text style={{ fontSize: 8, color: '#ffffff', fontFamily: Fonts.sansBold }}>19M DROP</Text>
                             </View>
                           )}
                         </View>

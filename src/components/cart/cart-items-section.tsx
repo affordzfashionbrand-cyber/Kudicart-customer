@@ -255,7 +255,7 @@ export const CartItemsSection = React.memo(function CartItemsSection({
                 </View>
 
                 {/* Try & Buy / Delivery Badge */}
-                {item.fulfillmentType === 'DARK_STORE' || item.isTryAndBuy ? (
+                {item.fulfillmentType === 'DARK_STORE' ? (
                   <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
                     <View
                       style={{
@@ -270,7 +270,9 @@ export const CartItemsSection = React.memo(function CartItemsSection({
                     >
                       <Zap size={9} color="#C2410C" fill="#C2410C" />
                       <Text style={{ fontSize: 9.5, fontWeight: '800', color: '#9A3412' }}>
-                        ⚡ 18-MIN DROP • TRY & BUY {item.trialSize ? `• Trial: ${item.trialSize}` : ''}
+                        {item.tryAndBuyEligible === false
+                          ? '⚡ 19-MIN DROP • TRY & BUY N/A'
+                          : `⚡ 19-MIN DROP • TRY & BUY${item.trialSize ? ` • Trial: ${item.trialSize}` : ''}`}
                       </Text>
                     </View>
                   </View>
@@ -289,7 +291,7 @@ export const CartItemsSection = React.memo(function CartItemsSection({
                     >
                       <Package size={9} color="#1D4ED8" />
                       <Text style={{ fontSize: 9.5, fontWeight: '800', color: '#1D4ED8' }}>
-                        🛍️ BOUTIQUE VENDOR • 2-4 DAYS
+                        ðŸ›ï¸ BOUTIQUE VENDOR â€¢ 2-4 DAYS
                       </Text>
                     </View>
                   </View>

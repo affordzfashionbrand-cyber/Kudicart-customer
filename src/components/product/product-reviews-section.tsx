@@ -36,10 +36,10 @@ export interface ProductReviewsSectionProps {
 }
 
 export function ProductReviewsSection({
-  productId = '101',
-  productTitle = 'Handloom Cotton Saree with Zari',
+  productId = '',
+  productTitle = 'Product',
   productImage,
-  brand = 'Varanasi Looms',
+  brand = 'Affordz',
   rating: initialRating = 0,
   reviewsCount: initialReviewsCount = 0,
 }: ProductReviewsSectionProps) {

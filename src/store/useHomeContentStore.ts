@@ -44,6 +44,10 @@ async function setCachedLayout(data: any): Promise<void> {
   }
 }
 
+function filterApprovedBanners(banners: HomeLayoutBanner[] | undefined): HomeLayoutBanner[] {
+  if (!Array.isArray(banners)) return [];
+  return banners.filter((b) => !b.status || b.status === 'APPROVED');
+}
 // Default initial state matching standard sections
 const DEFAULT_SECTIONS: HomeLayoutSection[] = [
   { sectionKey: 'HERO_BANNER', displayName: 'Hero Banners Carousel', displayOrder: 1, isEnabled: true },
@@ -114,9 +118,10 @@ export const useHomeContentStore = create<HomeContentState>((set, get) => ({
     if (get().hasHydrated) return;
     const cached = await getCachedLayout();
     if (cached) {
+      const approvedCachedBanners = filterApprovedBanners(cached.banners);
       set({
         sections: cached.sections || DEFAULT_SECTIONS,
-        banners: cached.banners || DEFAULT_BANNERS,
+        banners: approvedCachedBanners.length ? approvedCachedBanners : DEFAULT_BANNERS,
         bankOffers: cached.bankOffers || DEFAULT_BANK_OFFERS,
         curatedSections: cached.curatedSections || {},
         hasHydrated: true,
@@ -142,9 +147,10 @@ export const useHomeContentStore = create<HomeContentState>((set, get) => ({
       const response = await homeContentApi.getLayout(gender);
       if (response && response.success && response.data) {
         const { sections, banners, bankOffers, curatedSections } = response.data;
+        const approvedBanners = filterApprovedBanners(banners);
         const nextState = {
           sections: sections?.length ? sections : DEFAULT_SECTIONS,
-          banners: banners?.length ? banners : DEFAULT_BANNERS,
+          banners: approvedBanners.length ? approvedBanners : DEFAULT_BANNERS,
           bankOffers: bankOffers?.length ? bankOffers : DEFAULT_BANK_OFFERS,
           curatedSections: curatedSections || {},
           isLoading: false,
@@ -154,7 +160,7 @@ export const useHomeContentStore = create<HomeContentState>((set, get) => ({
         };
 
         set(nextState);
-        await setCachedLayout(response.data);
+        await setCachedLayout({ ...response.data, banners: approvedBanners });
       } else {
         set({ isLoading: false, isRefreshing: false });
       }

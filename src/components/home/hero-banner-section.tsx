@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, Pressable, FlatList, StyleSheet, useWindowDimensions } from 'react-native';
-import { Image } from 'expo-image';
+import { View, Text, Pressable, FlatList, StyleSheet, Platform, useWindowDimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ArrowRight } from 'lucide-react-native';
 import { HERO_BANNERS, HeroBannerItem } from '@/data/homeData';
@@ -9,6 +8,8 @@ import { HomeLayoutBanner } from '@/services/api';
 import { Fonts } from '@/constants/theme';
 import { AnimatedPressable } from '@/components/common/animated-pressable';
 import { EditorialText } from '@/components/common/section-title';
+import { LazyImage } from '@/components/common/lazy-image';
+import { HeroBannerSkeleton } from '@/components/common/skeleton';
 
 export interface HeroBannerSectionProps {
   banners?: (HomeLayoutBanner | HeroBannerItem)[];
@@ -20,7 +21,15 @@ export const HeroBannerSection = React.memo(function HeroBannerSection({
   onBannerPress,
 }: HeroBannerSectionProps) {
   const storeBanners = useHomeContentStore((s) => s.banners);
-  const activeBanners = (propBanners && propBanners.length > 0 ? propBanners : storeBanners) || HERO_BANNERS;
+  const isCmsLoading = useHomeContentStore((s) => s.isLoading);
+  const hasHydrated = useHomeContentStore((s) => s.hasHydrated);
+  const rawBanners = (propBanners && propBanners.length > 0 ? propBanners : storeBanners) || HERO_BANNERS;
+  const approvedHeroBanners = rawBanners.filter((b: any) => {
+    const approved = !b.status || b.status === 'APPROVED';
+    const isHeroPlacement = !b.placement || b.placement === 'HERO_CAROUSEL';
+    return approved && isHeroPlacement;
+  });
+  const activeBanners = approvedHeroBanners.length > 0 ? approvedHeroBanners : HERO_BANNERS;
 
   const { width: windowWidth } = useWindowDimensions();
   const bannerWidth = Math.min(windowWidth, 440) - 32;
@@ -51,6 +60,10 @@ export const HeroBannerSection = React.memo(function HeroBannerSection({
     };
   }, [bannerWidth, activeBanners.length]);
 
+  if (!propBanners && isCmsLoading && !hasHydrated) {
+    return <HeroBannerSkeleton bannerWidth={bannerWidth} />;
+  }
+
   return (
     <View style={{ alignItems: 'center', marginBottom: 22 }}>
       <View
@@ -76,6 +89,10 @@ export const HeroBannerSection = React.memo(function HeroBannerSection({
           showsHorizontalScrollIndicator={false}
           nestedScrollEnabled={true}
           overScrollMode="never"
+          initialNumToRender={2}
+          maxToRenderPerBatch={2}
+          windowSize={3}
+          removeClippedSubviews={Platform.OS !== 'web'}
           keyExtractor={(item) => item.id}
           onScrollBeginDrag={() => {
             isInteractingRef.current = true;
@@ -100,13 +117,14 @@ export const HeroBannerSection = React.memo(function HeroBannerSection({
           })}
           renderItem={({ item, index }) => {
             const imgUri = (item as any).imageUrl || (item as any).image;
+            const discountText = (item as any).discountText;
             return (
               <Pressable
                 onPress={() => onBannerPress(item)}
                 style={{ width: bannerWidth, height: bannerHeight, position: 'relative' }}
               >
-                <Image
-                  source={{ uri: imgUri }}
+                <LazyImage
+                  source={imgUri}
                   style={{ width: '100%', height: '100%' }}
                   contentFit="cover"
                   priority={index === 0 ? 'high' : 'normal'}
@@ -118,6 +136,33 @@ export const HeroBannerSection = React.memo(function HeroBannerSection({
                   end={{ x: 0.75, y: 0 }}
                   style={StyleSheet.absoluteFill}
                 />
+                {discountText ? (
+                  <View
+                    style={{
+                      position: 'absolute',
+                      top: 16,
+                      right: 16,
+                      zIndex: 25,
+                      backgroundColor: '#FF5A1F',
+                      paddingHorizontal: 10,
+                      paddingVertical: 4,
+                      borderRadius: 999,
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontFamily: Fonts.sansBold,
+                        fontSize: 10,
+                        fontWeight: '900',
+                        color: '#ffffff',
+                        letterSpacing: 1,
+                        textTransform: 'uppercase',
+                      }}
+                    >
+                      {discountText}
+                    </Text>
+                  </View>
+                ) : null}
                 <View style={{ position: 'absolute', bottom: 22, left: 22, zIndex: 20, right: 85 }}>
                   <Text style={{
                     fontFamily: Fonts.sansBold,

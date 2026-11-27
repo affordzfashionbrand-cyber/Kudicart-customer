@@ -1,6 +1,7 @@
 import React, { useMemo, useRef } from 'react';
 import { View, Text, ScrollView, Animated, Platform } from 'react-native';
-import { Image } from 'expo-image';
+import { LazyImage } from '@/components/common/lazy-image';
+import { CategoryStripSkeleton } from '@/components/common/skeleton';
 import { LinearGradient } from 'expo-linear-gradient';
 import { AnimatedPressable } from '@/components/common/animated-pressable';
 import { GENDER_CATEGORIES, WEAR_CATEGORIES, bespokeEasing } from '@/data/homeData';
@@ -22,13 +23,67 @@ export const CategoryBubblesSection = React.memo(function CategoryBubblesSection
   const wearsFadeAnim = useRef(new Animated.Value(1)).current;
   const isNative = Platform.OS !== 'web';
   const catalogCategories = useCatalogStore((s) => s.categories);
+  const catalogLoading = useCatalogStore((s) => s.isLoading);
 
+  const flattenCategories = useMemo(() => {
+    const out: any[] = [];
+    const visit = (nodes: any[]) => {
+      for (const node of nodes) {
+        out.push(node);
+        if (Array.isArray(node.children) && node.children.length > 0) visit(node.children);
+        if (Array.isArray(node.subcategories) && node.subcategories.length > 0) visit(node.subcategories);
+      }
+    };
+    visit(catalogCategories || []);
+    return out;
+  }, [catalogCategories]);
+
+  // Row 1: Wire All/Men/Women/Kids to live Level-1 DB categories (image & label), keeping consistent 4-pill layout
+  const topRowCategories = useMemo(() => {
+    return GENDER_CATEGORIES.map((fallback) => {
+      if (fallback.id === 'All') {
+        const allCat = flattenCategories.find(
+          (c) => (c.level === 1 || !c.parentId) && String(c.name || '').toLowerCase() === 'all',
+        );
+        return {
+          ...fallback,
+          image: allCat?.image || fallback.image,
+        };
+      }
+      const matchedDbCat = flattenCategories.find(
+        (c) =>
+          (c.level === 1 || !c.parentId) &&
+          (String(c.name || '').toLowerCase() === fallback.id.toLowerCase() ||
+            String(c.gender || '').toLowerCase() === fallback.id.toLowerCase()),
+      );
+      return {
+        ...fallback,
+        image: matchedDbCat?.image || fallback.image,
+      };
+    });
+  }, [flattenCategories]);
+
+  // Row 2: Live DB subcategories & non-gender root categories without duplicating Row 1 gender pills
   const wearItems = useMemo(() => {
-    const apiWearCats = (catalogCategories || []).filter(
-      (c) => c.image && (selectedGender === 'All' || !c.gender || String(c.gender) === 'All' || c.gender === selectedGender),
-    );
+    const seenNames = new Set<string>();
+    const excludedTopNames = new Set(['all', 'men', 'women', 'kids']);
+    const apiWearCats = flattenCategories.filter((c) => {
+      if (!c.image) return false;
+      const lowerName = String(c.name || '').trim().toLowerCase();
+      if (!lowerName || excludedTopNames.has(lowerName) || seenNames.has(lowerName)) return false;
+      const genderMatches =
+        selectedGender === 'All' ||
+        !c.gender ||
+        String(c.gender).toLowerCase() === 'all' ||
+        String(c.gender).toLowerCase() === 'unisex' ||
+        String(c.gender).toLowerCase() === selectedGender.toLowerCase();
+      if (!genderMatches) return false;
+      seenNames.add(lowerName);
+      return true;
+    });
+
     if (apiWearCats.length >= 3) {
-      return apiWearCats.slice(0, 10).map((c) => ({
+      return apiWearCats.slice(0, 12).map((c) => ({
         id: c.id,
         name: c.name,
         badge: (c as any).isPopular ? 'TOP' : undefined,
@@ -41,7 +96,7 @@ export const CategoryBubblesSection = React.memo(function CategoryBubblesSection
       badge: w.badge,
       image: w.images[selectedGender] || w.images['All'],
     }));
-  }, [catalogCategories, selectedGender]);
+  }, [flattenCategories, selectedGender]);
 
   const handleGenderPress = (gender: 'All' | 'Men' | 'Women' | 'Kids') => {
     if (gender === selectedGender) return;
@@ -70,7 +125,7 @@ export const CategoryBubblesSection = React.memo(function CategoryBubblesSection
     >
       {/* ROW 1: Gender Category Pills (All, Men, Women, Kids) */}
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingTop: 8, paddingBottom: 6 }}>
-        {GENDER_CATEGORIES.map((cat) => {
+        {topRowCategories.map((cat) => {
           const isSelected = selectedGender === cat.id;
           return (
             <View key={cat.id} style={{ flex: 1, alignItems: 'center', paddingHorizontal: 4 }}>
@@ -98,11 +153,12 @@ export const CategoryBubblesSection = React.memo(function CategoryBubblesSection
                     end={{ x: 1, y: 1 }}
                     style={{ width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center' }}
                   >
-                    <Image
+                    <LazyImage
                       source={{ uri: cat.image }}
                       style={{ width: '100%', height: '100%' }}
                       contentFit="cover"
                       recyclingKey={cat.id}
+                      priority="high"
                       transition={150}
                     />
                   </LinearGradient>
@@ -137,6 +193,9 @@ export const CategoryBubblesSection = React.memo(function CategoryBubblesSection
 
       {/* ROW 2: Wears Subcategory Strip with Images */}
       <View style={{ paddingVertical: 4 }}>
+        {catalogLoading && catalogCategories.length === 0 ? (
+          <CategoryStripSkeleton />
+        ) : (
         <Animated.View style={{
           opacity: wearsFadeAnim,
           transform: [{ translateY: wearsFadeAnim.interpolate({ inputRange: [0.2, 1], outputRange: [4, 0] }) }]
@@ -179,7 +238,7 @@ export const CategoryBubblesSection = React.memo(function CategoryBubblesSection
                       shadowRadius: 4,
                     }}
                   >
-                    <Image
+                    <LazyImage
                       source={{ uri: imageUrl }}
                       style={{ width: '100%', height: '100%' }}
                       contentFit="cover"
@@ -229,6 +288,7 @@ export const CategoryBubblesSection = React.memo(function CategoryBubblesSection
             })}
           </ScrollView>
         </Animated.View>
+        )}
       </View>
     </View>
   );

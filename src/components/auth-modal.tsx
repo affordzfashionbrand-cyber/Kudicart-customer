@@ -9,8 +9,20 @@ import {
 } from '@/services/firebase';
 import { useAuthStore } from '@/store/useAuthStore';
 import { AlertCircle, ArrowRight, CheckCircle2, ShieldCheck, X } from 'lucide-react-native';
-import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Dimensions, Easing, KeyboardAvoidingView, Modal, Platform, Pressable, Text, TextInput, View } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  Animated,
+  Dimensions,
+  Easing,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 
 const bespokeEasing = Easing.bezier(0.32, 0.72, 0, 1);
 
@@ -41,7 +53,7 @@ function formatFirebaseAuthError(err: any): string {
     case 'auth/invalid-verification-code':
       return 'Invalid verification code. Please check the code received via SMS.';
     case 'auth/code-expired':
-      return 'Verification code has expired. Please request a new OTP.';
+      return 'Verification code has expired or was replaced by a newer OTP. Please tap "Resend OTP" to get a fresh code.';
     case 'auth/missing-verification-code':
       return 'Please enter the 6-digit verification code.';
     case 'auth/user-disabled':
@@ -77,6 +89,7 @@ export function AuthModal({ visible, onClose, onSuccess }: AuthModalProps) {
   const { sendOtp, verifyOtp, loginWithFirebase } = useAuthStore();
   const confirmationResultRef = useRef<FirebasePhoneConfirmation | null>(null);
   const inputRefs = useRef<(React.ComponentRef<typeof TextInput> | null)[]>([]);
+  const isSubmittingOtpRef = useRef(false);
   const slideAnim = useRef(new Animated.Value(300)).current;
 
   useEffect(() => {
@@ -88,10 +101,12 @@ export function AuthModal({ visible, onClose, onSuccess }: AuthModalProps) {
       setDevOtp(null);
       setOtp(['', '', '', '', '', '']);
       confirmationResultRef.current = null;
+      isSubmittingOtpRef.current = false;
     } else {
       slideAnim.setValue(300);
       setError(null);
       confirmationResultRef.current = null;
+      isSubmittingOtpRef.current = false;
       clearRecaptchaVerifier();
     }
   }, [visible, isNative, slideAnim]);
@@ -104,12 +119,15 @@ export function AuthModal({ visible, onClose, onSuccess }: AuthModalProps) {
     return () => clearInterval(timer);
   }, [visible, activeStep, countdown]);
 
-  const handleVerifyOtp = async () => {
-    const code = otp.join('');
+  const handleVerifyOtp = useCallback(async (overrideCode?: string) => {
+    const code = (overrideCode ?? otp.join('')).replace(/\D/g, '');
     if (code.length < 6) {
       setError('Please enter the complete 6-digit verification code.');
       return;
     }
+    if (isSubmittingOtpRef.current) return;
+    isSubmittingOtpRef.current = true;
+
     const clean = phoneNumber.replace(/\D/g, '');
     setError(null);
     setIsVerifying(true);
@@ -134,12 +152,40 @@ export function AuthModal({ visible, onClose, onSuccess }: AuthModalProps) {
         setError(useAuthStore.getState().error || 'Invalid or expired OTP. Please enter the correct code.');
       }
     } catch (err: any) {
-      console.error('[Affordz Auth] Verify OTP error:', err);
+      console.warn('[Affordz Auth] Verify OTP error:', err);
       setError(formatFirebaseAuthError(err));
+      if (err?.code === 'auth/code-expired') {
+        setCountdown(0);
+        setOtp(['', '', '', '', '', '']);
+        inputRefs.current[0]?.focus();
+      }
     } finally {
+      isSubmittingOtpRef.current = false;
       setIsVerifying(false);
     }
-  };
+  }, [authMode, loginWithFirebase, onSuccess, otp, phoneNumber, verifyOtp]);
+
+  // WebOTP API auto-detect on supported mobile browsers
+  useEffect(() => {
+    if (!visible || activeStep !== 2 || Platform.OS !== 'web') return;
+    if (typeof navigator === 'undefined' || !('OTPCredential' in (globalThis as any)) || !(navigator as any).credentials?.get) {
+      return;
+    }
+    const ac = new AbortController();
+    (navigator as any).credentials
+      .get({ otp: { transport: ['sms'] }, signal: ac.signal })
+      .then((cred: any) => {
+        const code = String(cred?.code || '').replace(/\D/g, '').slice(0, 6);
+        if (code.length === 6) {
+          setOtp(code.split(''));
+          void handleVerifyOtp(code);
+        }
+      })
+      .catch(() => {
+        // Ignore abort / unsupported browser errors
+      });
+    return () => ac.abort();
+  }, [visible, activeStep, handleVerifyOtp]);
 
   const handleClose = () => {
     setError(null);
@@ -172,7 +218,7 @@ export function AuthModal({ visible, onClose, onSuccess }: AuthModalProps) {
           return;
         } catch (fbErr: any) {
           clearRecaptchaVerifier();
-          console.error('[Affordz Auth] Firebase Phone Auth error:', fbErr);
+          console.warn('[Affordz Auth] Firebase Phone Auth error:', fbErr);
           setError(formatFirebaseAuthError(fbErr));
           return;
         }
@@ -247,26 +293,37 @@ export function AuthModal({ visible, onClose, onSuccess }: AuthModalProps) {
                 <Text style={{ fontFamily: Fonts.sansBold }} className="text-[30px] leading-[34px] tracking-tight text-[#111111] mb-[8px]">SIGN IN<Text style={{ color: '#FF5A1F' }}>.</Text></Text>
                 <Text style={{ fontFamily: Fonts.sansMedium }} className="text-[13.5px] text-[#6B6667] mb-[28px]">Enter your mobile number for rapid checkout and live drop tracking.</Text>
 
-                <View className="h-[52px] bg-[#F7F7F5] border border-[#D9D9D5] rounded-[16px] flex-row items-center px-[16px] mb-[28px]">
+                <View className="h-[52px] bg-[#F7F7F5] border border-[#D9D9D5] rounded-[16px] flex-row items-center pl-[16px] pr-[6px] mb-[14px]">
                   <Text style={{ fontFamily: Fonts.sansBold }} className="text-[15px] text-[#111111] mr-[12px]">+91</Text>
                   <View className="w-[1px] h-[20px] bg-[#D9D9D5] mr-[12px]" />
                   <TextInput
                     style={{ fontFamily: Fonts.sansBold }}
                     className="flex-1 text-[15px] text-[#111111]"
                     keyboardType="phone-pad"
+                    autoComplete="tel"
+                    textContentType="telephoneNumber"
+                    returnKeyType="send"
+                    onSubmitEditing={handleGetOtp}
                     value={phoneNumber}
                     onChangeText={setPhoneNumber}
                     placeholder="Enter mobile number"
                     placeholderTextColor="#6B6667"
                   />
+                  <Pressable
+                    onPress={handleGetOtp}
+                    disabled={isGettingOtp}
+                    accessibilityRole="button"
+                    accessibilityLabel="Send OTP"
+                    testID="send-otp-arrow-btn"
+                    className="w-[40px] h-[40px] rounded-full bg-[#111111] items-center justify-center ml-[8px]"
+                  >
+                    {isGettingOtp ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <ArrowRight size={18} color="#FFFFFF" />
+                    )}
+                  </Pressable>
                 </View>
-
-                <AnimatedPressable className="flex-row items-center bg-[#111111] rounded-full pl-[24px] pr-[8px] py-[8px] justify-between" onPress={handleGetOtp} disabled={isGettingOtp}>
-                  <Text style={{ fontFamily: Fonts.sansExtraBold }} className="text-[12px] text-white uppercase tracking-[0.18em]">{isGettingOtp ? 'SENDING...' : 'GET OTP'}</Text>
-                  <View className="w-[42px] h-[42px] rounded-full bg-white flex items-center justify-center">
-                    <ArrowRight size={18} color="#111111" />
-                  </View>
-                </AnimatedPressable>
               </View>
             ) : (
               <View>
@@ -306,15 +363,40 @@ export function AuthModal({ visible, onClose, onSuccess }: AuthModalProps) {
                       style={{ fontFamily: Fonts.sansBold }}
                       className="w-[48px] h-[52px] bg-[#F7F7F5] border border-[#D9D9D5] rounded-[16px] text-center text-[20px] text-[#111111]"
                       keyboardType="number-pad"
-                      maxLength={1}
+                      maxLength={6}
+                      autoComplete="sms-otp"
                       textContentType="oneTimeCode"
                       value={digit}
+                      onKeyPress={(e) => {
+                        if (e.nativeEvent.key === 'Backspace' && !digit && index > 0) {
+                          inputRefs.current[index - 1]?.focus();
+                        }
+                      }}
                       onChangeText={(val) => {
                         const cleaned = val.replace(/\D/g, '');
+                        if (cleaned.length > 1) {
+                          const pasted = cleaned.slice(0, 6).split('');
+                          const nextOtp = ['', '', '', '', '', ''];
+                          for (let i = 0; i < pasted.length; i += 1) {
+                            nextOtp[i] = pasted[i];
+                          }
+                          setOtp(nextOtp);
+                          inputRefs.current[Math.min(pasted.length - 1, 5)]?.focus();
+                          if (pasted.length === 6) {
+                            void handleVerifyOtp(nextOtp.join(''));
+                          }
+                          return;
+                        }
                         const newOtp = [...otp];
                         newOtp[index] = cleaned;
                         setOtp(newOtp);
-                        if (cleaned && index < 5) inputRefs.current[index + 1]?.focus();
+                        if (cleaned && index < 5) {
+                          inputRefs.current[index + 1]?.focus();
+                        }
+                        const fullCode = newOtp.join('');
+                        if (cleaned && fullCode.length === 6 && newOtp.every((d) => d.length === 1)) {
+                          void handleVerifyOtp(fullCode);
+                        }
                       }}
                     />
                   ))}
@@ -334,7 +416,7 @@ export function AuthModal({ visible, onClose, onSuccess }: AuthModalProps) {
                   )}
                 </View>
 
-                <AnimatedPressable className="flex-row items-center bg-[#111111] rounded-full pl-[24px] pr-[8px] py-[8px] justify-between" onPress={handleVerifyOtp} disabled={isVerifying}>
+                <AnimatedPressable className="flex-row items-center bg-[#111111] rounded-full pl-[24px] pr-[8px] py-[8px] justify-between" onPress={() => void handleVerifyOtp()} disabled={isVerifying}>
                   <Text style={{ fontFamily: Fonts.sansExtraBold }} className="text-[12px] text-white uppercase tracking-[0.18em]">{isVerifying ? 'VERIFYING...' : 'VERIFY & PROCEED'}</Text>
                   <View className="w-[42px] h-[42px] rounded-full bg-white flex items-center justify-center">
                     <ShieldCheck size={18} color="#111111" />

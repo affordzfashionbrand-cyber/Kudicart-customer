@@ -99,6 +99,7 @@ class TrackingSocketService {
               heading: data.heading,
               accuracy: data.accuracy,
               speed: data.speed,
+              etaMinutes: data.etaMinutes,
               updatedAt: data.updatedAt,
               isStale: data.isStale,
             };
@@ -224,10 +225,15 @@ class TrackingSocketService {
       this.reconnectTimer = null;
     }
     if (this.ws) {
-      try {
-        this.ws.close();
-      } catch {}
+      const socket = this.ws;
       this.ws = null;
+      socket.onopen = null;
+      socket.onmessage = null;
+      socket.onerror = null;
+      socket.onclose = null;
+      try {
+        socket.close();
+      } catch {}
     }
     this.currentOrderId = null;
     this.token = null;

@@ -3,31 +3,48 @@ import React, { useEffect, useState } from 'react';
 import { DefaultTheme, ThemeProvider, Stack, useRouter } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import * as Linking from 'expo-linking';
-import { View, Text, Pressable, StyleSheet, Platform, LogBox } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, Platform, LogBox } from 'react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useFonts } from 'expo-font';
-import {
-  PlayfairDisplay_400Regular,
-  PlayfairDisplay_500Medium,
-  PlayfairDisplay_600SemiBold,
-  PlayfairDisplay_700Bold,
-  PlayfairDisplay_400Regular_Italic,
-} from '@expo-google-fonts/playfair-display';
 import {
   PlusJakartaSans_400Regular,
   PlusJakartaSans_500Medium,
   PlusJakartaSans_600SemiBold,
   PlusJakartaSans_700Bold,
+  PlusJakartaSans_800ExtraBold,
   PlusJakartaSans_400Regular_Italic,
 } from '@expo-google-fonts/plus-jakarta-sans';
 
 import { useAuthStore } from '@/store/useAuthStore';
 import { useSettingsStore } from '@/store/useSettingsStore';
 import { useOrderStore } from '@/store/useOrderStore';
+import { useNotificationStore } from '@/store/useNotificationStore';
+import { useSupportStore } from '@/store/useSupportStore';
 import { SplashScreenView } from '@/components/splash-screen';
 import { initSentry, captureException } from '@/services/sentry';
 import { customerNotificationService } from '@/services/notificationService';
+import { requestStartupPermissions } from '@/services/permissionsService';
 import { parsePaymentCallbackUrl } from '@/services/razorpay';
+import { Fonts, FontStyles } from '@/constants/theme';
+
+try {
+  const TextAny = Text as any;
+  const TextInputAny = TextInput as any;
+  TextAny.defaultProps = {
+    ...(TextAny.defaultProps || {}),
+    allowFontScaling: false,
+    maxFontSizeMultiplier: 1,
+    style: [{ fontFamily: Fonts.sans }, TextAny.defaultProps?.style].filter(Boolean),
+  };
+  TextInputAny.defaultProps = {
+    ...(TextInputAny.defaultProps || {}),
+    allowFontScaling: false,
+    maxFontSizeMultiplier: 1,
+    style: [{ fontFamily: Fonts.sans }, TextInputAny.defaultProps?.style].filter(Boolean),
+  };
+} catch {
+  // ignore if host component defaults are read-only
+}
 
 initSentry();
 
@@ -103,15 +120,12 @@ export default function RootLayout() {
   const [showSplash, setShowSplash] = useState(true);
 
   const [fontsLoaded, fontError] = useFonts({
-    PlayfairDisplay_400Regular,
-    PlayfairDisplay_500Medium,
-    PlayfairDisplay_600SemiBold,
-    PlayfairDisplay_700Bold,
-    PlayfairDisplay_400Regular_Italic,
+    'Plus Jakarta Sans': PlusJakartaSans_400Regular,
     PlusJakartaSans_400Regular,
     PlusJakartaSans_500Medium,
     PlusJakartaSans_600SemiBold,
     PlusJakartaSans_700Bold,
+    PlusJakartaSans_800ExtraBold,
     PlusJakartaSans_400Regular_Italic,
   });
 
@@ -124,8 +138,12 @@ export default function RootLayout() {
         router.push({ pathname, params } as any);
       },
       (data) => {
+        void useNotificationStore.getState().fetchNotifications().catch(() => {});
         if (data?.orderId) {
           void useOrderStore.getState().fetchTracking(String(data.orderId)).catch(() => {});
+        }
+        if (data?.ticketId || data?.route === '/support') {
+          void useSupportStore.getState().fetchTickets().catch(() => {});
         }
       },
     );
@@ -135,10 +153,24 @@ export default function RootLayout() {
       if (url.includes('payment-callback')) {
         const parsedPayment = parsePaymentCallbackUrl(url);
         if (parsedPayment?.orderId) {
-          void useOrderStore
-            .getState()
-            .confirmPaymentStatus(parsedPayment.orderId)
-            .catch(() => {});
+          const orderStore = useOrderStore.getState();
+          if (
+            parsedPayment.type === 'genuine_callback' &&
+            parsedPayment.razorpay_payment_id &&
+            parsedPayment.razorpay_signature
+          ) {
+            void orderStore
+              .verifyPayment({
+                orderId: parsedPayment.orderId,
+                paymentId: parsedPayment.razorpay_payment_id,
+                razorpayOrderId: parsedPayment.razorpay_order_id || '',
+                signature: parsedPayment.razorpay_signature,
+              })
+              .catch(() => orderStore.confirmPaymentStatus(parsedPayment.orderId!))
+              .catch(() => {});
+          } else {
+            void orderStore.confirmPaymentStatus(parsedPayment.orderId).catch(() => {});
+          }
         }
         return;
       }
@@ -174,6 +206,12 @@ export default function RootLayout() {
       SplashScreen.hideAsync().catch(() => {});
     }
   }, [fontsLoaded, fontError]);
+
+  useEffect(() => {
+    if (!showSplash && Platform.OS !== 'web') {
+      void requestStartupPermissions();
+    }
+  }, [showSplash]);
 
   if (!fontsLoaded && !fontError && Platform.OS !== 'web') {
     return null;
@@ -215,12 +253,13 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   errorTitle: {
+    ...FontStyles.sansBold,
     fontSize: 18,
-    fontWeight: '700',
     color: '#111111',
     marginBottom: 8,
   },
   errorBody: {
+    ...FontStyles.sansRegular,
     fontSize: 13,
     color: '#6B6667',
     textAlign: 'center',
@@ -233,9 +272,9 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   errorButtonText: {
+    ...FontStyles.sansBold,
     color: '#FFFFFF',
     fontSize: 13,
-    fontWeight: '700',
   },
   outerContainer: {
     flex: 1,

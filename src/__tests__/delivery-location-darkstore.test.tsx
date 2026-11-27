@@ -1,7 +1,8 @@
-import { geocodePincode, reverseGeocodeCoords } from '@/services/geocoding';
+import { geocodePincode, reverseGeocodeCoords, searchLocations } from '@/services/geocoding';
 import {
   checkAddressServiceability,
   DARK_STORE_HUB,
+  MAX_DARK_STORE_RADIUS_KM,
   useAddressStore,
 } from '@/store/useAddressStore';
 import { addressApi, setAuthToken } from '@/services/api';
@@ -36,12 +37,16 @@ describe('Delivery Location, Darkstore Radius & Geocoding Suite', () => {
     expect(tambaram?.longitude).toBeCloseTo(80.1, 2);
   });
 
-  it('evaluates serviceability against real Pozhichalur and Tambaram darkstores', () => {
+  it('evaluates 3 km serviceability against real Pozhichalur and Tambaram darkstores', () => {
+    expect(MAX_DARK_STORE_RADIUS_KM).toBe(3.0);
+
     // 1. Pozhichalur doorstep location (0.5 km from hub)
     const pozhichalurDoorstep = checkAddressServiceability({
       id: 'addr-poz',
       userId: 'usr-cust-1',
       label: 'Home',
+      recipientName: 'Aarav',
+      recipientPhone: '+91 98765 43210',
       line1: 'Plot 12, Main Road',
       locality: 'Pozhichalur',
       city: 'Chennai',
@@ -51,8 +56,9 @@ describe('Delivery Location, Darkstore Radius & Geocoding Suite', () => {
       isDefault: true,
     });
     expect(pozhichalurDoorstep.isServiceable).toBe(true);
-    expect(pozhichalurDoorstep.distanceKm).toBeLessThanOrEqual(8.0);
-    expect(pozhichalurDoorstep.statusText).toContain('18-MIN DROP');
+    expect(pozhichalurDoorstep.maxRadiusKm).toBe(3.0);
+    expect(pozhichalurDoorstep.distanceKm).toBeLessThanOrEqual(3.0);
+    expect(pozhichalurDoorstep.statusText).toContain('19-MIN DROP');
 
     // 2. Tambaram doorstep location (1.2 km from Tambaram hub)
     const tambaramDoorstep = checkAddressServiceability({
@@ -68,9 +74,26 @@ describe('Delivery Location, Darkstore Radius & Geocoding Suite', () => {
       isDefault: false,
     });
     expect(tambaramDoorstep.isServiceable).toBe(true);
-    expect(tambaramDoorstep.distanceKm).toBeLessThanOrEqual(8.0);
+    expect(tambaramDoorstep.distanceKm).toBeLessThanOrEqual(3.0);
 
-    // 3. Out-of-radius location (e.g. Mahabalipuram, > 40 km away)
+    // 3. Location at ~4.5 km away (previously allowed under 8 km, now rejected under 3 km)
+    const midDistanceLocation = checkAddressServiceability({
+      id: 'addr-mid',
+      userId: 'usr-cust-1',
+      label: 'Outside 3km',
+      line1: 'Outer Ring Road',
+      locality: 'Adambakkam',
+      city: 'Chennai',
+      pincode: '600088',
+      latitude: 13.0220,
+      longitude: 80.1384,
+      isDefault: false,
+    });
+    expect(midDistanceLocation.isServiceable).toBe(false);
+    expect(midDistanceLocation.distanceKm).toBeGreaterThan(3.0);
+    expect(midDistanceLocation.statusText).toBe('NOT AVAILABLE FOR THIS PLACE');
+
+    // 4. Out-of-radius location (e.g. Mahabalipuram, > 40 km away)
     const remoteLocation = checkAddressServiceability({
       id: 'addr-remote',
       userId: 'usr-cust-1',
@@ -84,8 +107,15 @@ describe('Delivery Location, Darkstore Radius & Geocoding Suite', () => {
       isDefault: false,
     });
     expect(remoteLocation.isServiceable).toBe(false);
-    expect(remoteLocation.distanceKm).toBeGreaterThan(8.0);
+    expect(remoteLocation.distanceKm).toBeGreaterThan(3.0);
     expect(remoteLocation.statusText).toBe('NOT AVAILABLE FOR THIS PLACE');
+  });
+
+  it('returns autocomplete suggestions for locality and pincode searches', async () => {
+    const results = await searchLocations('Pozhichalur');
+    expect(results.length).toBeGreaterThan(0);
+    expect(results[0].pincode).toBe('600074');
+    expect(results[0].city).toBe('Chennai');
   });
 
   it('safely handles addAddress when unauthenticated without throwing unhandled network error', async () => {

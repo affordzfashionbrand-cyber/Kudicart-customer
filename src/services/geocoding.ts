@@ -238,6 +238,148 @@ export async function geocodePincode(pincode: string): Promise<GeocodedAddress |
   return null;
 }
 
+export interface LocationSuggestion {
+  id: string;
+  title: string;
+  subtitle: string;
+  latitude: number;
+  longitude: number;
+  locality: string;
+  city: string;
+  state: string;
+  pincode: string;
+}
+
+/**
+ * Search Indian places / localities / pincodes with autocomplete suggestions.
+ */
+export async function searchLocations(
+  query: string,
+  signal?: AbortSignal,
+): Promise<LocationSuggestion[]> {
+  const trimmed = query.trim();
+  if (trimmed.length < 2) return [];
+
+  const qLower = trimmed.toLowerCase();
+  const localMatches: LocationSuggestion[] = [];
+  const seenKeys = new Set<string>();
+
+  for (const [pin, entry] of Object.entries(KNOWN_PINCODES)) {
+    if (
+      pin.includes(trimmed) ||
+      entry.locality.toLowerCase().includes(qLower) ||
+      entry.city.toLowerCase().includes(qLower)
+    ) {
+      const key = `${entry.locality.toLowerCase()}|${pin}`;
+      seenKeys.add(key);
+      localMatches.push({
+        id: `known-${pin}`,
+        title: `${entry.locality}, ${entry.city}`,
+        subtitle: `${entry.state} - ${pin}`,
+        latitude: entry.lat,
+        longitude: entry.lng,
+        locality: entry.locality,
+        city: entry.city,
+        state: entry.state,
+        pincode: pin,
+      });
+    }
+  }
+
+  // If exact 6-digit pincode, also try geocodePincode
+  const cleanDigits = trimmed.replace(/\D/g, '');
+  if (cleanDigits.length === 6 && !KNOWN_PINCODES[cleanDigits]) {
+    const pinResult = await geocodePincode(cleanDigits);
+    if (pinResult) {
+      localMatches.unshift({
+        id: `pin-${cleanDigits}`,
+        title: `${pinResult.locality}, ${pinResult.city}`,
+        subtitle: pinResult.formattedAddress,
+        latitude: pinResult.latitude,
+        longitude: pinResult.longitude,
+        locality: pinResult.locality,
+        city: pinResult.city,
+        state: pinResult.state,
+        pincode: pinResult.pincode,
+      });
+    }
+  }
+
+  // Query Nominatim for broader street/area suggestions
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 4500);
+    if (signal) {
+      signal.addEventListener('abort', () => controller.abort(), { once: true });
+    }
+    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(
+      trimmed,
+    )}&countrycodes=in&format=json&addressdetails=1&limit=6`;
+    const res = await fetch(url, {
+      headers: { 'User-Agent': 'Kudicart-App/1.0 (customer-app-autocomplete)' },
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        for (let i = 0; i < data.length; i++) {
+          const item = data[i];
+          const lat = parseFloat(item.lat);
+          const lon = parseFloat(item.lon);
+          if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+          const addr = item.address || {};
+          const road = addr.road || addr.neighbourhood || '';
+          const loc =
+            addr.suburb ||
+            addr.neighbourhood ||
+            addr.town ||
+            addr.village ||
+            addr.county ||
+            addr.city_district ||
+            item.name ||
+            'Selected Area';
+          const city = sanitizeCity(addr.city || addr.town || addr.state_district || 'Chennai');
+          const state = addr.state || 'Tamil Nadu';
+          const pin = (addr.postcode || '').replace(/\D/g, '').slice(0, 6);
+          const key = `${loc.toLowerCase()}|${pin || lat.toFixed(3)}`;
+          if (seenKeys.has(key)) continue;
+          seenKeys.add(key);
+
+          const title = road && road.toLowerCase() !== loc.toLowerCase()
+            ? `${road}, ${loc}`
+            : `${loc}, ${city}`;
+          const subtitle = formatIndianAddress({
+            road: road || undefined,
+            locality: loc,
+            city,
+            state,
+            pincode: pin || undefined,
+          });
+          localMatches.push({
+            id: `nom-${item.place_id || i}`,
+            title,
+            subtitle,
+            latitude: lat,
+            longitude: lon,
+            locality: loc,
+            city,
+            state,
+            pincode: pin,
+          });
+        }
+      }
+    }
+  } catch (err) {
+    if ((err as any)?.name !== 'AbortError') {
+      console.warn('[Geocoding] Autocomplete search failed:', err);
+    }
+  }
+
+  return localMatches.slice(0, 6);
+}
+
 /**
  * Reverse geocode coordinates to street, locality, city, state, and pincode.
  */

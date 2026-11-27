@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { Image } from 'expo-image';
 import { Icon } from '@/components/icon';
+import { FontStyles } from '@/constants/theme';
 
 interface SplashScreenProps {
   onFinish?: () => void;
@@ -95,7 +96,7 @@ export function SplashScreenView({
 
     // Milestone text updates
     const t1 = setTimeout(() => {
-      setLoadingStep('Syncing 18-min doorstep drops...');
+      setLoadingStep('Syncing 19-min doorstep drops...');
     }, 700);
 
     const t2 = setTimeout(() => {
@@ -213,12 +214,12 @@ export function SplashScreenView({
           <View style={styles.expressBadge}>
             <Icon name="bolt" size={14} color="#FF5A1F" />
             <Text style={styles.expressBadgeText}>
-              18-MIN CONCIERGE DROP
+              19-MIN CONCIERGE DROP
             </Text>
           </View>
 
           <Text style={styles.brandTagline}>
-            CURATED ATELIERS. 18-MIN DOORSTEP TRY & BUY.
+            CURATED ATELIERS. 19-MIN DOORSTEP TRY & BUY.
           </Text>
         </Animated.View>
       </View>
@@ -310,9 +311,9 @@ const styles = StyleSheet.create({
     borderColor: '#D9D9D5',
   },
   skipText: {
+    ...FontStyles.sansBold,
     color: '#111111',
     fontSize: 12,
-    fontWeight: '700',
     letterSpacing: 0.5,
   },
   centerContent: {
@@ -352,14 +353,14 @@ const styles = StyleSheet.create({
     alignItems: 'baseline',
   },
   brandTitleKudi: {
+    ...FontStyles.sansExtraBold,
     fontSize: 36,
-    fontWeight: '900',
     color: '#111111',
     letterSpacing: -0.5,
   },
   brandTitleCart: {
+    ...FontStyles.sansExtraBold,
     fontSize: 36,
-    fontWeight: '900',
     color: '#111111',
     letterSpacing: -0.5,
   },
@@ -376,19 +377,19 @@ const styles = StyleSheet.create({
     borderColor: '#D9D9D5',
   },
   expressBadgeText: {
+    ...FontStyles.sansExtraBold,
     fontSize: 11,
-    fontWeight: '800',
     color: '#111111',
     letterSpacing: 0.8,
   },
   brandTagline: {
+    ...FontStyles.sansBold,
     fontSize: 12,
     color: '#6B6667',
     marginTop: 12,
     textAlign: 'center',
     maxWidth: 280,
     letterSpacing: 2,
-    fontWeight: '700',
   },
   footerSection: {
     width: '100%',
@@ -409,9 +410,9 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
   loadingStepText: {
+    ...FontStyles.sansSemiBold,
     fontSize: 12,
     color: '#6B6667',
-    fontWeight: '600',
     marginBottom: 12,
   },
   guaranteeRow: {
@@ -420,8 +421,8 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   guaranteeText: {
+    ...FontStyles.sansSemiBold,
     fontSize: 11,
     color: '#6B6667',
-    fontWeight: '600',
   },
 });

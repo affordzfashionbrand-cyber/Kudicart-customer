@@ -63,7 +63,7 @@ export const CartTopDeals: React.FC<CartTopDealsProps> = ({
   wishlist = [],
   onToggleWishlist,
   title = 'Top Deals Curated For You',
-  subtitle = 'EXCLUSIVE ATELIER DISCOUNTS • 18-MIN EXPRESS DROP',
+  subtitle = 'EXCLUSIVE ATELIER DISCOUNTS â€¢ 19-MIN EXPRESS DROP',
 }) => {
   const [deals, setDeals] = useState<DealProduct[]>([]);
   const [activeTab, setActiveTab] = useState<DealTab>('ALL');
@@ -228,10 +228,10 @@ export const CartTopDeals: React.FC<CartTopDealsProps> = ({
         contentContainerStyle={{ gap: 8, paddingBottom: 12 }}
       >
         {[
-          { id: 'ALL', label: '🔥 All Deals' },
-          { id: 'FLASH', label: '⚡ Flash Drops (45%+ Off)' },
-          { id: 'UNDER1999', label: '🏷️ Under ₹1,999' },
-          { id: 'BESTSELLER', label: '⭐ Best Sellers' },
+          { id: 'ALL', label: 'ðŸ”¥ All Deals' },
+          { id: 'FLASH', label: 'âš¡ Flash Drops (45%+ Off)' },
+          { id: 'UNDER1999', label: 'ðŸ·ï¸ Under â‚¹1,999' },
+          { id: 'BESTSELLER', label: 'â­ Best Sellers' },
         ].map((tab) => {
           const isSelected = activeTab === tab.id;
           return (
@@ -324,8 +324,11 @@ export const CartTopDeals: React.FC<CartTopDealsProps> = ({
                 {/* Wishlist Heart Icon */}
                 {onToggleWishlist && (
                   <Pressable
-                    onPress={() => onToggleWishlist(deal.id)}
-                    hitSlop={8}
+                    onPress={(e: any) => {
+                      e?.stopPropagation?.();
+                      onToggleWishlist(deal.id);
+                    }}
+                    hitSlop={10}
                     style={{
                       position: 'absolute',
                       top: 8,
@@ -350,7 +353,7 @@ export const CartTopDeals: React.FC<CartTopDealsProps> = ({
                   </Pressable>
                 )}
 
-                {/* 18-Min Express Pill */}
+                {/* 19-Min Express Pill */}
                 <View
                   style={{
                     position: 'absolute',
@@ -367,7 +370,7 @@ export const CartTopDeals: React.FC<CartTopDealsProps> = ({
                 >
                   <PulsingRadarBeacon size={5} color="#4ADE80" />
                   <Text style={{ fontSize: 8.5, fontWeight: '800', color: '#FFFFFF' }}>
-                    18-MIN DROP
+                    19-MIN DROP
                   </Text>
                 </View>
               </Pressable>
@@ -458,7 +461,7 @@ export const CartTopDeals: React.FC<CartTopDealsProps> = ({
                     <>
                       <Check size={12} color="#059669" strokeWidth={3} />
                       <Text style={{ fontSize: 10.5, fontWeight: '900', color: '#059669' }}>
-                        ADDED ✓
+                        ADDED âœ“
                       </Text>
                     </>
                   ) : (

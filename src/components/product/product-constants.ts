@@ -48,7 +48,7 @@ export const TRUST_PILLARS = [
   },
   {
     icon: Zap,
-    title: '18-Min Try & Buy',
+    title: '19-Min Try & Buy',
     desc: 'Test drape before paying',
     color: '#FF5A1F',
   },

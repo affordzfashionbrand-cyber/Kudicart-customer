@@ -21,17 +21,29 @@ import {
   ArrowRight,
   MapPin,
   Plus,
-  Check,
   AlertCircle,
   Zap,
+  Search,
+  User,
+  Phone,
+  Users,
+  Navigation,
+  CheckCircle2,
+  AlertTriangle,
 } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Fonts } from '@/constants/theme';
-import { useAddressStore } from '@/store/useAddressStore';
+import { Fonts, FontStyles } from '@/constants/theme';
+import {
+  useAddressStore,
+  checkAddressServiceability,
+  ServiceabilityResult,
+} from '@/store/useAddressStore';
+import { useAuthStore } from '@/store/useAuthStore';
 import type { AddressModel } from '@/services/api';
 import { AnimatedPressable } from '@/components/common/animated-pressable';
 import { AddressCard } from '@/components/common/address-card';
-import { reverseGeocodeCoords } from '@/services/geocoding';
+import { reverseGeocodeCoords, geocodePincode } from '@/services/geocoding';
+import { requestContactsPermission } from '@/services/permissionsService';
 
 const bespokeEasing = Easing.bezier(0.32, 0.72, 0, 1);
 
@@ -49,6 +61,7 @@ export const AddressModal = React.memo(function AddressModal({
   onSelectAddress,
 }: AddressModalProps) {
   const insets = useSafeAreaInsets();
+  const { user } = useAuthStore();
   const { addresses, addAddress, updateAddress, deleteAddress, fetchAddresses } = useAddressStore();
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [editingAddressId, setEditingAddressId] = useState<string | null>(null);
@@ -57,6 +70,9 @@ export const AddressModal = React.memo(function AddressModal({
   // New Address Form State
   const [formError, setFormError] = useState<string | null>(null);
   const [isLocating, setIsLocating] = useState(false);
+  const [isCheckingPincode, setIsCheckingPincode] = useState(false);
+  const [pincodeCheckResult, setPincodeCheckResult] = useState<ServiceabilityResult | null>(null);
+  const [receiverMode, setReceiverMode] = useState<'SELF' | 'OTHER'>('SELF');
   const [selectedTag, setSelectedTag] = useState<'HOME' | 'WORK' | 'OTHER'>('HOME');
   const [newAddress, setNewAddress] = useState<{
     label: string;
@@ -73,8 +89,8 @@ export const AddressModal = React.memo(function AddressModal({
     isDefault: boolean;
   }>({
     label: 'Home Sanctuary',
-    recipientName: '',
-    recipientPhone: '',
+    recipientName: user?.name || '',
+    recipientPhone: user?.phone || '',
     line1: '',
     line2: '',
     locality: '',
@@ -100,8 +116,9 @@ export const AddressModal = React.memo(function AddressModal({
       setIsAddingNew(false);
       setEditingAddressId(null);
       setFormError(null);
+      setPincodeCheckResult(null);
     }
-  }, [visible, slideAnim]);
+  }, [visible, slideAnim, fetchAddresses]);
 
   const handleClose = React.useCallback(() => {
     Animated.timing(slideAnim, {
@@ -116,10 +133,14 @@ export const AddressModal = React.memo(function AddressModal({
 
   const handleStartEdit = React.useCallback((addr: AddressModel) => {
     setEditingAddressId(addr.id);
+    const hasCustomReceiver =
+      Boolean(addr.recipientName && addr.recipientName !== user?.name) ||
+      Boolean(addr.recipientPhone && addr.recipientPhone !== user?.phone);
+    setReceiverMode(hasCustomReceiver ? 'OTHER' : 'SELF');
     setNewAddress({
       label: addr.label,
-      recipientName: addr.recipientName || '',
-      recipientPhone: addr.recipientPhone || '',
+      recipientName: addr.recipientName || user?.name || '',
+      recipientPhone: addr.recipientPhone || user?.phone || '',
       line1: addr.line1,
       line2: addr.line2 || '',
       locality: addr.locality,
@@ -134,7 +155,115 @@ export const AddressModal = React.memo(function AddressModal({
     else if (addr.label.toLowerCase().includes('studio') || addr.label.toLowerCase().includes('work')) setSelectedTag('WORK');
     else setSelectedTag('OTHER');
     setFormError(null);
+    setPincodeCheckResult(null);
     setIsAddingNew(true);
+  }, [user?.name, user?.phone]);
+
+  const handleOpenAddNew = React.useCallback(() => {
+    setEditingAddressId(null);
+    setReceiverMode('SELF');
+    setPincodeCheckResult(null);
+    setFormError(null);
+    setNewAddress({
+      label: 'Home Sanctuary',
+      recipientName: user?.name || '',
+      recipientPhone: user?.phone || '',
+      line1: '',
+      line2: '',
+      locality: '',
+      city: 'Bengaluru',
+      state: 'Karnataka',
+      pincode: '',
+      latitude: undefined,
+      longitude: undefined,
+      isDefault: false,
+    });
+    setIsAddingNew(true);
+  }, [user?.name, user?.phone]);
+
+  const handleCheckPincodeInForm = React.useCallback(async () => {
+    const cleanPin = newAddress.pincode.replace(/\D/g, '');
+    if (cleanPin.length !== 6) {
+      setFormError('Please enter a valid 6-digit Indian PIN code to check radius.');
+      setPincodeCheckResult(null);
+      return;
+    }
+    setIsCheckingPincode(true);
+    setFormError(null);
+    try {
+      const geocoded = await geocodePincode(cleanPin);
+      if (geocoded) {
+        setNewAddress((prev) => ({
+          ...prev,
+          locality: prev.locality || geocoded.locality,
+          city: geocoded.city || prev.city,
+          state: geocoded.state || prev.state,
+          pincode: cleanPin,
+          latitude: geocoded.latitude,
+          longitude: geocoded.longitude,
+        }));
+        setPincodeCheckResult(
+          checkAddressServiceability({
+            id: '',
+            userId: '',
+            label: geocoded.locality,
+            line1: geocoded.formattedAddress,
+            locality: geocoded.locality,
+            city: geocoded.city,
+            pincode: cleanPin,
+            latitude: geocoded.latitude,
+            longitude: geocoded.longitude,
+            isDefault: false,
+          }),
+        );
+      } else {
+        setPincodeCheckResult(
+          checkAddressServiceability({
+            id: '',
+            userId: '',
+            label: 'Custom Pincode',
+            line1: newAddress.line1 || 'Doorstep Delivery',
+            locality: newAddress.locality || 'Area',
+            city: newAddress.city || 'Chennai',
+            pincode: cleanPin,
+            isDefault: false,
+          }),
+        );
+      }
+    } catch (err: any) {
+      setFormError(err?.message || 'Unable to verify PIN code radius.');
+    } finally {
+      setIsCheckingPincode(false);
+    }
+  }, [newAddress.pincode, newAddress.line1, newAddress.locality, newAddress.city]);
+
+  const handlePickContact = React.useCallback(async () => {
+    setReceiverMode('OTHER');
+    if (Platform.OS === 'web' && typeof navigator !== 'undefined' && (navigator as any).contacts?.select) {
+      try {
+        const picked = await (navigator as any).contacts.select(['name', 'tel'], { multiple: false });
+        if (Array.isArray(picked) && picked[0]) {
+          const pickedName = Array.isArray(picked[0].name) ? picked[0].name[0] : picked[0].name;
+          const pickedTel = Array.isArray(picked[0].tel) ? picked[0].tel[0] : picked[0].tel;
+          setNewAddress((prev) => ({
+            ...prev,
+            recipientName: pickedName ? String(pickedName) : prev.recipientName,
+            recipientPhone: pickedTel ? String(pickedTel) : prev.recipientPhone,
+          }));
+          return;
+        }
+      } catch {
+        // user dismissed or unsupported
+      }
+    }
+    if (Platform.OS === 'android') {
+      const granted = await requestContactsPermission();
+      if (!granted) {
+        setFormError('Contacts permission denied. Enter receiver name & phone manually below.');
+        return;
+      }
+    }
+    setFormError('Enter receiver name & 10-digit phone number below.');
   }, []);
 
   const handleDetectGPSInModal = React.useCallback(async () => {
@@ -248,18 +377,39 @@ export const AddressModal = React.memo(function AddressModal({
       return;
     }
 
+    let resolvedLatitude = newAddress.latitude;
+    let resolvedLongitude = newAddress.longitude;
+    let resolvedLocality = newAddress.locality.trim();
+    let resolvedCity = newAddress.city.trim();
+    let resolvedState = newAddress.state.trim();
+
+    if (resolvedLatitude === undefined || resolvedLongitude === undefined) {
+      try {
+        const geocoded = await geocodePincode(cleanPin);
+        if (geocoded) {
+          resolvedLatitude = geocoded.latitude;
+          resolvedLongitude = geocoded.longitude;
+          resolvedLocality = resolvedLocality || geocoded.locality;
+          resolvedCity = resolvedCity || geocoded.city;
+          resolvedState = resolvedState || geocoded.state;
+        }
+      } catch {
+        // Proceed with pincode validation in checkAddressServiceability
+      }
+    }
+
     const payload = {
       label: newAddress.label.trim(),
       recipientName: newAddress.recipientName.trim() || undefined,
       recipientPhone: newAddress.recipientPhone.trim() || undefined,
       line1: newAddress.line1.trim(),
       line2: newAddress.line2.trim() || undefined,
-      locality: newAddress.locality.trim(),
-      city: newAddress.city.trim(),
-      state: newAddress.state.trim() || undefined,
+      locality: resolvedLocality,
+      city: resolvedCity,
+      state: resolvedState || undefined,
       pincode: cleanPin,
-      latitude: newAddress.latitude,
-      longitude: newAddress.longitude,
+      latitude: resolvedLatitude,
+      longitude: resolvedLongitude,
       isDefault: newAddress.isDefault,
     };
 
@@ -325,7 +475,7 @@ export const AddressModal = React.memo(function AddressModal({
                 <View className="flex-row items-center gap-1 mb-2">
                   <Zap size={14} color="#FF5A1F" />
                   <Text style={{ fontFamily: Fonts.sansBold }} className="text-[10px] text-[#FF5A1F] uppercase tracking-[0.15em]">
-                    18-MIN INSTANT COMMERCE
+                    19-MIN INSTANT COMMERCE
                   </Text>
                 </View>
                 <Text style={{ fontFamily: Fonts.sansBold }} className="text-[24px] text-black tracking-tight mb-2">
@@ -342,42 +492,143 @@ export const AddressModal = React.memo(function AddressModal({
 
             {isAddingNew ? (
               <ScrollView showsVerticalScrollIndicator={false} className="mb-2">
-                {/* GPS Auto-Detect Button */}
-                <Pressable
-                  onPress={handleDetectGPSInModal}
-                  disabled={isLocating}
+                {/* GPS Auto-Detect Card with Enable Button */}
+                <View
                   style={{
-                    backgroundColor: '#F0F9FF',
-                    borderWidth: 1,
-                    borderColor: '#FFEDD5',
+                    backgroundColor: '#FAF8F5',
+                    borderWidth: 1.5,
+                    borderColor: '#FF5A1F',
                     borderRadius: 14,
                     paddingHorizontal: 14,
                     paddingVertical: 10,
                     flexDirection: 'row',
                     alignItems: 'center',
-                    gap: 8,
+                    gap: 10,
+                    marginBottom: 14,
+                  }}
+                >
+                  <MapPin size={16} color="#FF5A1F" />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[FontStyles.sansBold, { fontSize: 12.5, color: '#111111' }]}>
+                      Use Current GPS Location
+                    </Text>
+                    <Text style={[FontStyles.sansRegular, { fontSize: 10.5, color: '#6B6667', marginTop: 1 }]}>
+                      {isLocating
+                        ? 'Acquiring GPS coordinates from device...'
+                        : 'Detect location to verify 3 km instant serviceability'}
+                    </Text>
+                  </View>
+                  <Pressable
+                    onPress={handleDetectGPSInModal}
+                    disabled={isLocating}
+                    style={{ backgroundColor: '#FF5A1F', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 }}
+                  >
+                    {isLocating ? (
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                    ) : (
+                      <Text style={[FontStyles.sansBold, { fontSize: 11, color: '#FFFFFF' }]}>Enable</Text>
+                    )}
+                  </Pressable>
+                </View>
+
+                {/* Pincode Checker inside + Add New flow */}
+                <View
+                  style={{
+                    backgroundColor: '#FAF8F5',
+                    borderWidth: 1,
+                    borderColor: '#E8E5DF',
+                    borderRadius: 14,
+                    padding: 12,
                     marginBottom: 16,
                   }}
                 >
-                  <MapPin size={16} color="#C2410C" />
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 12, fontWeight: '800', color: '#9A3412' }}>
-                      Use Current GPS Location
-                    </Text>
-                    <Text style={{ fontSize: 10, color: '#C2410C', marginTop: 1 }}>
-                      {isLocating
-                        ? 'Acquiring GPS coordinates from device...'
-                        : 'Acquire real coordinates to verify instant serviceability'}
-                    </Text>
+                  <Text style={[FontStyles.sansBold, { fontSize: 10, color: '#8A857D', letterSpacing: 1, marginBottom: 8 }]}>
+                    CHECK PINCODE (3 KM EXPRESS RADIUS)
+                  </Text>
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    <View
+                      style={{
+                        flex: 1,
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: 8,
+                        backgroundColor: '#FFFFFF',
+                        borderWidth: 1,
+                        borderColor: '#E8E5DF',
+                        borderRadius: 10,
+                        paddingHorizontal: 10,
+                      }}
+                    >
+                      <Search size={14} color="#8A857D" />
+                      <TextInput
+                        style={[FontStyles.sansMedium, { flex: 1, paddingVertical: 8, fontSize: 13, color: '#111111' }]}
+                        placeholder="6-digit Pincode (e.g. 600074)"
+                        placeholderTextColor="#A8A29E"
+                        keyboardType="numeric"
+                        maxLength={6}
+                        value={newAddress.pincode}
+                        onChangeText={(t) => {
+                          setNewAddress({ ...newAddress, pincode: t });
+                          setPincodeCheckResult(null);
+                        }}
+                      />
+                    </View>
+                    <Pressable
+                      onPress={handleCheckPincodeInForm}
+                      disabled={isCheckingPincode}
+                      style={{
+                        backgroundColor: '#111111',
+                        borderRadius: 10,
+                        paddingHorizontal: 14,
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                      }}
+                    >
+                      {isCheckingPincode ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      ) : (
+                        <Text style={[FontStyles.sansBold, { fontSize: 11, color: '#FFFFFF' }]}>CHECK</Text>
+                      )}
+                    </Pressable>
                   </View>
-                  {isLocating ? (
-                    <ActivityIndicator size="small" color="#C2410C" />
-                  ) : (
-                    <View style={{ backgroundColor: '#C2410C', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 }}>
-                      <Text style={{ fontSize: 9, fontWeight: '900', color: '#FFFFFF' }}>DETECT</Text>
+
+                  {pincodeCheckResult && (
+                    <View
+                      style={{
+                        marginTop: 8,
+                        padding: 8,
+                        borderRadius: 10,
+                        borderWidth: 1,
+                        backgroundColor: pincodeCheckResult.isServiceable ? '#ECFDF5' : '#FEF2F2',
+                        borderColor: pincodeCheckResult.isServiceable ? '#A7F3D0' : '#FECACA',
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: 6,
+                      }}
+                    >
+                      {pincodeCheckResult.isServiceable ? (
+                        <CheckCircle2 size={14} color="#059669" />
+                      ) : (
+                        <AlertTriangle size={14} color="#DC2626" />
+                      )}
+                      <Text
+                        style={[
+                          FontStyles.sansBold,
+                          {
+                            flex: 1,
+                            fontSize: 11,
+                            color: pincodeCheckResult.isServiceable ? '#047857' : '#B91C1C',
+                          },
+                        ]}
+                      >
+                        {pincodeCheckResult.isServiceable
+                          ? `Available • ~${pincodeCheckResult.distanceKm} km from ${pincodeCheckResult.nearestHubName} (Within 3.0 km)`
+                          : pincodeCheckResult.reason ||
+                            `Outside 3.0 km radius (${pincodeCheckResult.distanceKm} km from hub)`}
+                      </Text>
                     </View>
                   )}
-                </Pressable>
+                </View>
 
                 {formError && (
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#FFF0EA', borderWidth: 1, borderColor: 'rgba(255, 90, 31, 0.3)', borderRadius: 14, padding: 12, marginBottom: 16 }}>
@@ -416,6 +667,93 @@ export const AddressModal = React.memo(function AddressModal({
                   })}
                 </View>
 
+                {/* Receiver Details */}
+                <View style={{ marginBottom: 14 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <Text className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-400">
+                      RECEIVER DETAILS
+                    </Text>
+                    <View style={{ flexDirection: 'row', gap: 6 }}>
+                      <Pressable
+                        onPress={() => {
+                          setReceiverMode('SELF');
+                          setNewAddress((prev) => ({
+                            ...prev,
+                            recipientName: user?.name || prev.recipientName,
+                            recipientPhone: user?.phone || prev.recipientPhone,
+                          }));
+                        }}
+                        style={{
+                          paddingHorizontal: 10,
+                          paddingVertical: 4,
+                          borderRadius: 999,
+                          backgroundColor: receiverMode === 'SELF' ? '#111111' : '#F4F1EA',
+                        }}
+                      >
+                        <Text style={[FontStyles.sansBold, { fontSize: 10, color: receiverMode === 'SELF' ? '#FFFFFF' : '#111111' }]}>
+                          Myself
+                        </Text>
+                      </Pressable>
+                      <Pressable
+                        onPress={() => {
+                          setReceiverMode('OTHER');
+                          setNewAddress((prev) => ({ ...prev, recipientName: '', recipientPhone: '' }));
+                        }}
+                        style={{
+                          paddingHorizontal: 10,
+                          paddingVertical: 4,
+                          borderRadius: 999,
+                          backgroundColor: receiverMode === 'OTHER' ? '#111111' : '#F4F1EA',
+                        }}
+                      >
+                        <Text style={[FontStyles.sansBold, { fontSize: 10, color: receiverMode === 'OTHER' ? '#FFFFFF' : '#111111' }]}>
+                          Someone Else
+                        </Text>
+                      </Pressable>
+                      <Pressable
+                        onPress={handlePickContact}
+                        style={{
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          gap: 4,
+                          paddingHorizontal: 10,
+                          paddingVertical: 4,
+                          borderRadius: 999,
+                          backgroundColor: '#FFF7ED',
+                          borderWidth: 1,
+                          borderColor: '#FFEDD5',
+                        }}
+                      >
+                        <Users size={11} color="#FF5A1F" />
+                        <Text style={[FontStyles.sansBold, { fontSize: 10, color: '#FF5A1F' }]}>
+                          Contacts
+                        </Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                  <View className="flex-row gap-2">
+                    <View className="flex-1 h-[48px] bg-zinc-50 border border-zinc-200 rounded-[14px] px-3 flex-row items-center gap-2">
+                      <User size={14} color="#8A857D" />
+                      <TextInput
+                        className="flex-1 text-[13.5px] text-zinc-900"
+                        placeholder="Receiver Name"
+                        value={newAddress.recipientName}
+                        onChangeText={(t) => setNewAddress({ ...newAddress, recipientName: t })}
+                      />
+                    </View>
+                    <View className="flex-1 h-[48px] bg-zinc-50 border border-zinc-200 rounded-[14px] px-3 flex-row items-center gap-2">
+                      <Phone size={14} color="#8A857D" />
+                      <TextInput
+                        className="flex-1 text-[13.5px] text-zinc-900"
+                        placeholder="Receiver Phone"
+                        keyboardType="phone-pad"
+                        value={newAddress.recipientPhone}
+                        onChangeText={(t) => setNewAddress({ ...newAddress, recipientPhone: t })}
+                      />
+                    </View>
+                  </View>
+                </View>
+
                 {/* Form fields */}
                 <Text className="text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-400 mb-1.5">LABEL / NAME</Text>
                 <TextInput className="h-[48px] bg-zinc-50 border border-zinc-200 rounded-[14px] px-4 text-[14px] text-zinc-900 mb-4" placeholder="e.g. Home Sanctuary" value={newAddress.label} onChangeText={(t) => setNewAddress({ ...newAddress, label: t })} />
@@ -444,6 +782,76 @@ export const AddressModal = React.memo(function AddressModal({
               </ScrollView>
             ) : (
               <ScrollView showsVerticalScrollIndicator={false} className="mb-2">
+                {/* Use Current GPS Location card with explicit Enable button */}
+                <View
+                  style={{
+                    backgroundColor: '#FAF8F5',
+                    borderWidth: 1.5,
+                    borderColor: '#FF5A1F',
+                    borderRadius: 16,
+                    padding: 12,
+                    marginBottom: 14,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 10,
+                  }}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
+                    <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#FFF7ED', alignItems: 'center', justifyContent: 'center' }}>
+                      <Navigation size={16} color="#FF5A1F" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[FontStyles.sansBold, { fontSize: 13, color: '#111111' }]}>
+                        Use Current GPS Location
+                      </Text>
+                      <Text style={[FontStyles.sansRegular, { fontSize: 11, color: '#6B6667' }]}>
+                        Auto-fill address from device GPS
+                      </Text>
+                    </View>
+                  </View>
+                  <Pressable
+                    onPress={() => {
+                      handleOpenAddNew();
+                      void handleDetectGPSInModal();
+                    }}
+                    style={{
+                      backgroundColor: '#FF5A1F',
+                      borderRadius: 10,
+                      paddingHorizontal: 14,
+                      paddingVertical: 8,
+                    }}
+                  >
+                    <Text style={[FontStyles.sansBold, { fontSize: 11.5, color: '#FFFFFF' }]}>
+                      Enable
+                    </Text>
+                  </Pressable>
+                </View>
+
+                {/* Saved Addresses Header + "+ Add New" at TOP above address list */}
+                <View className="flex-row items-center justify-between mb-3">
+                  <Text style={[FontStyles.sansBold, { fontSize: 10, color: '#8A857D', letterSpacing: 1.2, textTransform: 'uppercase' }]}>
+                    SAVED ADDRESSES
+                  </Text>
+                  <Pressable
+                    onPress={handleOpenAddNew}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 4,
+                      backgroundColor: '#111111',
+                      borderRadius: 999,
+                      paddingHorizontal: 12,
+                      paddingVertical: 6,
+                    }}
+                  >
+                    <Plus size={13} color="#FFFFFF" strokeWidth={2.5} />
+                    <Text style={[FontStyles.sansBold, { fontSize: 11, color: '#FFFFFF' }]}>
+                      Add New
+                    </Text>
+                  </Pressable>
+                </View>
+
                 <View className="gap-3">
                   {addresses.map((addr) => (
                     <AddressCard
@@ -453,30 +861,9 @@ export const AddressModal = React.memo(function AddressModal({
                       onSelect={() => handleSelectAddress(addr)}
                       onEdit={() => handleStartEdit(addr)}
                       onDelete={() => handleDelete(addr.id)}
-                      showShippingInfo={true}
                     />
                   ))}
                 </View>
-
-                {/* Action Card: Add New Address */}
-                <AnimatedPressable
-                  onPress={() => setIsAddingNew(true)}
-                  className="mt-6 flex-row items-center justify-between p-6 rounded-[24px] bg-[#111111] active:opacity-90"
-                >
-                  <View className="flex-row items-center gap-4">
-                    <View className="w-12 h-12 rounded-full bg-white flex items-center justify-center">
-                      <Plus size={22} color="#111111" strokeWidth={3} />
-                    </View>
-                    <View>
-                      <Text style={{ fontFamily: Fonts.sansBold }} className="text-[16px] font-black text-white tracking-tight">
-                        Add new destination
-                      </Text>
-                      <Text style={{ fontFamily: Fonts.sansMedium }} className="text-[12px] text-zinc-400 mt-0.5">
-                        Apartment, penthouse, or workspace
-                      </Text>
-                    </View>
-                  </View>
-                </AnimatedPressable>
               </ScrollView>
             )}
           </View>

@@ -9,6 +9,7 @@ export interface CartDeliveryAddressSectionProps {
   addressServiceability: {
     isServiceable: boolean;
     distanceKm: number;
+    maxRadiusKm?: number;
   };
   hasDarkStoreItems: boolean;
   onOpenLocationModal: () => void;
@@ -113,10 +114,10 @@ export const CartDeliveryAddressSection = React.memo(function CartDeliveryAddres
           {isAuthenticated ? (
             <>
               <Text style={{ fontSize: 14, fontWeight: '800', color: '#111111' }}>
-                {user?.name || 'Affordz Customer'}
-                {user?.phone ? (
+                {selectedAddress?.recipientName || user?.name || 'Affordz Customer'}
+                {(selectedAddress?.recipientPhone || user?.phone) ? (
                   <Text style={{ fontSize: 12, color: '#71717A', fontWeight: '500' }}>
-                    {' '}• {user.phone}
+                    {' '}• {selectedAddress?.recipientPhone || user?.phone}
                   </Text>
                 ) : null}
               </Text>
@@ -184,14 +185,14 @@ export const CartDeliveryAddressSection = React.memo(function CartDeliveryAddres
               }}
             >
               <Text style={{ fontSize: 9.5, fontWeight: '900', color: '#B91C1C' }}>
-                {addressServiceability.distanceKm} KM (MAX 8.0 KM)
+                {addressServiceability.distanceKm} KM (MAX {(addressServiceability.maxRadiusKm ?? 3).toFixed(1)} KM)
               </Text>
             </View>
           </View>
 
           <Text style={{ fontSize: 11.5, color: '#991B1B', lineHeight: 16 }}>
             {hasDarkStoreItems
-              ? `Our 18-minute quick drop and Try & Buy fleet only operates within 8.0 km of our Express Hub. ${selectedAddress?.locality || selectedAddress?.city || 'Selected address'} is ${addressServiceability.distanceKm} km away.`
+              ? `Our 19-minute quick drop and Try & Buy fleet only operates within ${(addressServiceability.maxRadiusKm ?? 3).toFixed(1)} km of our Express Hub. ${selectedAddress?.locality || selectedAddress?.city || 'Selected address'} is ${addressServiceability.distanceKm} km away.`
               : 'Standard boutique delivery will arrive via insured courier in 2-4 business days.'}
           </Text>
 
@@ -233,7 +234,7 @@ export const CartDeliveryAddressSection = React.memo(function CartDeliveryAddres
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
             <Zap size={12} color="#15803D" fill="#15803D" />
             <Text style={{ fontSize: 11, fontWeight: '800', color: '#15803D' }}>
-              ⚡ 18-Min Instant Drop Available
+              ⚡ 19-Min Instant Drop Available
             </Text>
           </View>
           <Text style={{ fontSize: 10, fontWeight: '700', color: '#166534' }}>
@@ -281,9 +282,9 @@ export const CartDeliveryAddressSection = React.memo(function CartDeliveryAddres
             }}
           >
             {!addressServiceability.isServiceable && hasDarkStoreItems
-              ? '⚠️ Instant Drop Not Serviceable at this Address'
+              ? 'âš ï¸ Instant Drop Not Serviceable at this Address'
               : hasDarkStoreItems
-              ? '⚡ Estimated Delivery: In 18 Minutes'
+              ? '⚡ Estimated Delivery: In 19 Minutes'
               : '📦 Boutique Dispatch: In 2-4 Business Days'}
           </Text>
         </View>

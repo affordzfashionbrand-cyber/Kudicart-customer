@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, Pressable, ScrollView } from 'react-native';
-import { Image } from 'expo-image';
+import { LazyImage } from '@/components/common/lazy-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
   RotateCcw,
@@ -68,7 +68,7 @@ export const StoreDirectorySection = React.memo(function StoreDirectorySection({
               elevation: 6,
             }}
           >
-            <Image
+            <LazyImage
               source={{ uri: activeStore.image }}
               style={{
                 position: 'absolute',
@@ -81,6 +81,7 @@ export const StoreDirectorySection = React.memo(function StoreDirectorySection({
                 opacity: 0.35,
               }}
               contentFit="cover"
+              priority="high"
             />
 
             <LinearGradient
@@ -108,7 +109,7 @@ export const StoreDirectorySection = React.memo(function StoreDirectorySection({
                       textTransform: 'uppercase',
                     }}
                   >
-                    OPEN NOW • LIVE DISPATCH
+                    OPEN NOW â€¢ LIVE DISPATCH
                   </Text>
                 </View>
 
@@ -209,8 +210,8 @@ export const StoreDirectorySection = React.memo(function StoreDirectorySection({
               { id: 'MEN', label: 'Men' },
               { id: 'ETHNIC', label: 'Ethnic Silhouettes' },
               { id: 'WESTERN', label: 'Western Cuts' },
-              { id: 'EXPRESS', label: '⚡ Fast Track' },
-              { id: 'BUDGET', label: 'Under ₹3,500' },
+              { id: 'EXPRESS', label: 'âš¡ Fast Track' },
+              { id: 'BUDGET', label: 'Under â‚¹3,500' },
             ].map((chip) => {
               const active = storeSubFilter === chip.id;
               return (
@@ -310,7 +311,7 @@ export const StoreDirectorySection = React.memo(function StoreDirectorySection({
 
         <EditorialText first="Select" second="a store." fontSize={24} lineHeight={28} singleLine={true} withDot={true} />
         <Text style={{ fontSize: 11.5, color: '#71717A', marginTop: 3, lineHeight: 16 }}>
-          Shop live inventory available for 18–35 min doorstep delivery & try-on from your nearest atelier.
+          Shop live inventory available for 18â€“35 min doorstep delivery & try-on from your nearest atelier.
         </Text>
       </View>
 
@@ -319,7 +320,7 @@ export const StoreDirectorySection = React.memo(function StoreDirectorySection({
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
           {[
             { id: 'ALL', label: `All Stores (${allStores.length})` },
-            { id: 'DARK_STORE', label: '⚡ 18M Express Dark Stores' },
+            { id: 'DARK_STORE', label: 'âš¡ 19M Express Dark Stores' },
             { id: 'BRAND_BOUTIQUE', label: 'Artisan Brand Boutiques' },
           ].map((tab) => {
             const isSelected = storeTypeFilter === tab.id;
@@ -361,7 +362,7 @@ export const StoreDirectorySection = React.memo(function StoreDirectorySection({
             })}
           >
             <View style={{ height: 130, position: 'relative', width: '100%' }}>
-              <Image source={{ uri: store.image }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
+              <LazyImage source={{ uri: store.image }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
               <LinearGradient
                 colors={['rgba(0,0,0,0.2)', 'rgba(0,0,0,0.75)']}
                 style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}

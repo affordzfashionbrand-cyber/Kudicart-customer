@@ -39,6 +39,8 @@ export const BrandText = React.forwardRef<React.ComponentRef<typeof Text>, Brand
   return (
     <Text
       ref={ref}
+      allowFontScaling={false}
+      maxFontSizeMultiplier={1}
       className={`${isSerif ? 'font-serif editorial-text ' : ''}${className || ''}`}
       style={[variantStyle, style]}
       {...props}

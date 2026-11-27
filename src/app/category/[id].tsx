@@ -13,7 +13,8 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Image } from 'expo-image';
+import { LazyImage } from '@/components/common/lazy-image';
+import { ProductCardSkeleton } from '@/components/common/skeleton';
 import {
   ArrowLeft,
   ShoppingBag,
@@ -94,7 +95,7 @@ function resolveCategoryDef(normalizedId: string): CategoryItemDef {
             gender: leaf.gender === 'Women' || leaf.gender === 'Men' || leaf.gender === 'Kids' ? leaf.gender : 'All',
             wear: leaf.name,
             image: leaf.image,
-            subcategories: ['All', 'Express 18m', 'Try & Buy', 'Top Rated'],
+            subcategories: ['All', 'Express 19m', 'Try & Buy', 'Top Rated'],
           };
         }
       }
@@ -321,10 +322,11 @@ export default function CategoryResultsScreen() {
       {/* Editorial Category Banner */}
       <View style={styles.bannerContainer}>
         <View style={styles.bannerCard}>
-          <Image
+          <LazyImage
             source={{ uri: categoryDef.image }}
             style={StyleSheet.absoluteFill}
             contentFit="cover"
+            priority="high"
             transition={200}
           />
           <View style={styles.bannerScrim} />
@@ -457,7 +459,7 @@ export default function CategoryResultsScreen() {
         </Text>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
           <Zap size={11} color="#FF5A1F" fill="#FF5A1F" />
-          <Text style={styles.summaryExpress}>18-Min Try & Buy</Text>
+          <Text style={styles.summaryExpress}>19-Min Try & Buy</Text>
         </View>
       </View>
     </View>
@@ -476,7 +478,7 @@ export default function CategoryResultsScreen() {
               {categoryDef.name}
             </Text>
             <Text numberOfLines={1} style={styles.headerSubtitle}>
-              {displayedProducts.length} items • 18-Min Try & Buy
+              {displayedProducts.length} items • 19-Min Try & Buy
             </Text>
           </View>
 
@@ -492,11 +494,10 @@ export default function CategoryResultsScreen() {
 
         {/* Virtualized Infinite-Scrolling FlatList */}
         {isLoading && page === 1 ? (
-          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingTop: 60 }}>
-            <ActivityIndicator size="large" color="#FF5A1F" />
-            <Text style={[{ marginTop: 12, fontSize: 13, color: '#6B6667' }, FontStyles.sansSemiBold]}>
-              Curating Runway Catalog...
-            </Text>
+          <View style={{ paddingHorizontal: 16, paddingTop: 12, flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 12 }}>
+            {[1, 2, 3, 4].map((idx) => (
+              <ProductCardSkeleton key={`cat-skel-${idx}`} cardWidth={165} />
+            ))}
           </View>
         ) : (
           <FlatList

@@ -89,7 +89,7 @@ export const Footer = React.memo(function Footer() {
             <Text style={[styles.brandTitle, { color: '#FF5A1F' }]}>.</Text>
           </View>
           <Text style={styles.brandTagline}>
-            CURATED ATELIERS. 18-MIN DOORSTEP TRY & BUY.
+            CURATED ATELIERS. 19-MIN DOORSTEP TRY & BUY.
           </Text>
         </View>
       </View>
@@ -169,7 +169,7 @@ export const Footer = React.memo(function Footer() {
       {/* Copyright Strip */}
       <View style={styles.copyrightStrip}>
         <Text style={styles.copyrightText}>
-          © 2026 Affordz Technologies Pvt Ltd. All rights reserved. Handcrafted with pride across India.
+          Â© 2026 Affordz Technologies Pvt Ltd. All rights reserved. Handcrafted with pride across India.
         </Text>
       </View>
     </View>

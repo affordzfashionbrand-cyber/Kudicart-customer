@@ -15,8 +15,9 @@ import {
   Zap,
 } from 'lucide-react-native';
 import { AnimatedPressable } from '@/components/common/animated-pressable';
+import { ActiveOrderCapsule } from '@/components/home/active-order-capsule';
 import { useDarkStore } from '@/store/useDarkStore';
-import { Fonts } from '@/constants/theme';
+import { Fonts, FontStyles } from '@/constants/theme';
 
 interface FloatingBottomBarProps {
   currentTab: string;
@@ -232,6 +233,17 @@ export const FloatingBottomBar = React.memo(function FloatingBottomBar({
         zIndex: 50,
       }}
     >
+      {/* Floating Active Order Capsule above Bottom Nav Bar */}
+      <ActiveOrderCapsule
+        style={{
+          position: 'absolute',
+          bottom: 74,
+          left: 0,
+          right: currentTab !== 'CART' ? 62 : 0,
+          zIndex: 58,
+        }}
+      />
+
       {/* Floating 'Add to Cart' Icon Button - At Right End Above Bottom Navbar */}
       {currentTab !== 'CART' && (
         <Animated.View
@@ -286,11 +298,14 @@ export const FloatingBottomBar = React.memo(function FloatingBottomBar({
                 }}
               >
                 <Text
-                  style={{
-                    color: '#FFFFFF',
-                    fontSize: 9.5,
-                    fontWeight: '900',
-                  }}
+                  allowFontScaling={false}
+                  style={[
+                    FontStyles.sansExtraBold,
+                    {
+                      color: '#FFFFFF',
+                      fontSize: 9.5,
+                    },
+                  ]}
                 >
                   {totalBagCount}
                 </Text>
@@ -321,14 +336,14 @@ export const FloatingBottomBar = React.memo(function FloatingBottomBar({
           elevation: 12,
         }}
       >
-        {/* Left Section: 3 Compact Nav Tabs */}
+        {/* Left Section: 4 Compact Nav Tabs */}
         <View
           style={{
             flexDirection: 'row',
             alignItems: 'center',
             justifyContent: 'space-around',
             flex: 1,
-            paddingRight: 6,
+            paddingRight: 4,
           }}
         >
           {REGULAR_TABS.map(({ id, label, Icon }) => {
@@ -338,55 +353,75 @@ export const FloatingBottomBar = React.memo(function FloatingBottomBar({
               <AnimatedPressable
                 key={id}
                 onPress={() => onSelectTab(id)}
+                hitSlop={4}
                 style={{
                   alignItems: 'center',
                   justifyContent: 'center',
                   paddingVertical: 4,
-                  paddingHorizontal: 6,
-                  minWidth: 44,
+                  paddingHorizontal: 4,
+                  minWidth: 42,
                 }}
               >
-                <View style={{ position: 'relative', alignItems: 'center' }}>
-                  <Icon
-                    size={19}
-                    strokeWidth={isActive ? 2.4 : 1.8}
-                    color={isActive ? '#FFFFFF' : '#888888'}
-                  />
+                <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+                  <View
+                    style={{
+                      width: 24,
+                      height: 22,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      position: 'relative',
+                    }}
+                  >
+                    <Icon
+                      size={18.5}
+                      strokeWidth={isActive ? 2.4 : 1.8}
+                      color={isActive ? '#FFFFFF' : '#9E9E9E'}
+                    />
 
-                  {/* Badge for Wishlist if > 0 */}
-                  {id === 'WISHLIST' && wishlistCount > 0 && (
-                    <View
-                      style={{
-                        position: 'absolute',
-                        top: -5,
-                        right: -7,
-                        backgroundColor: '#FF5A1F',
-                        borderRadius: 7,
-                        minWidth: 14,
-                        height: 14,
-                        paddingHorizontal: 2.5,
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        borderWidth: 1,
-                        borderColor: '#111111',
-                      }}
-                    >
-                      <Text style={{ color: '#FFFFFF', fontSize: 8, fontWeight: '900' }}>
-                        {wishlistCount > 9 ? '9+' : wishlistCount}
-                      </Text>
-                    </View>
-                  )}
+                    {/* Badge for Wishlist if > 0 */}
+                    {id === 'WISHLIST' && wishlistCount > 0 && (
+                      <View
+                        style={{
+                          position: 'absolute',
+                          top: -4,
+                          right: -7,
+                          backgroundColor: '#FF5A1F',
+                          borderRadius: 7,
+                          minWidth: 14,
+                          height: 14,
+                          paddingHorizontal: 3,
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          borderWidth: 1,
+                          borderColor: '#111111',
+                        }}
+                      >
+                        <Text
+                          allowFontScaling={false}
+                          style={[
+                            FontStyles.sansExtraBold,
+                            { color: '#FFFFFF', fontSize: 8, lineHeight: 10 },
+                          ]}
+                        >
+                          {wishlistCount > 9 ? '9+' : wishlistCount}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
 
                   {/* Tab Label */}
                   <Text
+                    allowFontScaling={false}
                     numberOfLines={1}
-                    style={{
-                      fontSize: 8.5,
-                      fontWeight: isActive ? '800' : '600',
-                      color: isActive ? '#FFFFFF' : '#888888',
-                      marginTop: 2.5,
-                      letterSpacing: 0.1,
-                    }}
+                    style={[
+                      isActive ? FontStyles.sansBold : FontStyles.sansMedium,
+                      {
+                        fontSize: 8.5,
+                        color: isActive ? '#FFFFFF' : '#9E9E9E',
+                        marginTop: 2,
+                        letterSpacing: 0.1,
+                      },
+                    ]}
                   >
                     {label}
                   </Text>
@@ -422,14 +457,14 @@ export const FloatingBottomBar = React.memo(function FloatingBottomBar({
           style={{
             backgroundColor: isDarkStoreActive ? '#B3471A' : '#943813',
             height: 52,
-            width: 136,
-            borderRadius: 18,
+            width: 144,
+            borderRadius: 26,
             borderWidth: 1.5,
             borderColor: isDarkStoreActive ? '#FFFFFF' : '#C45728',
             flexDirection: 'row',
             alignItems: 'center',
             justifyContent: 'space-between',
-            paddingLeft: 10,
+            paddingLeft: 12,
             paddingRight: 6,
             shadowColor: '#FF5A1F',
             shadowOffset: { width: 0, height: 2 },
@@ -453,7 +488,7 @@ export const FloatingBottomBar = React.memo(function FloatingBottomBar({
           />
 
           {/* Left Text Column */}
-          <View style={{ flex: 1, justifyContent: 'center', zIndex: 2 }}>
+          <View style={{ flex: 1, justifyContent: 'center', paddingRight: 4, zIndex: 2 }}>
             {/* Catchy Prefix (e.g. 'select' / 'express') */}
             <Animated.View
               style={{
@@ -465,58 +500,70 @@ export const FloatingBottomBar = React.memo(function FloatingBottomBar({
               }}
             >
               <Text
-                style={{
-                  fontFamily: Fonts.sansSemiBold,
-                  fontStyle: 'italic',
-                  fontSize: 13,
-                  fontWeight: '600',
-                  color: '#FFFFFF',
-                  lineHeight: 15,
-                }}
+                allowFontScaling={false}
+                numberOfLines={1}
+                style={[
+                  FontStyles.serifItalic,
+                  {
+                    fontSize: 11.5,
+                    color: '#FFFFFF',
+                    lineHeight: 13,
+                  },
+                ]}
               >
                 {CATCHY_PREFIXES[prefixIndex]}
               </Text>
 
               {/* Pulsing Lightning Bolt Feature Icon */}
               <Animated.View style={{ transform: [{ scale: pulseScale }] }}>
-                <Zap size={9.5} color="#FFD700" fill="#FFD700" />
+                <Zap size={9} color="#FFD700" fill="#FFD700" />
               </Animated.View>
             </Animated.View>
 
             {/* Mandatory Main Line: DARK STORE */}
             <Text
-              style={{
-                fontSize: 10.5,
-                fontWeight: '900',
-                color: '#FFE2D1',
-                letterSpacing: 0.9,
-                textTransform: 'uppercase',
-                marginTop: 1,
-              }}
+              allowFontScaling={false}
+              numberOfLines={1}
+              style={[
+                FontStyles.sansExtraBold,
+                {
+                  fontSize: 9.5,
+                  color: '#FFE2D1',
+                  letterSpacing: 0.4,
+                  textTransform: 'uppercase',
+                  lineHeight: 12,
+                  marginTop: 1,
+                },
+              ]}
             >
               DARK STORE
             </Text>
 
             {/* Micro Delivery Tag */}
             <Text
-              style={{
-                fontSize: 7.5,
-                fontWeight: '800',
-                color: 'rgba(255, 255, 255, 0.85)',
-                letterSpacing: 0.5,
-                marginTop: 0.5,
-              }}
+              allowFontScaling={false}
+              numberOfLines={1}
+              style={[
+                FontStyles.sansBold,
+                {
+                  fontSize: 7.5,
+                  color: 'rgba(255, 255, 255, 0.88)',
+                  letterSpacing: 0.4,
+                  lineHeight: 10,
+                  marginTop: 1,
+                },
+              ]}
             >
-              {selectedDarkStore ? `${selectedDarkStore.deliveryMinutes}M DROP` : '18M DROP'}
+              {selectedDarkStore ? `${selectedDarkStore.deliveryMinutes}M DROP` : '19M DROP'}
             </Text>
           </View>
 
           {/* Right Column: Animated Multi-Product Showcase */}
           <View
             style={{
-              width: 44,
-              height: 44,
-              borderRadius: 13,
+              width: 40,
+              height: 40,
+              borderRadius: 20,
               backgroundColor: 'rgba(0, 0, 0, 0.28)',
               borderWidth: 1,
               borderColor: 'rgba(255, 255, 255, 0.2)',
@@ -550,9 +597,9 @@ export const FloatingBottomBar = React.memo(function FloatingBottomBar({
             {/* Foreground Animated Cycling Item */}
             <Animated.View
               style={{
-                width: 36,
-                height: 36,
-                borderRadius: 10,
+                width: 32,
+                height: 32,
+                borderRadius: 16,
                 overflow: 'hidden',
                 backgroundColor: '#1E1E1E',
                 borderWidth: 1,

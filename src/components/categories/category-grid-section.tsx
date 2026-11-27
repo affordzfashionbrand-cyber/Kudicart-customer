@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { View, Text, Pressable, ScrollView } from 'react-native';
-import { Image } from 'expo-image';
+import { LazyImage } from '@/components/common/lazy-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
   Store,
@@ -256,7 +256,7 @@ export const CategoryGridSection = React.memo(function CategoryGridSection({
               })}
             >
               <View style={{ width: '100%', height: 74, borderRadius: 10, overflow: 'hidden', marginBottom: 6 }}>
-                <Image source={{ uri: store.image }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
+                <LazyImage source={{ uri: store.image }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
                 <View
                   style={{
                     position: 'absolute',
@@ -381,10 +381,11 @@ export const CategoryGridSection = React.memo(function CategoryGridSection({
             justifyContent: 'center',
           }}
         >
-          <Image
+          <LazyImage
             source={{ uri: currentDepartment.banner }}
             style={{ width: '100%', height: '100%', position: 'absolute' }}
             contentFit="cover"
+            priority="high"
           />
           <LinearGradient
             colors={['rgba(0,0,0,0.65)', 'rgba(0,0,0,0.3)', 'rgba(0,0,0,0.8)']}
@@ -416,7 +417,7 @@ export const CategoryGridSection = React.memo(function CategoryGridSection({
               {currentDepartment.name} Collection
             </Text>
             <Text style={{ fontSize: 10.5, color: '#D4D4D8', marginTop: 1 }}>
-              {currentDepartment.subcategories.length} Sections • Doorstep Trial & 18m Express
+              {currentDepartment.subcategories.length} Sections â€¢ Doorstep Trial & 19m Express
             </Text>
           </View>
         </View>
@@ -443,8 +444,8 @@ export const CategoryGridSection = React.memo(function CategoryGridSection({
             <SlidersHorizontal size={12} color="#FF5A1F" />
             <Text style={{ fontSize: 11, fontWeight: '700', color: '#111111' }} numberOfLines={1}>
               {currentDepartment.name}
-              {currentSubCategory ? ` › ${currentSubCategory.name}` : ''}
-              {currentLeafCategory ? ` › ${currentLeafCategory.name}` : ''}
+              {currentSubCategory ? ` â€º ${currentSubCategory.name}` : ''}
+              {currentLeafCategory ? ` â€º ${currentLeafCategory.name}` : ''}
             </Text>
           </View>
 
@@ -502,14 +503,14 @@ export const CategoryGridSection = React.memo(function CategoryGridSection({
                       backgroundColor: '#F3EFEA',
                     }}
                   >
-                    <Image source={{ uri: subCat.image }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
+                    <LazyImage source={{ uri: subCat.image }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={{ fontSize: 13.5, fontWeight: '900', color: '#111111' }}>
                       {subCat.name}
                     </Text>
                     <Text style={{ fontSize: 10, color: '#71717A', fontWeight: '600' }}>
-                      {subCat.subcategories.length} styles • {subCat.countText}
+                      {subCat.subcategories.length} styles â€¢ {subCat.countText}
                     </Text>
                   </View>
                 </View>
@@ -572,7 +573,7 @@ export const CategoryGridSection = React.memo(function CategoryGridSection({
                           position: 'relative',
                         }}
                       >
-                        <Image
+                        <LazyImage
                           source={{ uri: leaf.image }}
                           style={{ width: '100%', height: '100%' }}
                           contentFit="cover"
@@ -726,7 +727,7 @@ export const CategoryGridSection = React.memo(function CategoryGridSection({
             borderColor: 'rgba(212, 175, 55, 0.3)',
           }}
         >
-          <Image
+          <LazyImage
             source={{ uri: 'https://images.unsplash.com/photo-1509631179647-0177331693ae?auto=format&fit=crop&w=800&q=85' }}
             style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '48%' }}
             contentFit="cover"

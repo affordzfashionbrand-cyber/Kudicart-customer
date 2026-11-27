@@ -18,12 +18,12 @@ import { AnimatedPressable } from '@/components/common/animated-pressable';
 import { OrderStatus } from '@/services/api';
 
 const FEEDBACK_TAGS = [
-  '⚡ Blazing 18-Min Speed',
-  '👔 Neatly Steamed & Pressed',
-  '🛵 Polite EV Pilot',
-  '📦 Tamper-Proof Vault Box',
-  '👗 Perfect Doorstep Fit',
-  '⏱️ Smooth 10-Min Try Window',
+  'âš¡ Blazing 19-Min Speed',
+  'ðŸ‘” Neatly Steamed & Pressed',
+  'ðŸ›µ Polite EV Pilot',
+  'ðŸ“¦ Tamper-Proof Vault Box',
+  'ðŸ‘— Perfect Doorstep Fit',
+  'â±ï¸ Smooth 10-Min Try Window',
 ];
 
 export interface TrackingPilotRatingCardProps {
@@ -68,17 +68,17 @@ export const TrackingPilotRatingCard = React.memo(function TrackingPilotRatingCa
   const getRatingLabel = (score: number) => {
     switch (score) {
       case 5:
-        return '★★★★★ Exceptional 18-Min Speed & Service';
+        return 'â˜…â˜…â˜…â˜…â˜… Exceptional 19-Min Speed & Service';
       case 4:
-        return '★★★★☆ Very Good Delivery & Fit';
+        return 'â˜…â˜…â˜…â˜…â˜† Very Good Delivery & Fit';
       case 3:
-        return '★★★☆☆ Satisfactory Experience';
+        return 'â˜…â˜…â˜…â˜†â˜† Satisfactory Experience';
       case 2:
-        return '★★☆☆☆ Needs Improvement';
+        return 'â˜…â˜…â˜†â˜†â˜† Needs Improvement';
       case 1:
-        return '★☆☆☆☆ Poor Service';
+        return 'â˜…â˜†â˜†â˜†â˜† Poor Service';
       default:
-        return '★★★★★ Tap stars to rate';
+        return 'â˜…â˜…â˜…â˜…â˜… Tap stars to rate';
     }
   };
 
@@ -147,7 +147,7 @@ export const TrackingPilotRatingCard = React.memo(function TrackingPilotRatingCa
             ))}
           </View>
           <Text style={{ fontSize: 14, fontWeight: '900', color: '#111111' }}>
-            {existingRating.rating}.0 ★
+            {existingRating.rating}.0 â˜…
           </Text>
         </View>
 
@@ -243,7 +243,7 @@ export const TrackingPilotRatingCard = React.memo(function TrackingPilotRatingCa
       </View>
 
       <Text style={{ fontSize: 16, fontWeight: '900', color: '#111111' }}>
-        Rate Your 18-Min Drop Experience
+        Rate Your 19-Min Drop Experience
       </Text>
       <Text style={{ fontSize: 11.5, color: '#6B6667', marginTop: 3, lineHeight: 16 }}>
         How was your Ather EV pilot {driverName} and your doorstep garment trial?

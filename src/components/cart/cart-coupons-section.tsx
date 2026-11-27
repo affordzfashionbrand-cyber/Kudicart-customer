@@ -3,12 +3,13 @@ import { View, Text, Pressable, TextInput } from 'react-native';
 import { Tag } from 'lucide-react-native';
 
 export const AVAILABLE_COUPONS = [
-  { code: 'AFFORDZ10', label: '10% OFF', desc: 'Flat 10% instant discount on orders above ₹1,999' },
-  { code: 'ATELIER500', label: '₹500 OFF', desc: 'Flat ₹500 off on designer luxury drop orders' },
-  { code: 'EXPRESS18', label: 'FREE EXPRESS', desc: 'Complimentary 18-minute doorstep drop on dark store picks' },
+  { code: 'AFFORDZ10', label: '10% OFF', desc: '10% instant discount (up to ₹300) on orders above ₹999' },
+  { code: 'ATELIER500', label: '₹500 OFF', desc: 'Flat ₹500 off on designer drop orders above ₹2,499' },
+  { code: 'EXPRESS18', label: 'FREE EXPRESS', desc: 'Flat ₹40 instant off for complimentary express drop' },
 ];
 
 export interface CartCouponsSectionProps {
+  activeCoupons?: any[];
   couponCode: string | null;
   couponInput: string;
   setCouponInput: (text: string) => void;
@@ -18,6 +19,7 @@ export interface CartCouponsSectionProps {
 }
 
 export const CartCouponsSection = React.memo(function CartCouponsSection({
+  activeCoupons,
   couponCode,
   couponInput,
   setCouponInput,
@@ -25,6 +27,34 @@ export const CartCouponsSection = React.memo(function CartCouponsSection({
   handleApplyCouponCode,
   handleRemoveCoupon,
 }: CartCouponsSectionProps) {
+  const displayedCoupons = React.useMemo(() => {
+    if (Array.isArray(activeCoupons) && activeCoupons.length > 0) {
+      return activeCoupons.map((c: any) => {
+        const code = String(c.code || '').toUpperCase();
+        const isPct = c.discountType === 'PERCENTAGE';
+        const label =
+          code === 'EXPRESS18'
+            ? 'FREE EXPRESS'
+            : isPct
+            ? `${Math.round(Number(c.discountValue || 0))}% OFF`
+            : `₹${Math.round(Number(c.discountValue || 0))} OFF`;
+        const minText =
+          Number(c.minOrderValue || 0) > 0
+            ? ` on orders ₹${Math.round(Number(c.minOrderValue)).toLocaleString('en-IN')}+`
+            : '';
+        const capText =
+          isPct && c.maxDiscount
+            ? ` (up to ₹${Math.round(Number(c.maxDiscount))})`
+            : '';
+        const desc =
+          code === 'EXPRESS18'
+            ? 'Complimentary 19-minute express drop fee waiver (₹40 off)'
+            : `${isPct ? `${Math.round(Number(c.discountValue))}% instant discount` : `Flat ₹${Math.round(Number(c.discountValue))} off`}${capText}${minText}`;
+        return { code, label, desc };
+      });
+    }
+    return AVAILABLE_COUPONS;
+  }, [activeCoupons]);
   return (
     <View
       style={{
@@ -121,7 +151,7 @@ export const CartCouponsSection = React.memo(function CartCouponsSection({
 
       {/* Quick Available Coupon Chips */}
       <View style={{ gap: 8 }}>
-        {AVAILABLE_COUPONS.map((cpn) => {
+        {displayedCoupons.map((cpn) => {
           const isCurrent = couponCode === cpn.code;
           return (
             <View

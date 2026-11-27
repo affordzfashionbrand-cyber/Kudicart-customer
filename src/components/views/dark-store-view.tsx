@@ -101,7 +101,7 @@ export const DarkStoreView = React.memo(function DarkStoreView({
     [products],
   );
 
-  const etaMinutes = currentStore?.deliveryMinutes ?? 18;
+  const etaMinutes = currentStore?.deliveryMinutes ?? 19;
 
   return (
     <ScrollView

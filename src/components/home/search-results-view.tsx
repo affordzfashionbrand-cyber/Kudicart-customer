@@ -243,7 +243,7 @@ export const SearchResultsView = React.memo(function SearchResultsView({
             </Text>
           </Pressable>
 
-          {/* Fulfillment: 18-Min Express */}
+          {/* Fulfillment: 19-Min Express */}
           <Pressable
             onPress={() =>
               onSelectFulfillmentFilter(fulfillmentFilter === 'DARK_STORE' ? 'ALL' : 'DARK_STORE')
@@ -268,7 +268,7 @@ export const SearchResultsView = React.memo(function SearchResultsView({
                 color: fulfillmentFilter === 'DARK_STORE' ? '#ffffff' : '#9A3412',
               }}
             >
-              18-Min Express
+              19-Min Express
             </Text>
           </Pressable>
 

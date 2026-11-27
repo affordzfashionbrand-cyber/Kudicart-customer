@@ -1,5 +1,6 @@
 import React from 'react';
 import { render, fireEvent, waitFor } from '@testing-library/react-native';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import {
   useOrderStore,
@@ -11,11 +12,15 @@ import {
   useSupportStore,
   CANONICAL_SUPPORT_CATEGORIES,
 } from '@/store/useSupportStore';
-import { OrderModel, reviewsApi, supportApi, setAuthToken } from '@/services/api';
+import { OrderModel, ordersApi, reviewsApi, supportApi, notificationsApi, setAuthToken } from '@/services/api';
 import { trackingSocketService } from '@/services/trackingSocket';
 import { customerNotificationService } from '@/services/notificationService';
 import { OrderDetailView } from '@/components/orders/order-detail-view';
 import { WriteReviewModal } from '@/components/product/write-review-modal';
+import { TryAndBuySelectionCard } from '@/components/orders/try-and-buy-selection-card';
+import { TrackingPilotCard } from '@/components/tracking/tracking-pilot-card';
+import { TrackingProgressionStepper } from '@/components/tracking/tracking-progression-stepper';
+import { useNotificationStore } from '@/store/useNotificationStore';
 
 const deliveredOrder: OrderModel = {
   id: 'ord-delivered-1',
@@ -335,5 +340,85 @@ describe('OrderDetailView, DCR-014 Reviews, TrackingSocket, Support & Notificati
       comment: 'Great',
     });
     expect(reviewOk).toBe(false);
+  });
+
+  it('Tracking UI avoids duplicate Try & Buy OTP box, shows prominent pilot OTP, and toggles 8-stage progression', async () => {
+    const tryAndBuyOrder: OrderModel = {
+      ...deliveredOrder,
+      status: 'OUT_FOR_DELIVERY',
+      isTryAndBuy: true,
+      isArrived: true,
+      tryAndBuySession: {
+        id: 'tb-2',
+        orderId: 'ord-delivered-1',
+        trialDurationMinutes: 10,
+        stage: 'TRIAL_IN_PROGRESS',
+        keptItemIds: [],
+        returnedItemIds: [],
+      },
+    };
+
+    const queryClient = new QueryClient();
+    const tryAndBuyView = await render(
+      <QueryClientProvider client={queryClient}>
+        <TryAndBuySelectionCard order={tryAndBuyOrder} formatPrice={(v) => `₹${v}`} />
+      </QueryClientProvider>,
+    );
+    expect(tryAndBuyView.queryByText(/DOORSTEP SETTLEMENT OTP/i)).toBeNull();
+    expect(tryAndBuyView.getByText(/DOORSTEP TRY & BUY/i)).toBeTruthy();
+
+    const onCallDriver = jest.fn();
+    const pilotCard = await render(
+      <TrackingPilotCard
+        driver={{
+          id: 'drv-1',
+          name: 'Vikram Singh',
+          phone: '+919876543210',
+          vehicle: 'Scooter KA01',
+          rating: 4.9,
+        }}
+        deliveryOtp="4829"
+        existingRating={null}
+        onCallDriver={onCallDriver}
+        onOpenRating={jest.fn()}
+      />,
+    );
+    expect(pilotCard.getByText('DELIVERY HANDSHAKE OTP')).toBeTruthy();
+    expect(pilotCard.getByText('4829')).toBeTruthy();
+    await fireEvent.press(pilotCard.getByText('CALL'));
+    expect(onCallDriver).toHaveBeenCalled();
+
+    const stepper = await render(
+      <TrackingProgressionStepper activeStatus="OUT_FOR_DELIVERY" driverName="Vikram Singh" />,
+    );
+    expect(stepper.getByText('DROP PROGRESSION • STAGE 7 OF 8')).toBeTruthy();
+    expect(stepper.queryByText('Order Placed')).toBeNull();
+    await fireEvent.press(stepper.getByText('View All'));
+    expect(await stepper.findByText('Order Placed')).toBeTruthy();
+  });
+
+  it('useOrderStore.fetchTracking handles AbortError cleanly and useNotificationStore tracks unread state', async () => {
+    jest.spyOn(ordersApi, 'trackOrder').mockRejectedValueOnce('signal is aborted without reason');
+    const tracking = await useOrderStore.getState().fetchTracking('ord-delivered-1');
+    expect(tracking).toBeNull();
+
+    jest.spyOn(notificationsApi, 'markRead').mockResolvedValueOnce({ success: true } as any);
+    useNotificationStore.setState({
+      notifications: [
+        {
+          id: 'n-1',
+          title: 'Support Update',
+          description: 'Concierge replied to your ticket.',
+          time: 'Just now',
+          type: 'order',
+          read: false,
+          route: '/support',
+        },
+      ],
+      unreadCount: 1,
+    });
+    await useNotificationStore.getState().markRead('n-1');
+    expect(useNotificationStore.getState().unreadCount).toBe(0);
+    expect(useNotificationStore.getState().notifications[0].read).toBe(true);
   });
 });

@@ -13,6 +13,8 @@ export interface ServiceabilityResult {
   locality?: string;
 }
 
+export const MAX_DARK_STORE_RADIUS_KM = 3.0;
+
 export const DARK_STORE_HUB = {
   id: 'hub-pozhichalur',
   name: 'Pozhichalur Express Hub',
@@ -21,8 +23,8 @@ export const DARK_STORE_HUB = {
   pincode: '600074',
   latitude: 12.9818,
   longitude: 80.1384,
-  maxRadiusKm: 8.0,
-  deliveryMinutes: 18,
+  maxRadiusKm: MAX_DARK_STORE_RADIUS_KM,
+  deliveryMinutes: 19,
 };
 
 export const BENGALURU_DARK_STORE_HUB = {
@@ -33,8 +35,8 @@ export const BENGALURU_DARK_STORE_HUB = {
   pincode: '560038',
   latitude: 12.9784,
   longitude: 77.6408,
-  maxRadiusKm: 8.0,
-  deliveryMinutes: 18,
+  maxRadiusKm: MAX_DARK_STORE_RADIUS_KM,
+  deliveryMinutes: 19,
 };
 
 export const DEFAULT_DARK_STORES = [
@@ -47,7 +49,7 @@ export const DEFAULT_DARK_STORES = [
     pincode: '600045',
     latitude: 12.9249,
     longitude: 80.1000,
-    maxRadiusKm: 8.0,
+    maxRadiusKm: MAX_DARK_STORE_RADIUS_KM,
     deliveryMinutes: 20,
   },
   BENGALURU_DARK_STORE_HUB,
@@ -76,8 +78,11 @@ export function checkAddressServiceability(address: AddressModel | null): Servic
     name: h.name || 'Affordz Express Hub',
     latitude: typeof h.lat === 'number' ? h.lat : (typeof h.latitude === 'number' ? h.latitude : 0),
     longitude: typeof h.lng === 'number' ? h.lng : (typeof h.longitude === 'number' ? h.longitude : 0),
-    maxRadiusKm: typeof h.maxRadiusKm === 'number' ? h.maxRadiusKm : 8.0,
-    deliveryMinutes: typeof h.deliveryMinutes === 'number' ? h.deliveryMinutes : 18,
+    maxRadiusKm:
+      typeof h.maxRadiusKm === 'number'
+        ? Math.min(h.maxRadiusKm, MAX_DARK_STORE_RADIUS_KM)
+        : MAX_DARK_STORE_RADIUS_KM,
+    deliveryMinutes: typeof h.deliveryMinutes === 'number' ? h.deliveryMinutes : 19,
   }));
 
   const fallbackHub = liveHubs[0] || DARK_STORE_HUB;
@@ -112,14 +117,17 @@ export function checkAddressServiceability(address: AddressModel | null): Servic
           bestHub = hubsWithCoords[i];
         }
       }
-      const radius = typeof bestHub.maxRadiusKm === 'number' ? bestHub.maxRadiusKm : 8.0;
+      const radius =
+        typeof bestHub.maxRadiusKm === 'number'
+          ? Math.min(bestHub.maxRadiusKm, MAX_DARK_STORE_RADIUS_KM)
+          : MAX_DARK_STORE_RADIUS_KM;
       const isServ = bestDist <= radius;
       return {
         isServiceable: isServ,
         distanceKm: bestDist,
         nearestHubName: bestHub.name || fallbackHubName,
         maxRadiusKm: radius,
-        statusText: isServ ? `AVAILABLE (${bestHub.deliveryMinutes || 18}-MIN DROP)` : 'NOT AVAILABLE FOR THIS PLACE',
+        statusText: isServ ? `AVAILABLE (${bestHub.deliveryMinutes || 19}-MIN DROP)` : 'NOT AVAILABLE FOR THIS PLACE',
         reason: isServ
           ? undefined
           : `Distance is ${bestDist} km from ${bestHub.name} (exceeds our ${radius} km instant drop radius).`,
@@ -134,7 +142,7 @@ export function checkAddressServiceability(address: AddressModel | null): Servic
       distanceKm: dist,
       nearestHubName: fallbackHubName,
       maxRadiusKm: fallbackMaxRadius,
-      statusText: isServ ? `AVAILABLE (${fallbackHub.deliveryMinutes || 18}-MIN DROP)` : 'NOT AVAILABLE FOR THIS PLACE',
+      statusText: isServ ? `AVAILABLE (${fallbackHub.deliveryMinutes || 19}-MIN DROP)` : 'NOT AVAILABLE FOR THIS PLACE',
       reason: isServ
         ? undefined
         : `Distance is ${dist} km from ${fallbackHubName} (exceeds our ${fallbackMaxRadius} km instant drop radius).`,
@@ -156,7 +164,7 @@ export function checkAddressServiceability(address: AddressModel | null): Servic
       distanceKm: typeof matchedHub.distanceKm === 'number' ? matchedHub.distanceKm : 1.8,
       nearestHubName: matchedHub.name || fallbackHubName,
       maxRadiusKm: radius,
-      statusText: `AVAILABLE (${matchedHub.deliveryMinutes || 18}-MIN DROP)`,
+      statusText: `AVAILABLE (${matchedHub.deliveryMinutes || 19}-MIN DROP)`,
       locality: address.locality || address.city,
     };
   }
@@ -168,8 +176,8 @@ export function checkAddressServiceability(address: AddressModel | null): Servic
       isServiceable: true,
       distanceKm: 2.2,
       nearestHubName: pin === '600045' ? 'Tambaram Central Hub' : 'Pozhichalur Express Hub',
-      maxRadiusKm: 8.0,
-      statusText: 'AVAILABLE (18-MIN DROP)',
+      maxRadiusKm: MAX_DARK_STORE_RADIUS_KM,
+      statusText: 'AVAILABLE (19-MIN DROP)',
       locality: address.locality || address.city,
     };
   }
@@ -180,10 +188,10 @@ export function checkAddressServiceability(address: AddressModel | null): Servic
   if (isBengaluru) {
     return {
       isServiceable: true,
-      distanceKm: 3.5,
+      distanceKm: 2.4,
       nearestHubName: 'Affordz Express Hub',
-      maxRadiusKm: 8.0,
-      statusText: 'AVAILABLE (18-MIN DROP)',
+      maxRadiusKm: MAX_DARK_STORE_RADIUS_KM,
+      statusText: 'AVAILABLE (19-MIN DROP)',
       locality: address.locality || address.city,
     };
   }
@@ -194,7 +202,7 @@ export function checkAddressServiceability(address: AddressModel | null): Servic
     nearestHubName: fallbackHubName,
     maxRadiusKm: fallbackMaxRadius,
     statusText: 'NOT AVAILABLE FOR THIS PLACE',
-    reason: `Instant 18-minute express delivery is currently available near Pozhichalur (600074) and Tambaram (600045) darkstores.`,
+    reason: `Instant 19-minute express delivery is currently available near Pozhichalur (600074) and Tambaram (600045) darkstores.`,
     locality: address.locality || address.city,
   };
 }

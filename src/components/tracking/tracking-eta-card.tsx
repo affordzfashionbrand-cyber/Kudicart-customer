@@ -66,7 +66,7 @@ export const TrackingEtaCard = React.memo(function TrackingEtaCard({
             {isDarkStore
               ? isTryAndBuy
                 ? 'TRY & BUY DOORSTEP DROP'
-                : '18-MIN HYPERLOCAL DROP'
+                : '19-MIN HYPERLOCAL DROP'
               : 'BOUTIQUE VENDOR DISPATCH'}
           </Text>
         </View>

@@ -6,7 +6,7 @@ import { SectionTitle } from '@/components/common/section-title';
 const PROMISE_PILLARS = [
   {
     Icon: Zap,
-    title: '18-Min Express Dispatch',
+    title: '19-Min Express Dispatch',
     desc: 'Instant delivery from neighborhood fashion dark stores directly to your door.',
   },
   {
@@ -21,7 +21,7 @@ const PROMISE_PILLARS = [
   },
   {
     Icon: RefreshCw,
-    title: 'Instant 0₹ Exchanges',
+    title: 'Instant 0â‚¹ Exchanges',
     desc: 'No return tickets or courier waiting. Delivery valet exchanges sizes in minutes.',
   },
 ];

@@ -29,6 +29,7 @@ import { useSettingsStore } from '@/store/useSettingsStore';
 import { useAuthStore } from '@/store/useAuthStore';
 import { customerNotificationService } from '@/services/notificationService';
 import { AnimatedPressable } from '@/components/common/animated-pressable';
+import { FontStyles } from '@/constants/theme';
 
 interface SettingsModalProps {
   visible: boolean;
@@ -261,8 +262,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                   <View style={{ flex: 1, paddingRight: 12 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                       <Bell size={15} color="#111111" />
-                      <Text style={{ fontSize: 13, fontWeight: '800', color: '#111111' }}>
-                        18-Min Drop & Order Alerts
+                      <Text style={[FontStyles.sansExtraBold, { fontSize: 13, color: '#111111' }]}>
+                        19-Min Drop & Order Alerts
                       </Text>
                     </View>
                     <Text style={{ fontSize: 10.5, color: '#6B6667', marginTop: 2, lineHeight: 15 }}>

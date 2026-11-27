@@ -70,9 +70,9 @@ export const Fonts = {
   }) as string,
   sansExtraBold: Platform.select({
     web: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-    ios: 'PlusJakartaSans_700Bold',
-    android: 'PlusJakartaSans_700Bold',
-    default: 'PlusJakartaSans_700Bold',
+    ios: 'PlusJakartaSans_800ExtraBold',
+    android: 'PlusJakartaSans_800ExtraBold',
+    default: 'PlusJakartaSans_800ExtraBold',
   }) as string,
 
   // All display, headings & editorial aliases map directly to Plus Jakarta Sans

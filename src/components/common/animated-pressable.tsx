@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { Animated, Pressable, StyleProp, ViewStyle, StyleSheet, Platform, Insets } from 'react-native';
+import { AccessibilityRole, Animated, Pressable, StyleProp, ViewStyle, StyleSheet, Platform, Insets } from 'react-native';
 
 export interface AnimatedPressableProps {
   children: React.ReactNode;
@@ -11,6 +11,8 @@ export interface AnimatedPressableProps {
   containerStyle?: StyleProp<ViewStyle>;
   disabled?: boolean;
   hitSlop?: Insets | number;
+  accessibilityRole?: AccessibilityRole;
+  accessibilityLabel?: string;
 }
 
 export const AnimatedPressable = React.memo(function AnimatedPressable({
@@ -23,6 +25,8 @@ export const AnimatedPressable = React.memo(function AnimatedPressable({
   containerStyle,
   disabled,
   hitSlop = 6,
+  accessibilityRole,
+  accessibilityLabel,
 }: AnimatedPressableProps) {
   const scale = useRef(new Animated.Value(1)).current;
   const isNative = Platform.OS !== 'web';
@@ -46,10 +50,14 @@ export const AnimatedPressable = React.memo(function AnimatedPressable({
   };
 
   const flattenedStyle = (StyleSheet.flatten(style) || {}) as ViewStyle;
-  const isFullWidth = flattenedStyle.width === '100%';
+  const isFullWidth =
+    flattenedStyle.width === '100%' ||
+    (typeof className === 'string' && /\bw-full\b/.test(className));
 
   return (
     <Pressable
+      accessibilityRole={accessibilityRole}
+      accessibilityLabel={accessibilityLabel}
       disabled={disabled}
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}

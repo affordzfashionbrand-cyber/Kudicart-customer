@@ -13,7 +13,7 @@ interface AddressCardProps {
   showShippingInfo?: boolean;
 }
 
-export const AddressCard = React.memo(function AddressCard({ address, isSelected, onSelect, onEdit, onDelete, showShippingInfo }: AddressCardProps) {
+export const AddressCard = React.memo(function AddressCard({ address, isSelected, onSelect, onEdit, onDelete }: AddressCardProps) {
   const getIcon = () => {
     const iconProps = { size: 18, color: isSelected ? '#FFFFFF' : '#52525B' };
     const label = (address.label || '').toLowerCase();
@@ -44,14 +44,14 @@ export const AddressCard = React.memo(function AddressCard({ address, isSelected
               </View>
             )}
           </View>
+          {(address.recipientName || address.recipientPhone) && (
+            <Text style={[FontStyles.sansSemiBold, styles.receiverText]} numberOfLines={1}>
+              {[address.recipientName, address.recipientPhone].filter(Boolean).join(' • ')}
+            </Text>
+          )}
           <Text style={[FontStyles.sansRegular, styles.addressText]} numberOfLines={2}>
             {[address.line1, address.locality, address.city, address.pincode].filter(Boolean).join(', ')}
           </Text>
-          {showShippingInfo && (
-            <View style={styles.shippingBadge}>
-              <Text style={[FontStyles.sansMedium, styles.shippingText]}>📦 Standard Boutique Shipping (1-3 Days)</Text>
-            </View>
-          )}
         </View>
 
         <View style={[styles.selectionIndicator, isSelected && styles.selectedSelectionIndicator]}>
@@ -137,17 +137,10 @@ const styles = StyleSheet.create({
     color: '#6B6667',
     lineHeight: 18,
   },
-  shippingBadge: {
-    marginTop: 8,
-    backgroundColor: '#FDF2F8',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
-    alignSelf: 'flex-start',
-  },
-  shippingText: {
-    fontSize: 10,
-    color: '#9D174D',
+  receiverText: {
+    fontSize: 11.5,
+    color: '#111111',
+    marginBottom: 2,
   },
   selectionIndicator: {
       width: 22,

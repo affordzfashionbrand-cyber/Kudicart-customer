@@ -32,7 +32,7 @@ export function mapCatalogHubToDarkStore(raw: any, index = 0): DarkStore {
     code: raw?.code || `HUB-${String(index + 1).padStart(2, '0')}`,
     locality,
     distanceKm: typeof raw?.distanceKm === 'number' ? raw.distanceKm : 2.0,
-    deliveryMinutes: typeof raw?.deliveryMinutes === 'number' ? raw.deliveryMinutes : 18,
+    deliveryMinutes: typeof raw?.deliveryMinutes === 'number' ? raw.deliveryMinutes : 19,
     stockCount: typeof raw?.stockCount === 'number' ? raw.stockCount : 0,
     badge: raw?.badge || (raw?.isActive !== false ? 'EXPRESS HUB' : undefined),
     isPopular: index === 0,

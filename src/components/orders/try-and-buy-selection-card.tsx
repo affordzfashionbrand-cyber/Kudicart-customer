@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, Pressable, Alert } from 'react-native';
-import { Sparkles, Check, RotateCcw, KeyRound } from 'lucide-react-native';
+import { Sparkles, Check, RotateCcw } from 'lucide-react-native';
 import { useMutation } from '@tanstack/react-query';
 import { OrderModel, ordersApi } from '@/services/api';
 import { TRY_AND_BUY_STAGES } from '@/contracts/order-contracts';
@@ -142,40 +142,6 @@ export const TryAndBuySelectionCard = React.memo(function TryAndBuySelectionCard
           </View>
         )}
       </View>
-
-      {order.handoverOtp ? (
-        <View
-          style={{
-            backgroundColor: '#FFFFFF',
-            borderRadius: 12,
-            borderWidth: 1,
-            borderColor: '#FDBA74',
-            paddingHorizontal: 12,
-            paddingVertical: 10,
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            marginBottom: 12,
-          }}
-        >
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <KeyRound size={15} color="#C2410C" />
-            <Text style={{ fontSize: 11.5, fontWeight: '700', color: '#7C2D12' }}>
-              Doorstep Settlement OTP
-            </Text>
-          </View>
-          <Text
-            style={{
-              fontSize: 16,
-              fontWeight: '900',
-              color: '#111111',
-              letterSpacing: 3,
-            }}
-          >
-            {order.handoverOtp}
-          </Text>
-        </View>
-      ) : null}
 
       {!canSelect ? (
         <Text style={{ fontSize: 11.5, color: '#7C2D12', lineHeight: 16 }}>

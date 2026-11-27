@@ -31,7 +31,7 @@ import {
 import { useRouter } from 'expo-router';
 import { useCartStore } from '@/store/useCartStore';
 import { useOrderStore, isOrderItemEligibleForReview } from '@/store/useOrderStore';
-import { OrderModel, reviewsApi, ordersApi } from '@/services/api';
+import { OrderModel, OrderInvoiceModel, reviewsApi, ordersApi } from '@/services/api';
 import { LazyImage } from '@/components/common/lazy-image';
 import { AnimatedPressable } from '@/components/common/animated-pressable';
 import { TryAndBuySelectionCard } from '@/components/orders/try-and-buy-selection-card';
@@ -41,6 +41,7 @@ export interface OrderDetailViewProps {
   onBack: () => void;
   insets: any;
   formatPrice: (value: number) => string;
+  initialOpenInvoice?: boolean;
 }
 
 export const OrderDetailView = React.memo(function OrderDetailView({
@@ -48,13 +49,27 @@ export const OrderDetailView = React.memo(function OrderDetailView({
   onBack,
   insets,
   formatPrice,
+  initialOpenInvoice = false,
 }: OrderDetailViewProps) {
   const router = useRouter();
   const paddingTop = Platform.OS === 'android' ? insets.top + 10 : insets.top;
   const [currentStatus, setCurrentStatus] = useState(order.status);
   const [isCancelling, setIsCancelling] = useState(false);
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
-  const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
+  const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(initialOpenInvoice);
+  const [invoiceData, setInvoiceData] = useState<OrderInvoiceModel | null>(null);
+  const [isLoadingInvoice, setIsLoadingInvoice] = useState(false);
+
+  React.useEffect(() => {
+    if (initialOpenInvoice) {
+      setIsLoadingInvoice(true);
+      ordersApi
+        .getInvoice(order.id)
+        .then((fetched) => setInvoiceData(fetched))
+        .catch(() => {})
+        .finally(() => setIsLoadingInvoice(false));
+    }
+  }, [initialOpenInvoice, order.id]);
 
   const isDelivered = currentStatus === 'DELIVERED';
   const isCancelled = currentStatus === 'CANCELLED' || currentStatus === 'FAILED' || currentStatus === 'RETURNED';
@@ -93,32 +108,145 @@ export const OrderDetailView = React.memo(function OrderDetailView({
     }
   };
 
+  const buildFallbackInvoice = (): OrderInvoiceModel => {
+    const grossMerchandise = Math.max(0, Number(order.itemTotal || 0) - Number(order.discountAmount || 0));
+    const taxableMerchandise = Math.round(grossMerchandise / 1.05);
+    const totalGst = Math.max(0, grossMerchandise - taxableMerchandise);
+    const cgst = Math.round(totalGst / 2);
+    const sgst = Math.max(0, totalGst - cgst);
+    const addressLine = [
+      order.address?.line1,
+      order.address?.locality,
+      order.address?.city,
+      order.address?.pincode,
+    ]
+      .filter(Boolean)
+      .join(', ');
+    return {
+      invoiceNumber: `INV-${order.orderNumber || order.id}`,
+      invoiceDate: order.createdAt,
+      orderId: order.id,
+      orderNumber: order.orderNumber || order.id,
+      paymentMethod: order.paymentMethod,
+      paymentStatus: order.paymentStatus || 'PENDING',
+      mrpGstInclusive: true,
+      seller: {
+        name: 'AFFORDZ COMMERCE PVT LTD',
+        address: 'Bengaluru Atelier Fulfillment Centre, Karnataka',
+        gstin: '29AABCU9603R1ZM',
+        placeOfSupply: 'Karnataka (29)',
+      },
+      buyer: {
+        name: order.address?.recipientName || order.address?.label || 'Valued Customer',
+        phone: order.address?.recipientPhone || null,
+        address: addressLine,
+        needGstInvoice: Boolean(order.needGstInvoice),
+        gstin: order.customerGstin || null,
+        businessName: order.gstBusinessName || null,
+      },
+      items: (order.items || []).map((item: any, idx: number) => {
+        const lineGross = Number(item.price || 0) * Number(item.quantity || 1);
+        const taxableValue = Math.round(lineGross / 1.05);
+        const gstAmt = Math.max(0, lineGross - taxableValue);
+        const cgstAmount = Math.round(gstAmt / 2);
+        const sgstAmount = Math.max(0, gstAmt - cgstAmount);
+        return {
+          id: String(item.id || `item-${idx}`),
+          productId: String(item.productId || item.id || ''),
+          title: item.title,
+          brand: item.brand || 'Affordz',
+          size: item.size || 'Free Size',
+          hsnCode: '6204',
+          quantity: Number(item.quantity || 1),
+          unitMrp: Number(item.price || 0),
+          lineGross,
+          taxableValue,
+          cgstRate: 2.5,
+          cgstAmount,
+          sgstRate: 2.5,
+          sgstAmount,
+          totalGst: gstAmt,
+        };
+      }),
+      totals: {
+        itemTotal: Number(order.itemTotal || 0),
+        discountAmount: Number(order.discountAmount || 0),
+        couponCode: order.couponCode || null,
+        deliveryFee: Number(order.deliveryFee || 0),
+        giftWrapFee: Number(order.giftWrapFee || 0),
+        donationAmount: Number(order.donationAmount || 0),
+        taxableSubtotal: taxableMerchandise,
+        cgstTotal: cgst,
+        sgstTotal: sgst,
+        totalGstIncluded: totalGst,
+        grandTotal: Number(order.grandTotal || 0),
+      },
+      html: '',
+    };
+  };
+
+  const fetchOrBuildInvoice = async (): Promise<OrderInvoiceModel> => {
+    if (invoiceData) return invoiceData;
+    setIsLoadingInvoice(true);
+    try {
+      const fetched = await ordersApi.getInvoice(order.id);
+      setInvoiceData(fetched);
+      return fetched;
+    } catch {
+      const fallback = buildFallbackInvoice();
+      setInvoiceData(fallback);
+      return fallback;
+    } finally {
+      setIsLoadingInvoice(false);
+    }
+  };
+
+  const triggerWebHtmlDownload = (inv: OrderInvoiceModel) => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined' || typeof document === 'undefined') return;
+    if (!inv.html) {
+      window.print();
+      return;
+    }
+    const blob = new Blob([inv.html], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${inv.invoiceNumber}.html`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
   const handleDownloadInvoice = async () => {
-    if (Platform.OS === 'web' && typeof window !== 'undefined') {
-      setIsInvoiceModalOpen(true);
-    } else {
+    const inv = await fetchOrBuildInvoice();
+    setIsInvoiceModalOpen(true);
+    if (Platform.OS !== 'web') {
       try {
-        const invoiceSummary = `AFFORDZ — OFFICIAL TAX INVOICE
-Invoice No: INV-${order.orderNumber || order.id}
-Date: ${new Date(order.createdAt).toLocaleDateString('en-IN')}
-GSTIN: 29AABCU9603R1ZM
-Customer: ${order.address?.label || 'Valued Customer'}
-Address: ${order.address?.line1 || ''}, ${order.address?.city || ''}
+        const invoiceSummary = `${inv.seller.name} — OFFICIAL TAX INVOICE
+Invoice No: ${inv.invoiceNumber}
+Order No: ${inv.orderNumber}
+Date: ${new Date(inv.invoiceDate).toLocaleDateString('en-IN')}
+Seller GSTIN: ${inv.seller.gstin}
+${inv.buyer.gstin ? `Buyer GSTIN: ${inv.buyer.gstin}\n` : ''}${inv.buyer.businessName ? `Business: ${inv.buyer.businessName}\n` : ''}Customer: ${inv.buyer.name}
+Address: ${inv.buyer.address}
 
 Items:
-${order.items.map((i: any) => `• ${i.title} (${i.size}) x${i.quantity} - ${formatPrice(i.price)}`).join('\n')}
+${inv.items.map((i) => `• ${i.title} (${i.size}) x${i.quantity} — ${formatPrice(i.lineGross)}`).join('\n')}
 
-Subtotal: ${formatPrice(order.itemTotal)}
-Taxes (GST 5%): ${formatPrice(order.taxes)}
-Delivery Fee: ${order.deliveryFee === 0 ? 'FREE' : formatPrice(order.deliveryFee)}
-Grand Total: ${formatPrice(order.grandTotal)}
-Payment Method: ${order.paymentMethod} (PAID)`;
+Taxable Value: ${formatPrice(inv.totals.taxableSubtotal)}
+Included CGST (2.5%): ${formatPrice(inv.totals.cgstTotal)}
+Included SGST (2.5%): ${formatPrice(inv.totals.sgstTotal)}
+Delivery Fee: ${inv.totals.deliveryFee === 0 ? 'FREE' : formatPrice(inv.totals.deliveryFee)}
+Grand Total: ${formatPrice(inv.totals.grandTotal)}
+(Prices inclusive of applicable GST)
+Payment Method: ${inv.paymentMethod} (${inv.paymentStatus})`;
         await Share.share({
-          title: `Affordz Invoice #${order.orderNumber || order.id}`,
+          title: `Affordz Invoice ${inv.invoiceNumber}`,
           message: invoiceSummary,
         });
       } catch {
-        setIsInvoiceModalOpen(true);
+        // Modal remains visible as fallback
       }
     }
   };
@@ -436,9 +564,30 @@ Payment Method: ${order.paymentMethod} (PAID)`;
             </View>
 
             <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-              <Text style={{ fontSize: 13, color: '#4A4A4A' }}>Taxes (GST 5%)</Text>
-              <Text style={{ fontSize: 13, fontWeight: '700', color: '#111111' }}>{formatPrice(order.taxes)}</Text>
+              <Text style={{ fontSize: 13, color: '#4A4A4A' }}>
+                {order.taxes > 0 ? 'Taxes (GST)' : 'Included GST'}
+              </Text>
+              <Text
+                style={{
+                  fontSize: order.taxes > 0 ? 13 : 12,
+                  fontWeight: '700',
+                  color: order.taxes > 0 ? '#111111' : '#15803D',
+                }}
+              >
+                {order.taxes > 0 ? formatPrice(order.taxes) : 'Inclusive in MRP'}
+              </Text>
             </View>
+
+            {order.needGstInvoice && (
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Text style={{ fontSize: 12.5, color: '#4A4A4A' }}>Tax Invoice Request</Text>
+                <Text style={{ fontSize: 12, fontWeight: '700', color: '#111111' }}>
+                  {order.customerGstin
+                    ? `GSTIN: ${order.customerGstin}`
+                    : order.gstBusinessName || 'Requested (B2C MRP)'}
+                </Text>
+              </View>
+            )}
 
             {order.discountAmount && order.discountAmount > 0 && (
               <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
@@ -486,6 +635,16 @@ Payment Method: ${order.paymentMethod} (PAID)`;
             <Text style={{ fontSize: 12, color: '#6B6667', marginTop: 3, lineHeight: 17 }}>
               {order.address.line1}, {order.address.locality}, {order.address.city} - {order.address.pincode}
             </Text>
+            {order.deliveryInstructions && (
+              <View style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#F4F1EA' }}>
+                <Text style={{ fontSize: 10, fontWeight: '800', color: '#8E877E', textTransform: 'uppercase', letterSpacing: 0.8 }}>
+                  DELIVERY PREFERENCES
+                </Text>
+                <Text style={{ fontSize: 12, fontWeight: '600', color: '#111111', marginTop: 2 }}>
+                  {order.deliveryInstructions}
+                </Text>
+              </View>
+            )}
           </View>
         )}
 
@@ -548,101 +707,143 @@ Payment Method: ${order.paymentMethod} (PAID)`;
       >
         <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: 16 }}>
           <View style={{ width: '100%', maxWidth: 440, maxHeight: '85%', backgroundColor: '#FFFFFF', borderRadius: 24, padding: 22, shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.15, shadowRadius: 20, elevation: 10 }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#F0EDE8', paddingBottom: 14, marginBottom: 14 }}>
-              <View>
-                <Text style={{ fontSize: 10, fontWeight: '900', letterSpacing: 1.2, color: '#FF5A1F', textTransform: 'uppercase' }}>OFFICIAL TAX INVOICE</Text>
-                <Text style={{ fontSize: 16, fontWeight: '900', color: '#111111' }}>INV-{order.orderNumber || order.id}</Text>
-              </View>
-              <Pressable
-                onPress={() => setIsInvoiceModalOpen(false)}
-                style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: '#FAF8F5', justifyContent: 'center', alignItems: 'center' }}
-              >
-                <X size={16} color="#6B6667" />
-              </Pressable>
-            </View>
-
-            <ScrollView showsVerticalScrollIndicator={false} style={{ flexGrow: 0 }}>
-              {/* Seller & GST Details */}
-              <View style={{ backgroundColor: '#FAF8F5', borderRadius: 12, padding: 12, marginBottom: 12, borderWidth: 1, borderColor: '#E8E5DF' }}>
-                <Text style={{ fontSize: 12, fontWeight: '900', color: '#111111' }}>AFFORDZ COMMERCE PVT LTD</Text>
-                <Text style={{ fontSize: 10.5, color: '#6B6667', marginTop: 2 }}>GSTIN: 29AABCU9603R1ZM • Registered Bengaluru Atelier</Text>
-                <Text style={{ fontSize: 10.5, color: '#6B6667' }}>Place of Supply: Karnataka (29)</Text>
-              </View>
-
-              {/* Customer & Date */}
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 }}>
-                <View>
-                  <Text style={{ fontSize: 10, color: '#8E877E', textTransform: 'uppercase', fontWeight: '800' }}>BILLED TO</Text>
-                  <Text style={{ fontSize: 12, fontWeight: '800', color: '#111111', marginTop: 2 }}>{order.address?.label || 'Customer'}</Text>
-                  <Text style={{ fontSize: 11, color: '#6B6667' }}>{order.address?.locality}, {order.address?.city}</Text>
-                </View>
-                <View style={{ alignItems: 'flex-end' }}>
-                  <Text style={{ fontSize: 10, color: '#8E877E', textTransform: 'uppercase', fontWeight: '800' }}>INVOICE DATE</Text>
-                  <Text style={{ fontSize: 12, fontWeight: '800', color: '#111111', marginTop: 2 }}>
-                    {new Date(order.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
-                  </Text>
-                  <Text style={{ fontSize: 11, color: '#059669', fontWeight: '800' }}>PAID VIA {order.paymentMethod}</Text>
-                </View>
-              </View>
-
-              {/* Items Table */}
-              <View style={{ borderTopWidth: 1, borderTopColor: '#E8E5DF', paddingTop: 10, marginBottom: 12 }}>
-                <Text style={{ fontSize: 10, color: '#8E877E', textTransform: 'uppercase', fontWeight: '800', marginBottom: 8 }}>PARTICULARS</Text>
-                {order.items.map((it: any) => (
-                  <View key={it.id} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 5 }}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: 12, fontWeight: '800', color: '#111111' }}>{it.title}</Text>
-                      <Text style={{ fontSize: 10.5, color: '#6B6667' }}>HSN 6204 • Qty: {it.quantity} • Size: {it.size}</Text>
+            {(() => {
+              const activeInvoice = invoiceData ?? buildFallbackInvoice();
+              return (
+                <>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: '#F0EDE8', paddingBottom: 14, marginBottom: 14 }}>
+                    <View>
+                      <Text style={{ fontSize: 10, fontWeight: '900', letterSpacing: 1.2, color: '#FF5A1F', textTransform: 'uppercase' }}>
+                        OFFICIAL TAX INVOICE {isLoadingInvoice ? '(SYNCING...)' : ''}
+                      </Text>
+                      <Text style={{ fontSize: 16, fontWeight: '900', color: '#111111' }}>{activeInvoice.invoiceNumber}</Text>
                     </View>
-                    <Text style={{ fontSize: 12.5, fontWeight: '800', color: '#111111' }}>{formatPrice(it.price * it.quantity)}</Text>
+                    <Pressable
+                      onPress={() => setIsInvoiceModalOpen(false)}
+                      style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: '#FAF8F5', justifyContent: 'center', alignItems: 'center' }}
+                    >
+                      <X size={16} color="#6B6667" />
+                    </Pressable>
                   </View>
-                ))}
-              </View>
 
-              {/* Summary Totals */}
-              <View style={{ borderTopWidth: 1, borderTopColor: '#E8E5DF', paddingTop: 10, gap: 6 }}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                  <Text style={{ fontSize: 11.5, color: '#6B6667' }}>Subtotal</Text>
-                  <Text style={{ fontSize: 11.5, fontWeight: '700', color: '#111111' }}>{formatPrice(order.itemTotal)}</Text>
-                </View>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                  <Text style={{ fontSize: 11.5, color: '#6B6667' }}>CGST (2.5%)</Text>
-                  <Text style={{ fontSize: 11.5, fontWeight: '700', color: '#111111' }}>{formatPrice(Math.round(order.taxes / 2))}</Text>
-                </View>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                  <Text style={{ fontSize: 11.5, color: '#6B6667' }}>SGST (2.5%)</Text>
-                  <Text style={{ fontSize: 11.5, fontWeight: '700', color: '#111111' }}>{formatPrice(Math.round(order.taxes / 2))}</Text>
-                </View>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                  <Text style={{ fontSize: 11.5, color: '#6B6667' }}>Delivery Fee</Text>
-                  <Text style={{ fontSize: 11.5, fontWeight: '700', color: '#111111' }}>{order.deliveryFee === 0 ? 'FREE' : formatPrice(order.deliveryFee)}</Text>
-                </View>
-                <View style={{ borderTopWidth: 1, borderTopColor: '#111111', paddingTop: 8, marginTop: 4, flexDirection: 'row', justifyContent: 'space-between' }}>
-                  <Text style={{ fontSize: 14, fontWeight: '900', color: '#111111' }}>Grand Total Paid</Text>
-                  <Text style={{ fontSize: 15, fontWeight: '900', color: '#111111' }}>{formatPrice(order.grandTotal)}</Text>
-                </View>
-              </View>
-            </ScrollView>
+                  <ScrollView showsVerticalScrollIndicator={false} style={{ flexGrow: 0 }}>
+                    {/* Seller & GST Details */}
+                    <View style={{ backgroundColor: '#FAF8F5', borderRadius: 12, padding: 12, marginBottom: 12, borderWidth: 1, borderColor: '#E8E5DF' }}>
+                      <Text style={{ fontSize: 12, fontWeight: '900', color: '#111111' }}>{activeInvoice.seller.name}</Text>
+                      <Text style={{ fontSize: 10.5, color: '#6B6667', marginTop: 2 }}>
+                        Seller GSTIN: {activeInvoice.seller.gstin} • Place of Supply: {activeInvoice.seller.placeOfSupply}
+                      </Text>
+                      <Text style={{ fontSize: 10.5, color: '#15803D', marginTop: 2, fontWeight: '700' }}>
+                        MRP-inclusive GST breakdown (no additional GST charged above MRP)
+                      </Text>
+                    </View>
 
-            {/* Print / Save Action */}
-            <View style={{ marginTop: 16 }}>
-              <Pressable
-                onPress={() => {
-                  if (Platform.OS === 'web' && typeof window !== 'undefined') {
-                    window.print();
-                  } else {
-                    Alert.alert('Invoice Saved', `Tax invoice for ${order.orderNumber || order.id} has been recorded.`);
-                    setIsInvoiceModalOpen(false);
-                  }
-                }}
-                style={{ backgroundColor: '#111111', borderRadius: 999, paddingVertical: 13, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}
-              >
-                <Printer size={15} color="#FFFFFF" />
-                <Text style={{ color: '#FFFFFF', fontSize: 12, fontWeight: '900', letterSpacing: 0.8, textTransform: 'uppercase' }}>
-                  PRINT / SAVE INVOICE PDF
-                </Text>
-              </Pressable>
-            </View>
+                    {/* Customer & Date */}
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 12, marginBottom: 12 }}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 10, color: '#8E877E', textTransform: 'uppercase', fontWeight: '800' }}>BILLED TO</Text>
+                        <Text style={{ fontSize: 12, fontWeight: '800', color: '#111111', marginTop: 2 }}>
+                          {activeInvoice.buyer.businessName || activeInvoice.buyer.name}
+                        </Text>
+                        {activeInvoice.buyer.gstin && (
+                          <Text style={{ fontSize: 10.5, fontWeight: '700', color: '#FF5A1F', marginTop: 1 }}>
+                            Buyer GSTIN: {activeInvoice.buyer.gstin}
+                          </Text>
+                        )}
+                        <Text style={{ fontSize: 11, color: '#6B6667', marginTop: 2 }}>{activeInvoice.buyer.address}</Text>
+                      </View>
+                      <View style={{ alignItems: 'flex-end' }}>
+                        <Text style={{ fontSize: 10, color: '#8E877E', textTransform: 'uppercase', fontWeight: '800' }}>INVOICE DATE</Text>
+                        <Text style={{ fontSize: 12, fontWeight: '800', color: '#111111', marginTop: 2 }}>
+                          {new Date(activeInvoice.invoiceDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        </Text>
+                        <Text style={{ fontSize: 10.5, color: '#059669', fontWeight: '800', marginTop: 2 }}>
+                          {activeInvoice.paymentMethod} • {activeInvoice.paymentStatus}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Items Table */}
+                    <View style={{ borderTopWidth: 1, borderTopColor: '#E8E5DF', paddingTop: 10, marginBottom: 12 }}>
+                      <Text style={{ fontSize: 10, color: '#8E877E', textTransform: 'uppercase', fontWeight: '800', marginBottom: 8 }}>PARTICULARS</Text>
+                      {activeInvoice.items.map((it, idx) => (
+                        <View key={`${it.title}-${idx}`} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 5 }}>
+                          <View style={{ flex: 1, paddingRight: 8 }}>
+                            <Text style={{ fontSize: 12, fontWeight: '800', color: '#111111' }}>{it.title}</Text>
+                            <Text style={{ fontSize: 10.5, color: '#6B6667' }}>
+                              HSN {it.hsnCode} • Qty: {it.quantity} • Size: {it.size} • Taxable {formatPrice(it.taxableValue)}
+                            </Text>
+                          </View>
+                          <Text style={{ fontSize: 12.5, fontWeight: '800', color: '#111111' }}>{formatPrice(it.lineGross)}</Text>
+                        </View>
+                      ))}
+                    </View>
+
+                    {/* Summary Totals */}
+                    <View style={{ borderTopWidth: 1, borderTopColor: '#E8E5DF', paddingTop: 10, gap: 6 }}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                        <Text style={{ fontSize: 11.5, color: '#6B6667' }}>Taxable Value (Excl. GST)</Text>
+                        <Text style={{ fontSize: 11.5, fontWeight: '700', color: '#111111' }}>{formatPrice(activeInvoice.totals.taxableSubtotal)}</Text>
+                      </View>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                        <Text style={{ fontSize: 11.5, color: '#6B6667' }}>Included CGST (2.5%)</Text>
+                        <Text style={{ fontSize: 11.5, fontWeight: '700', color: '#111111' }}>{formatPrice(activeInvoice.totals.cgstTotal)}</Text>
+                      </View>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                        <Text style={{ fontSize: 11.5, color: '#6B6667' }}>Included SGST (2.5%)</Text>
+                        <Text style={{ fontSize: 11.5, fontWeight: '700', color: '#111111' }}>{formatPrice(activeInvoice.totals.sgstTotal)}</Text>
+                      </View>
+                      {activeInvoice.totals.discountAmount > 0 && (
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                          <Text style={{ fontSize: 11.5, color: '#15803D' }}>Coupon Discount</Text>
+                          <Text style={{ fontSize: 11.5, fontWeight: '700', color: '#15803D' }}>-{formatPrice(activeInvoice.totals.discountAmount)}</Text>
+                        </View>
+                      )}
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                        <Text style={{ fontSize: 11.5, color: '#6B6667' }}>Delivery Fee</Text>
+                        <Text style={{ fontSize: 11.5, fontWeight: '700', color: '#111111' }}>
+                          {activeInvoice.totals.deliveryFee === 0 ? 'FREE' : formatPrice(activeInvoice.totals.deliveryFee)}
+                        </Text>
+                      </View>
+                      <View style={{ borderTopWidth: 1, borderTopColor: '#111111', paddingTop: 8, marginTop: 4, flexDirection: 'row', justifyContent: 'space-between' }}>
+                        <Text style={{ fontSize: 14, fontWeight: '900', color: '#111111' }}>Grand Total (GST Inclusive)</Text>
+                        <Text style={{ fontSize: 15, fontWeight: '900', color: '#111111' }}>{formatPrice(activeInvoice.totals.grandTotal)}</Text>
+                      </View>
+                    </View>
+                  </ScrollView>
+
+                  {/* Download / Print Actions */}
+                  <View style={{ marginTop: 16, gap: 8 }}>
+                    <Pressable
+                      onPress={() => {
+                        if (Platform.OS === 'web') {
+                          triggerWebHtmlDownload(activeInvoice);
+                        } else {
+                          void handleDownloadInvoice();
+                        }
+                      }}
+                      style={{ backgroundColor: '#111111', borderRadius: 999, paddingVertical: 13, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                    >
+                      <Download size={15} color="#FFFFFF" />
+                      <Text style={{ color: '#FFFFFF', fontSize: 12, fontWeight: '900', letterSpacing: 0.8, textTransform: 'uppercase' }}>
+                        {Platform.OS === 'web' ? 'DOWNLOAD GST INVOICE' : 'SHARE / SAVE TAX INVOICE'}
+                      </Text>
+                    </Pressable>
+                    {Platform.OS === 'web' && typeof window !== 'undefined' && (
+                      <Pressable
+                        onPress={() => window.print()}
+                        style={{ backgroundColor: '#FAF8F5', borderWidth: 1, borderColor: '#D9D9D5', borderRadius: 999, paddingVertical: 11, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                      >
+                        <Printer size={14} color="#111111" />
+                        <Text style={{ color: '#111111', fontSize: 11, fontWeight: '800', letterSpacing: 0.6, textTransform: 'uppercase' }}>
+                          PRINT / SAVE AS PDF
+                        </Text>
+                      </Pressable>
+                    )}
+                  </View>
+                </>
+              );
+            })()}
           </View>
         </View>
       </Modal>

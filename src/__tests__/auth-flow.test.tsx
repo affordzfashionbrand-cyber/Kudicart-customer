@@ -328,7 +328,7 @@ describe('Auth, API Token Refresh, Session Check, Deletion & Logout Resets', () 
       );
       const phoneInput = screen.getByPlaceholderText('Enter mobile number');
       await fireEvent.changeText(phoneInput, '9876543210');
-      await fireEvent.press(screen.getByText('GET OTP'));
+      await fireEvent.press(screen.getByTestId('send-otp-arrow-btn'));
 
       expect(
         await screen.findByText(/Authentication service is not configured for this build/i),
@@ -371,7 +371,7 @@ describe('Auth, API Token Refresh, Session Check, Deletion & Logout Resets', () 
         <AuthModal visible={true} onClose={jest.fn()} onSuccess={jest.fn()} />,
       );
       await fireEvent.changeText(screen.getByPlaceholderText('Enter mobile number'), '9876543210');
-      await fireEvent.press(screen.getByText('GET OTP'));
+      await fireEvent.press(screen.getByTestId('send-otp-arrow-btn'));
 
       expect(await screen.findByText(/Dev OTP:/i)).toBeTruthy();
       expect(sendOtpSpy).toHaveBeenCalledWith('+91 9876543210');
@@ -399,7 +399,7 @@ describe('Auth, API Token Refresh, Session Check, Deletion & Logout Resets', () 
       <AuthModal visible={true} onClose={jest.fn()} onSuccess={jest.fn()} />,
     );
     await fireEvent.changeText(screen.getByPlaceholderText('Enter mobile number'), '9876543210');
-    await fireEvent.press(screen.getByText('GET OTP'));
+    await fireEvent.press(screen.getByTestId('send-otp-arrow-btn'));
 
     expect(await screen.findByText(/SMS quota exceeded for this project/i)).toBeTruthy();
     expect(sendOtpSpy).not.toHaveBeenCalled();
@@ -459,7 +459,7 @@ describe('Auth, API Token Refresh, Session Check, Deletion & Logout Resets', () 
     );
 
     await fireEvent.changeText(screen.getByPlaceholderText('Enter mobile number'), '9876543210');
-    await fireEvent.press(screen.getByText('GET OTP'));
+    await fireEvent.press(screen.getByTestId('send-otp-arrow-btn'));
 
     expect(await screen.findByText(/VERIFY OTP/i)).toBeTruthy();
     expect(firebaseMock.startFirebasePhoneSignIn).toHaveBeenCalledWith(
@@ -474,8 +474,8 @@ describe('Auth, API Token Refresh, Session Check, Deletion & Logout Resets', () 
     for (let i = 0; i < digits.length; i += 1) {
       await fireEvent.changeText(otpInputs[i], digits[i]);
     }
-    await fireEvent.press(screen.getByText('VERIFY & PROCEED'));
 
+    // 6th OTP digit triggers auto-submit without manual button tap
     expect(await screen.findByText(/WELCOME BACK/i)).toBeTruthy();
     expect(loginFirebaseSpy).toHaveBeenCalledWith('firebase-id-token-1');
     expect(useAuthStore.getState().token).toBe('backend-jwt-initial-12345');

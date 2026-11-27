@@ -3,10 +3,11 @@ import {
   View,
   Text,
   ScrollView,
-  TextInput,
+  FlatList,
   Pressable,
   Platform,
 } from 'react-native';
+import { ProductCardSkeleton } from '@/components/common/skeleton';
 import { useRouter } from 'expo-router';
 import {
   Search,
@@ -46,6 +47,7 @@ export interface ExploreCatalogViewProps {
   initialQuery?: string;
   maxPriceFilter?: number;
   products?: ProductItem[];
+  isLoading?: boolean;
   onOpenProduct?: (product: any) => void;
   onWishlist?: (id: string | number) => void;
   onBag?: (id: string | number) => void;
@@ -57,6 +59,7 @@ export const ExploreCatalogView = React.memo(function ExploreCatalogView({
   initialQuery = '',
   maxPriceFilter,
   products: propProducts,
+  isLoading = false,
   onOpenProduct: propOnOpenProduct,
   onWishlist: propOnWishlist,
   onBag: propOnBag,
@@ -204,38 +207,31 @@ export const ExploreCatalogView = React.memo(function ExploreCatalogView({
     setSortOption('FEATURED');
   }, []);
 
-  return (
-    <View style={{ flex: 1, backgroundColor: '#FAF8F5' }}>
-      {/* 1. Universal Search Bar */}
+  const renderExploreProduct = useCallback(
+    ({ item: p }: { item: ProductItem }) => (
       <View
-        style={{
-          paddingHorizontal: 16,
-          paddingVertical: 10,
-          backgroundColor: '#FFFFFF',
-          borderBottomWidth: 1,
-          borderBottomColor: '#E8E5DF',
-        }}
+        style={
+          viewMode === 'GRID'
+            ? { width: '48.5%', marginBottom: 14 }
+            : { paddingHorizontal: 16, width: '100%', marginBottom: 14 }
+        }
       >
-        <UniversalSearchBar
-          query={searchQuery}
-          showLogoInside={true}
-          onQueryChange={setSearchQuery}
-          onOpenOverlay={() => setIsSearchOverlayVisible(true)}
-          onClear={() => setSearchQuery('')}
-          onBack={() => setSearchQuery('')}
-          placeholder="Search by label, weave, silhouette..."
+        <ProductCard
+          product={p}
+          badge="19M DROP"
+          wished={wishlist.includes(String(p.id))}
+          onWishlist={() => handleWishlist(p.id)}
+          onBag={() => handleBag(p.id)}
+          onOpen={() => handleOpenProduct(p)}
         />
       </View>
+    ),
+    [viewMode, wishlist, handleWishlist, handleBag, handleOpenProduct],
+  );
 
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        scrollEventThrottle={16}
-        contentContainerStyle={{ paddingBottom: 110 }}
-        removeClippedSubviews={Platform.OS !== 'web'}
-        overScrollMode="never"
-        keyboardShouldPersistTaps="handled"
-        decelerationRate="normal"
-      >
+  const listHeader = useMemo(
+    () => (
+      <>
         {/* 2. Gender Department Strip */}
         <View style={{ paddingHorizontal: 16, paddingTop: 10, paddingBottom: 6 }}>
           <View
@@ -375,56 +371,107 @@ export const ExploreCatalogView = React.memo(function ExploreCatalogView({
             </Pressable>
           </View>
         </View>
+      </>
+    ),
+    [selectedGender, selectedCategory, activeCategoryDef, selectedSubcategory, filteredProducts.length, viewMode],
+  );
 
-        {/* 6. Product Grid */}
-        <View style={{ paddingHorizontal: 16, marginTop: 4 }}>
-          {filteredProducts.length > 0 ? (
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' }}>
-              {filteredProducts.map((p) => (
-                <View key={p.id} style={{ width: viewMode === 'GRID' ? '48.5%' : '100%', marginBottom: 14 }}>
-                  <ProductCard
-                    product={p}
-                    badge="18M DROP"
-                    wished={wishlist.includes(String(p.id))}
-                    onWishlist={() => handleWishlist(p.id)}
-                    onBag={() => handleBag(p.id)}
-                    onOpen={() => handleOpenProduct(p)}
-                  />
-                </View>
-              ))}
-            </View>
-          ) : (
+  return (
+    <View style={{ flex: 1, backgroundColor: '#FAF8F5' }}>
+      {/* 1. Universal Search Bar */}
+      <View
+        style={{
+          paddingHorizontal: 16,
+          paddingVertical: 10,
+          backgroundColor: '#FFFFFF',
+          borderBottomWidth: 1,
+          borderBottomColor: '#E8E5DF',
+        }}
+      >
+        <UniversalSearchBar
+          query={searchQuery}
+          showLogoInside={true}
+          onQueryChange={setSearchQuery}
+          onOpenOverlay={() => setIsSearchOverlayVisible(true)}
+          onClear={() => setSearchQuery('')}
+          onBack={() => setSearchQuery('')}
+          placeholder="Search by label, weave, silhouette..."
+        />
+      </View>
+
+      <FlatList
+      key={viewMode}
+      data={filteredProducts}
+      keyExtractor={(item) => String(item.id)}
+      renderItem={renderExploreProduct}
+      numColumns={viewMode === 'GRID' ? 2 : 1}
+      columnWrapperStyle={
+        viewMode === 'GRID' ? { justifyContent: 'space-between', paddingHorizontal: 16 } : undefined
+      }
+      ListHeaderComponent={listHeader}
+      ListEmptyComponent={
+        isLoading ? (
+          <View
+            style={{
+              paddingHorizontal: 16,
+              marginTop: 4,
+              flexDirection: 'row',
+              flexWrap: 'wrap',
+              justifyContent: 'space-between',
+            }}
+          >
+            {[1, 2, 3, 4].map((idx) => (
+              <View key={`exp-skel-${idx}`} style={{ width: '48.5%', marginBottom: 14 }}>
+                <ProductCardSkeleton cardWidth={165} />
+              </View>
+            ))}
+          </View>
+        ) : (
+          <View style={{ paddingHorizontal: 16, marginTop: 4 }}>
             <EmptyState
               title="NO PIECES FOUND"
               body="No atelier pieces match your active search filters."
               action="RESET FILTERS"
               onClick={resetAllFilters}
             />
-          )}
-        </View>
-      </ScrollView>
+          </View>
+        )
+      }
+      showsVerticalScrollIndicator={false}
+      scrollEventThrottle={16}
+      contentContainerStyle={{ paddingBottom: 110 }}
+      initialNumToRender={8}
+      maxToRenderPerBatch={8}
+      windowSize={7}
+      removeClippedSubviews={Platform.OS !== 'web'}
+      overScrollMode="never"
+      keyboardShouldPersistTaps="handled"
+      decelerationRate="normal"
+    />
 
       {/* Live Search Suggestions Autocomplete Overlay */}
-      <SearchSuggestionsOverlay
-        visible={isSearchOverlayVisible}
-        query={searchQuery}
-        onQueryChange={setSearchQuery}
-        onSelectQuery={(term) => {
-          setSearchQuery(term);
-        }}
-        onOpenProduct={(product) => {
-          setIsSearchOverlayVisible(false);
-          if (propOnOpenProduct) {
-            propOnOpenProduct(product);
-          } else {
-            router.push({
-              pathname: '/product/[id]',
-              params: { id: String(product.id) },
-            });
-          }
-        }}
-        onClose={() => setIsSearchOverlayVisible(false)}
-      />
+      {isSearchOverlayVisible && (
+        <SearchSuggestionsOverlay
+          visible={isSearchOverlayVisible}
+          query={searchQuery}
+          onQueryChange={setSearchQuery}
+          onSelectQuery={(term) => {
+            setSearchQuery(term);
+          }}
+          onOpenProduct={(product) => {
+            setIsSearchOverlayVisible(false);
+            if (propOnOpenProduct) {
+              propOnOpenProduct(product);
+            } else {
+              router.push({
+                pathname: '/product/[id]',
+                params: { id: String(product.id) },
+              });
+            }
+          }}
+          onClose={() => setIsSearchOverlayVisible(false)}
+        />
+      )}
     </View>
   );
 });

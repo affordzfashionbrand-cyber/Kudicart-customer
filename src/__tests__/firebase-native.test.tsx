@@ -75,7 +75,7 @@ describe('Native Android Firebase Phone Auth & FCM Integration', () => {
         <AuthModal visible={true} onClose={jest.fn()} onSuccess={jest.fn()} />,
       );
       await fireEvent.changeText(prodScreen.getByPlaceholderText('Enter mobile number'), '9876543210');
-      await fireEvent.press(prodScreen.getByText('GET OTP'));
+      await fireEvent.press(prodScreen.getByTestId('send-otp-arrow-btn'));
 
       expect(
         await prodScreen.findByText(/Authentication service is not configured for this build/i),
@@ -96,7 +96,7 @@ describe('Native Android Firebase Phone Auth & FCM Integration', () => {
       <AuthModal visible={true} onClose={jest.fn()} onSuccess={jest.fn()} />,
     );
     await fireEvent.changeText(devScreen.getByPlaceholderText('Enter mobile number'), '9876543210');
-    await fireEvent.press(devScreen.getByText('GET OTP'));
+    await fireEvent.press(devScreen.getByTestId('send-otp-arrow-btn'));
 
     expect(await devScreen.findByText(/VERIFY OTP/i)).toBeTruthy();
     expect(sendOtpSpy).toHaveBeenCalledWith('+91 9876543210');
@@ -146,7 +146,7 @@ describe('Native Android Firebase Phone Auth & FCM Integration', () => {
         <AuthModal visible={true} onClose={jest.fn()} onSuccess={jest.fn()} />,
       );
       await fireEvent.changeText(screen.getByPlaceholderText('Enter mobile number'), '9876543210');
-      await fireEvent.press(screen.getByText('GET OTP'));
+      await fireEvent.press(screen.getByTestId('send-otp-arrow-btn'));
 
       expect(await screen.findByText(/VERIFY OTP/i)).toBeTruthy();
       expect(nativeSignInWithPhoneNumber).toHaveBeenCalledWith(fakeAuth, '+919876543210');
@@ -154,11 +154,8 @@ describe('Native Android Firebase Phone Auth & FCM Integration', () => {
       const otpInputs = screen.getAllByLabelText(/OTP digit/i);
       expect(otpInputs).toHaveLength(6);
 
-      const otpDigits = ['6', '5', '4', '3', '2', '1'];
-      for (let i = 0; i < otpDigits.length; i += 1) {
-        await fireEvent.changeText(otpInputs[i], otpDigits[i]);
-      }
-      await fireEvent.press(screen.getByText('VERIFY & PROCEED'));
+      // Verify SMS OTP autofill / 6-digit paste auto-submits immediately
+      await fireEvent.changeText(otpInputs[0], '654321');
 
       expect(await screen.findByText(/WELCOME BACK/i)).toBeTruthy();
       expect(confirmMock).toHaveBeenCalledWith('654321');

@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import { Platform } from 'react-native';
+import * as SecureStore from 'expo-secure-store';
 import {
   cartApi,
   ApiProduct,
@@ -6,12 +8,65 @@ import {
   CartSplitBucketModel,
   getAuthToken,
 } from '@/services/api';
-import { registerAuthLogoutReset } from '@/store/useAuthStore';
+import { registerAuthLoginCallback, registerAuthLogoutReset } from '@/store/useAuthStore';
+
+let cartMutationChain: Promise<any> = Promise.resolve();
+let cartMutationSeq = 0;
+let lastServerCartSnapshot: CartModel | null = null;
+
+function enqueueCartMutation<T>(fn: (mySeq: number) => Promise<T>): Promise<T> {
+  cartMutationSeq += 1;
+  const mySeq = cartMutationSeq;
+  const next = cartMutationChain.then(
+    () => fn(mySeq),
+    () => fn(mySeq),
+  );
+  cartMutationChain = next.catch(() => {});
+  return next;
+}
+
+const WISHLIST_STORAGE_KEY = 'affordz_wishlist';
+
+async function loadPersistedWishlist(): Promise<string[]> {
+  try {
+    if (Platform.OS !== 'web') {
+      const raw = await SecureStore.getItemAsync(WISHLIST_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed.map((id) => String(id));
+      }
+    } else if (typeof window !== 'undefined' && window.localStorage) {
+      const raw = window.localStorage.getItem(WISHLIST_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed.map((id) => String(id));
+      }
+    }
+  } catch {
+    // ignore storage read error in tests/restricted environments
+  }
+  return [];
+}
+
+async function savePersistedWishlist(wishlist: string[]): Promise<void> {
+  try {
+    const raw = JSON.stringify(wishlist);
+    if (Platform.OS !== 'web') {
+      await SecureStore.setItemAsync(WISHLIST_STORAGE_KEY, raw);
+    } else if (typeof window !== 'undefined' && window.localStorage) {
+      window.localStorage.setItem(WISHLIST_STORAGE_KEY, raw);
+    }
+  } catch {
+    // ignore storage write error
+  }
+}
 
 const FREE_DELIVERY_THRESHOLD = 1499;
 const STANDARD_DELIVERY_FEE = 40;
-const GST_TAX_RATE = 0.05;
+/** MRP is GST-inclusive; no extra GST line is added at checkout. */
+const GST_TAX_RATE = 0;
 const GIFT_WRAP_FEE = 35;
+const TRY_AND_BUY_SLOT_DURATION_MS = 15 * 60 * 1000;
 
 export interface LocalCartItem {
   id: string;
@@ -25,6 +80,7 @@ export interface LocalCartItem {
   size: string;
   trialSize?: string | null;
   isTryAndBuy?: boolean;
+  tryAndBuyEligible?: boolean;
   fulfillmentType?: 'DARK_STORE' | 'VENDOR';
   darkStoreHub?: any;
   color?: string;
@@ -52,7 +108,10 @@ interface CartState {
   discountAmount: number;
   giftWrap: boolean;
   donationAmount: number;
+  needGstInvoice: boolean;
   gstin: string | null;
+  gstBusinessName: string | null;
+  tryAndBuySlotExpiresAt: number | null;
 
   // Buy Now Standalone State (Exact product direct checkout)
   buyNowItem: LocalCartItem | null;
@@ -61,6 +120,7 @@ interface CartState {
   updateBuyNowQuantity: (delta: number) => void;
 
   fetchCart: () => Promise<void>;
+  syncGuestCartToServer: () => Promise<void>;
   addItem: (
     product: ApiProduct,
     size?: string,
@@ -72,6 +132,8 @@ interface CartState {
   removeItem: (itemId: string) => Promise<void>;
   clearCart: () => Promise<void>;
   toggleWishlist: (productId: string) => void;
+  removeFromWishlist: (productId: string) => void;
+  hydrateWishlist: () => Promise<void>;
   isWishlisted: (productId: string) => boolean;
 
   // Coupon & Value-Add Handlers
@@ -79,7 +141,9 @@ interface CartState {
   removeCoupon: () => Promise<void>;
   toggleGiftWrap: () => Promise<void>;
   setDonation: (amount: number) => Promise<void>;
+  setNeedGstInvoice: (val: boolean) => void;
   setGstin: (gstin: string) => void;
+  setGstBusinessName: (name: string) => void;
   resetCartState: () => void;
 }
 
@@ -151,25 +215,43 @@ const calculateTotals = (
 };
 
 const mapServerCartItems = (serverCart: CartModel): LocalCartItem[] =>
-  (serverCart.items || []).map((ci) => ({
-    id: ci.id,
-    productId: ci.productId,
-    title: ci.title || ci.product?.title || 'Fashion Garment',
-    brand: ci.brand || ci.product?.brand || 'Affordz',
-    vendorId: (ci as any).vendorId || ci.product?.vendor?.id,
-    vendorName: (ci as any).vendorName || ci.product?.vendor?.storeName || ci.brand || ci.product?.brand,
-    price: ci.price ?? ci.product?.price ?? 0,
-    originalPrice: ci.originalPrice ?? ci.product?.originalPrice ?? ci.price ?? 0,
-    size: ci.size,
-    trialSize: ci.trialSize || null,
-    isTryAndBuy: ci.isTryAndBuy ?? Boolean(ci.trialSize),
-    fulfillmentType: ci.fulfillmentType || ci.product?.fulfillmentType || 'VENDOR',
-    darkStoreHub: ci.darkStoreHub || ci.product?.darkStoreHub || null,
-    color: ci.color || 'Standard',
-    quantity: ci.quantity,
-    image: ci.image || ci.product?.image || '',
-    discountBadge: ci.discount || ci.product?.discount || '',
-  }));
+  (serverCart.items || []).map((ci) => {
+    const fType = ci.fulfillmentType || ci.product?.fulfillmentType || 'VENDOR';
+    const isDark = fType === 'DARK_STORE';
+    const eligible = isDark && (ci.tryAndBuyEligible ?? ci.product?.tryAndBuyEligible ?? ci.isTryAndBuy ?? false);
+    return {
+      id: ci.id,
+      productId: ci.productId,
+      title: ci.title || ci.product?.title || 'Fashion Garment',
+      brand: ci.brand || ci.product?.brand || 'Affordz',
+      vendorId: (ci as any).vendorId || ci.product?.vendor?.id,
+      vendorName: (ci as any).vendorName || ci.product?.vendor?.storeName || ci.brand || ci.product?.brand,
+      price: ci.price ?? ci.product?.price ?? 0,
+      originalPrice: ci.originalPrice ?? ci.product?.originalPrice ?? ci.price ?? 0,
+      size: ci.size,
+      trialSize: isDark ? (ci.trialSize || null) : null,
+      isTryAndBuy: eligible,
+      tryAndBuyEligible: eligible,
+      fulfillmentType: fType,
+      darkStoreHub: ci.darkStoreHub || ci.product?.darkStoreHub || null,
+      color: ci.color || 'Standard',
+      quantity: ci.quantity,
+      image: ci.image || ci.product?.image || '',
+      discountBadge: ci.discount || ci.product?.discount || '',
+    };
+  });
+
+function resolveNextTryAndBuySlot(
+  items: LocalCartItem[],
+  currentExpiresAt: number | null,
+): number | null {
+  const hasEligibleDark = items.some(
+    (it) => it.fulfillmentType === 'DARK_STORE' && it.isTryAndBuy !== false,
+  );
+  if (!hasEligibleDark) return null;
+  if (currentExpiresAt && currentExpiresAt > Date.now()) return currentExpiresAt;
+  return Date.now() + TRY_AND_BUY_SLOT_DURATION_MS;
+}
 
 const mapServerCartTotals = (serverCart: CartModel) => {
   const items = serverCart.items || [];
@@ -208,10 +290,19 @@ export const useCartStore = create<CartState>((set, get) => ({
   discountAmount: 0,
   giftWrap: false,
   donationAmount: 0,
+  needGstInvoice: false,
   gstin: null,
+  gstBusinessName: null,
+  tryAndBuySlotExpiresAt: null,
 
   buyNowItem: null,
-  setBuyNowItem: (item) => set({ buyNowItem: item }),
+  setBuyNowItem: (item) =>
+    set({
+      buyNowItem: item,
+      ...(item && item.fulfillmentType === 'DARK_STORE' && item.isTryAndBuy !== false
+        ? { tryAndBuySlotExpiresAt: Date.now() + TRY_AND_BUY_SLOT_DURATION_MS }
+        : {}),
+    }),
   clearBuyNowItem: () => set({ buyNowItem: null }),
   updateBuyNowQuantity: (delta) => {
     const state = get();
@@ -230,14 +321,21 @@ export const useCartStore = create<CartState>((set, get) => ({
   },
 
   fetchCart: async () => {
+    const seqAtStart = cartMutationSeq;
     set({ isLoading: true, error: null });
     try {
       const serverCart = await cartApi.getCart();
+      if (seqAtStart !== cartMutationSeq) {
+        set({ isLoading: false });
+        return;
+      }
+      lastServerCartSnapshot = serverCart;
       if (getAuthToken() || serverCart?.id || (serverCart?.items && serverCart.items.length > 0)) {
         const localItems = mapServerCartItems(serverCart);
         set({
           items: localItems,
           ...mapServerCartTotals(serverCart),
+          tryAndBuySlotExpiresAt: resolveNextTryAndBuySlot(localItems, get().tryAndBuySlotExpiresAt),
           isLoading: false,
           error: null,
         });
@@ -245,11 +343,57 @@ export const useCartStore = create<CartState>((set, get) => ({
         set({ isLoading: false });
       }
     } catch (err: any) {
+      if (seqAtStart !== cartMutationSeq) {
+        set({ isLoading: false });
+        return;
+      }
       set({
         isLoading: false,
         error: err?.message || 'Could not fetch cart from server.',
       });
     }
+  },
+
+  syncGuestCartToServer: async () => {
+    if (!getAuthToken()) return;
+    const unsyncedItems = get().items.filter((it) => it.id.startsWith('ci-'));
+    await enqueueCartMutation(async (mySeq) => {
+      if (!getAuthToken()) return;
+      let latestSyncedCart: CartModel | null = null;
+      for (const item of unsyncedItems) {
+        try {
+          const serverCart = await cartApi.addItem(
+            item.productId,
+            item.size || 'M',
+            item.quantity,
+            item.trialSize || undefined,
+            item.color || undefined,
+          );
+          lastServerCartSnapshot = serverCart;
+          latestSyncedCart = serverCart;
+        } catch {
+          // ignore individual item sync failure (e.g., out of stock) and hydrate server truth
+        }
+      }
+      if (!latestSyncedCart) {
+        try {
+          const latest = await cartApi.getCart();
+          lastServerCartSnapshot = latest;
+          latestSyncedCart = latest;
+        } catch {
+          // non-fatal
+        }
+      }
+      if (mySeq === cartMutationSeq && latestSyncedCart && Array.isArray(latestSyncedCart.items)) {
+        const mapped = mapServerCartItems(latestSyncedCart);
+        set({
+          items: mapped,
+          ...mapServerCartTotals(latestSyncedCart),
+          tryAndBuySlotExpiresAt: resolveNextTryAndBuySlot(mapped, get().tryAndBuySlotExpiresAt),
+          error: null,
+        });
+      }
+    });
   },
 
   addItem: async (product, size = 'M', color = 'Standard', quantity = 1, trialSize?: string) => {
@@ -265,6 +409,7 @@ export const useCartStore = create<CartState>((set, get) => ({
       splitOrderCount: state.splitOrderCount,
       splitBuckets: state.splitBuckets,
       count: state.count,
+      tryAndBuySlotExpiresAt: state.tryAndBuySlotExpiresAt,
     };
 
     const existingIndex = state.items.findIndex(
@@ -278,12 +423,13 @@ export const useCartStore = create<CartState>((set, get) => ({
       updatedItems[existingIndex] = {
         ...updatedItems[existingIndex],
         quantity: updatedItems[existingIndex].quantity + quantity,
-        ...(trialSize && isDark ? { trialSize, isTryAndBuy: true } : {}),
+        ...(trialSize && isDark ? { trialSize, isTryAndBuy: true, tryAndBuyEligible: true } : {}),
       };
     } else {
       const isDark = (product.fulfillmentType || 'VENDOR') === 'DARK_STORE';
+      const eligible = isDark ? Boolean(trialSize || product.tryAndBuyEligible !== false) : false;
       const newItem: LocalCartItem = {
-        id: `ci-${Date.now()}`,
+        id: `ci-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
         productId: String(product.id),
         title: product.title || (product as any).name || 'Artisan Garment',
         brand: product.brand || 'Affordz',
@@ -293,7 +439,8 @@ export const useCartStore = create<CartState>((set, get) => ({
         originalPrice: product.originalPrice || Math.round(product.price * 1.4),
         size: effectiveSize,
         trialSize: isDark ? (trialSize || null) : null,
-        isTryAndBuy: isDark ? Boolean(trialSize || product.tryAndBuyEligible) : false,
+        isTryAndBuy: eligible,
+        tryAndBuyEligible: eligible,
         fulfillmentType: product.fulfillmentType || 'VENDOR',
         darkStoreHub: product.darkStoreHub || null,
         color,
@@ -314,32 +461,42 @@ export const useCartStore = create<CartState>((set, get) => ({
     set({
       items: updatedItems,
       error: null,
+      tryAndBuySlotExpiresAt: resolveNextTryAndBuySlot(updatedItems, state.tryAndBuySlotExpiresAt),
       ...totals,
     });
 
     if (getAuthToken()) {
-      try {
-        const serverCart = await cartApi.addItem(
-          String(product.id),
-          effectiveSize,
-          quantity,
-          trialSize,
-          color,
-        );
-        if (serverCart && Array.isArray(serverCart.items)) {
-          set({
-            items: mapServerCartItems(serverCart),
-            ...mapServerCartTotals(serverCart),
-            error: null,
-          });
+      return enqueueCartMutation(async (mySeq) => {
+        if (!getAuthToken()) return true;
+        try {
+          const serverCart = await cartApi.addItem(
+            String(product.id),
+            effectiveSize,
+            quantity,
+            trialSize,
+            color,
+          );
+          lastServerCartSnapshot = serverCart;
+          if (mySeq === cartMutationSeq && serverCart && Array.isArray(serverCart.items)) {
+            const mapped = mapServerCartItems(serverCart);
+            set({
+              items: mapped,
+              ...mapServerCartTotals(serverCart),
+              tryAndBuySlotExpiresAt: resolveNextTryAndBuySlot(mapped, get().tryAndBuySlotExpiresAt),
+              error: null,
+            });
+          }
+          return true;
+        } catch (err: any) {
+          if (mySeq === cartMutationSeq) {
+            set({
+              ...prevSnapshot,
+              error: err?.message || 'Unable to add item to bag.',
+            });
+          }
+          return false;
         }
-      } catch (err: any) {
-        set({
-          ...prevSnapshot,
-          error: err?.message || 'Unable to add item to bag.',
-        });
-        return false;
-      }
+      });
     }
 
     return true;
@@ -360,6 +517,7 @@ export const useCartStore = create<CartState>((set, get) => ({
       splitOrderCount: state.splitOrderCount,
       splitBuckets: state.splitBuckets,
       count: state.count,
+      tryAndBuySlotExpiresAt: state.tryAndBuySlotExpiresAt,
     };
 
     const newQty = target.quantity + delta;
@@ -381,33 +539,72 @@ export const useCartStore = create<CartState>((set, get) => ({
     set({
       items: updatedItems,
       error: null,
+      tryAndBuySlotExpiresAt: resolveNextTryAndBuySlot(updatedItems, state.tryAndBuySlotExpiresAt),
       ...totals,
     });
 
     if (getAuthToken()) {
-      try {
-        const serverCart =
-          newQty > 0
-            ? await cartApi.updateQuantity(itemId, delta)
-            : await cartApi.removeItem(itemId);
-        if (serverCart && Array.isArray(serverCart.items)) {
-          set({
-            items: mapServerCartItems(serverCart),
-            ...mapServerCartTotals(serverCart),
-            error: null,
-          });
+      const targetProductId = target.productId;
+      const targetSize = target.size;
+      await enqueueCartMutation(async (mySeq) => {
+        if (!getAuthToken()) return;
+        try {
+          let resolvedId = itemId;
+          if (resolvedId.startsWith('ci-')) {
+            const snapshotItems = lastServerCartSnapshot?.items || [];
+            const matched = snapshotItems.find(
+              (si) =>
+                String(si.productId) === String(targetProductId) &&
+                String(si.size || '') === String(targetSize || ''),
+            );
+            if (matched?.id) {
+              resolvedId = matched.id;
+            } else {
+              const fresh = await cartApi.getCart();
+              lastServerCartSnapshot = fresh;
+              const freshMatch = (fresh.items || []).find(
+                (si) =>
+                  String(si.productId) === String(targetProductId) &&
+                  String(si.size || '') === String(targetSize || ''),
+              );
+              if (freshMatch?.id) {
+                resolvedId = freshMatch.id;
+              } else {
+                // Item never reached server DB; nothing to remove/update on server
+                return;
+              }
+            }
+          }
+
+          const serverCart =
+            newQty > 0
+              ? await cartApi.updateQuantity(resolvedId, delta)
+              : await cartApi.removeItem(resolvedId);
+          lastServerCartSnapshot = serverCart;
+          if (mySeq === cartMutationSeq && serverCart && Array.isArray(serverCart.items)) {
+            const mapped = mapServerCartItems(serverCart);
+            set({
+              items: mapped,
+              ...mapServerCartTotals(serverCart),
+              tryAndBuySlotExpiresAt: resolveNextTryAndBuySlot(mapped, get().tryAndBuySlotExpiresAt),
+              error: null,
+            });
+          }
+        } catch (err: any) {
+          if (mySeq === cartMutationSeq) {
+            set({
+              ...prevSnapshot,
+              error: err?.message || 'Unable to update item quantity.',
+            });
+          }
         }
-      } catch (err: any) {
-        set({
-          ...prevSnapshot,
-          error: err?.message || 'Unable to update item quantity.',
-        });
-      }
+      });
     }
   },
 
   removeItem: async (itemId) => {
     const state = get();
+    const target = state.items.find((i) => i.id === itemId);
     const prevSnapshot = {
       items: state.items,
       itemTotal: state.itemTotal,
@@ -418,6 +615,7 @@ export const useCartStore = create<CartState>((set, get) => ({
       splitOrderCount: state.splitOrderCount,
       splitBuckets: state.splitBuckets,
       count: state.count,
+      tryAndBuySlotExpiresAt: state.tryAndBuySlotExpiresAt,
     };
 
     const updatedItems = state.items.filter((i) => i.id !== itemId);
@@ -431,36 +629,66 @@ export const useCartStore = create<CartState>((set, get) => ({
     set({
       items: updatedItems,
       error: null,
+      tryAndBuySlotExpiresAt: resolveNextTryAndBuySlot(updatedItems, state.tryAndBuySlotExpiresAt),
       ...totals,
     });
 
     if (getAuthToken()) {
-      try {
-        const serverCart = await cartApi.removeItem(itemId);
-        if (serverCart && Array.isArray(serverCart.items)) {
-          set({
-            items: mapServerCartItems(serverCart),
-            ...mapServerCartTotals(serverCart),
-            error: null,
-          });
+      const targetProductId = target?.productId;
+      const targetSize = target?.size;
+      await enqueueCartMutation(async (mySeq) => {
+        if (!getAuthToken()) return;
+        try {
+          let resolvedId = itemId;
+          if (resolvedId.startsWith('ci-') && targetProductId) {
+            const snapshotItems = lastServerCartSnapshot?.items || [];
+            const matched = snapshotItems.find(
+              (si) =>
+                String(si.productId) === String(targetProductId) &&
+                String(si.size || '') === String(targetSize || ''),
+            );
+            if (matched?.id) {
+              resolvedId = matched.id;
+            } else {
+              const fresh = await cartApi.getCart();
+              lastServerCartSnapshot = fresh;
+              const freshMatch = (fresh.items || []).find(
+                (si) =>
+                  String(si.productId) === String(targetProductId) &&
+                  String(si.size || '') === String(targetSize || ''),
+              );
+              if (freshMatch?.id) {
+                resolvedId = freshMatch.id;
+              } else {
+                return;
+              }
+            }
+          }
+
+          const serverCart = await cartApi.removeItem(resolvedId);
+          lastServerCartSnapshot = serverCart;
+          if (mySeq === cartMutationSeq && serverCart && Array.isArray(serverCart.items)) {
+            const mapped = mapServerCartItems(serverCart);
+            set({
+              items: mapped,
+              ...mapServerCartTotals(serverCart),
+              tryAndBuySlotExpiresAt: resolveNextTryAndBuySlot(mapped, get().tryAndBuySlotExpiresAt),
+              error: null,
+            });
+          }
+        } catch (err: any) {
+          if (mySeq === cartMutationSeq) {
+            set({
+              ...prevSnapshot,
+              error: err?.message || 'Unable to remove item.',
+            });
+          }
         }
-      } catch (err: any) {
-        set({
-          ...prevSnapshot,
-          error: err?.message || 'Unable to remove item.',
-        });
-      }
+      });
     }
   },
 
   clearCart: async () => {
-    if (getAuthToken()) {
-      try {
-        await cartApi.clearCart();
-      } catch {
-        // Ignore clear errors after checkout
-      }
-    }
     set({
       items: [],
       itemTotal: 0,
@@ -475,20 +703,50 @@ export const useCartStore = create<CartState>((set, get) => ({
       discountAmount: 0,
       giftWrap: false,
       donationAmount: 0,
+      needGstInvoice: false,
       gstin: null,
+      gstBusinessName: null,
+      tryAndBuySlotExpiresAt: null,
       error: null,
     });
+    if (getAuthToken()) {
+      await enqueueCartMutation(async () => {
+        try {
+          await cartApi.clearCart();
+          lastServerCartSnapshot = null;
+        } catch {
+          // Ignore clear errors after checkout
+        }
+      });
+    }
+  },
+
+  hydrateWishlist: async () => {
+    const stored = await loadPersistedWishlist();
+    if (stored.length > 0 && get().wishlist.length === 0) {
+      set({ wishlist: stored });
+    }
   },
 
   toggleWishlist: (productId: string) => {
-    const wishlist = get().wishlist;
-    const exists = wishlist.includes(productId);
-    const updated = exists ? wishlist.filter((id) => id !== productId) : [...wishlist, productId];
+    const idStr = String(productId);
+    const wishlist = get().wishlist.map((id) => String(id));
+    const exists = wishlist.includes(idStr);
+    const updated = exists ? wishlist.filter((id) => id !== idStr) : [...wishlist, idStr];
     set({ wishlist: updated });
+    void savePersistedWishlist(updated);
+  },
+
+  removeFromWishlist: (productId: string) => {
+    const idStr = String(productId);
+    const updated = get().wishlist.map((id) => String(id)).filter((id) => id !== idStr);
+    set({ wishlist: updated });
+    void savePersistedWishlist(updated);
   },
 
   isWishlisted: (productId: string) => {
-    return get().wishlist.includes(productId);
+    const idStr = String(productId);
+    return get().wishlist.some((id) => String(id) === idStr);
   },
 
   applyCoupon: async (code: string) => {
@@ -599,11 +857,22 @@ export const useCartStore = create<CartState>((set, get) => ({
     }
   },
 
+  setNeedGstInvoice: (val: boolean) => {
+    set({ needGstInvoice: val });
+  },
+
   setGstin: (gstin: string) => {
     set({ gstin: gstin.trim().toUpperCase() });
   },
 
+  setGstBusinessName: (name: string) => {
+    set({ gstBusinessName: name });
+  },
+
   resetCartState: () => {
+    lastServerCartSnapshot = null;
+    cartMutationSeq += 1;
+    void savePersistedWishlist([]);
     set({
       items: [],
       buyNowItem: null,
@@ -615,7 +884,10 @@ export const useCartStore = create<CartState>((set, get) => ({
       giftWrap: false,
       giftWrapFee: 0,
       donationAmount: 0,
+      needGstInvoice: false,
       gstin: null,
+      gstBusinessName: null,
+      tryAndBuySlotExpiresAt: null,
       couponCode: null,
       grandTotal: 0,
       splitOrderCount: 0,
@@ -629,4 +901,8 @@ export const useCartStore = create<CartState>((set, get) => ({
 
 registerAuthLogoutReset(() => {
   useCartStore.getState().resetCartState();
+});
+
+registerAuthLoginCallback(() => {
+  useCartStore.getState().syncGuestCartToServer().catch(() => {});
 });

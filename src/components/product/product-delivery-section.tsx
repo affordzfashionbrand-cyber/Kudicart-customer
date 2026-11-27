@@ -11,6 +11,8 @@ interface DeliveryEstimate {
 interface ProductDeliverySectionProps {
   isDarkStoreProduct: boolean;
   selectedDarkStoreDeliveryMinutes?: number;
+  stockQuantity?: number;
+  vendorName?: string | null;
   pincode: string;
   pincodeInput: string;
   isEditingPincode: boolean;
@@ -22,7 +24,9 @@ interface ProductDeliverySectionProps {
 
 export function ProductDeliverySection({
   isDarkStoreProduct,
-  selectedDarkStoreDeliveryMinutes = 18,
+  selectedDarkStoreDeliveryMinutes = 19,
+  stockQuantity,
+  vendorName,
   pincode,
   pincodeInput,
   isEditingPincode,
@@ -31,9 +35,18 @@ export function ProductDeliverySection({
   setIsEditingPincode,
   onApplyPincode,
 }: ProductDeliverySectionProps) {
+  const stockStatusText =
+    typeof stockQuantity === 'number'
+      ? stockQuantity <= 0
+        ? 'Out of Stock'
+        : stockQuantity <= 5
+          ? `Only ${stockQuantity} Left`
+          : 'In Stock'
+      : 'Ready to Ship';
+
   return (
     <>
-      {/* Hyper-Local 18-Minute Try & Buy Card (STRICTLY FOR DARK STORE) */}
+      {/* Hyper-Local Express Try & Buy Card (STRICTLY FOR DARK STORE) */}
       {isDarkStoreProduct ? (
         <View style={{ paddingHorizontal: 16, marginTop: 16 }}>
           <View
@@ -63,13 +76,13 @@ export function ProductDeliverySection({
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                 <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#22C55E' }} />
                 <Text style={{ fontSize: 10.5, fontWeight: '900', color: '#15803D', textTransform: 'uppercase' }}>
-                  Instant Doorstep Try & Buy Available
+                  Instant Doorstep Try &amp; Buy Available
                 </Text>
               </View>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
                 <Clock size={11} color="#FF5A1F" />
                 <Text style={{ fontSize: 9.5, fontWeight: '900', color: '#FF5A1F' }}>
-                  2 Pieces Remaining
+                  {stockStatusText}
                 </Text>
               </View>
             </View>
@@ -99,10 +112,10 @@ export function ProductDeliverySection({
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={{ fontSize: 13, fontWeight: '900', color: '#111111' }}>
-                  18-Min Doorstep Fitting Room
+                  {selectedDarkStoreDeliveryMinutes}-Min Doorstep Try &amp; Buy
                 </Text>
                 <Text style={{ fontSize: 11, color: '#71717A', lineHeight: 15, marginTop: 2 }}>
-                  Our style concierge waits 10 minutes at your door. Slip it on, examine the drape, keep only what you adore—instant zero-hassle handoff.
+                  Try at your doorstep before keeping. Keep only what fits; hand back the rest to our delivery partner.
                 </Text>
               </View>
             </View>
@@ -110,16 +123,24 @@ export function ProductDeliverySection({
             {/* Timeline Tracker */}
             <View style={{ flexDirection: 'row', gap: 6 }}>
               <View style={{ flex: 1, backgroundColor: '#FFFFFF', padding: 8, borderRadius: 10, alignItems: 'center' }}>
-                <Text style={{ fontSize: 11, fontWeight: '900', color: '#111111' }}>3 MIN</Text>
-                <Text style={{ fontSize: 8.5, color: '#71717A', fontWeight: '700', textTransform: 'uppercase' }}>Steam Press</Text>
+                <Text style={{ fontSize: 11, fontWeight: '900', color: '#111111' }}>
+                  {selectedDarkStoreDeliveryMinutes} MIN
+                </Text>
+                <Text style={{ fontSize: 8.5, color: '#71717A', fontWeight: '700', textTransform: 'uppercase' }}>
+                  Express ETA
+                </Text>
               </View>
               <View style={{ flex: 1, backgroundColor: '#FFFFFF', padding: 8, borderRadius: 10, alignItems: 'center' }}>
-                <Text style={{ fontSize: 11, fontWeight: '900', color: '#111111' }}>15 MIN</Text>
-                <Text style={{ fontSize: 8.5, color: '#71717A', fontWeight: '700', textTransform: 'uppercase' }}>Atelier Transit</Text>
+                <Text style={{ fontSize: 11, fontWeight: '900', color: '#111111' }}>2 SIZES</Text>
+                <Text style={{ fontSize: 8.5, color: '#71717A', fontWeight: '700', textTransform: 'uppercase' }}>
+                  Trial Eligible
+                </Text>
               </View>
               <View style={{ flex: 1, backgroundColor: '#111111', padding: 8, borderRadius: 10, alignItems: 'center' }}>
                 <Text style={{ fontSize: 11, fontWeight: '900', color: '#FFFFFF' }}>10 MIN</Text>
-                <Text style={{ fontSize: 8.5, color: '#FF5A1F', fontWeight: '800', textTransform: 'uppercase' }}>Try at Home</Text>
+                <Text style={{ fontSize: 8.5, color: '#FF5A1F', fontWeight: '800', textTransform: 'uppercase' }}>
+                  Try at Door
+                </Text>
               </View>
             </View>
           </View>
@@ -139,11 +160,11 @@ export function ProductDeliverySection({
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                 <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#3B82F6' }} />
                 <Text style={{ fontSize: 10.5, fontWeight: '900', color: '#1D4ED8', textTransform: 'uppercase' }}>
-                  Direct Boutique Dispatch
+                  Direct Vendor Dispatch
                 </Text>
               </View>
               <View style={{ backgroundColor: '#F3F4F6', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 }}>
-                <Text style={{ fontSize: 8.5, fontWeight: '800', color: '#6B7280' }}>NO TRY & BUY</Text>
+                <Text style={{ fontSize: 8.5, fontWeight: '800', color: '#6B7280' }}>NO TRY &amp; BUY</Text>
               </View>
             </View>
 
@@ -162,10 +183,10 @@ export function ProductDeliverySection({
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={{ fontSize: 12.5, fontWeight: '800', color: '#111111' }}>
-                  Shipped from Artisan Vendor Studio
+                  Shipped from {vendorName || deliveryEstimate.hub}
                 </Text>
                 <Text style={{ fontSize: 10.5, color: '#71717A', lineHeight: 15, marginTop: 2 }}>
-                  Delivered in 2-4 business days. Note: Doorstep Try & Buy is exclusive to 18-Min Dark Store products; standard 7-day doorstep return/exchange policy applies.
+                  Delivered in 2-4 business days. Doorstep Try &amp; Buy applies exclusively to Express Dark Store items; standard 7-day return policy applies.
                 </Text>
               </View>
             </View>
@@ -310,63 +331,69 @@ export function ProductDeliverySection({
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={{ fontSize: 12, fontWeight: '900', color: '#111111' }}>
-                  {deliveryEstimate.is18Min ? '18-Minute Doorstep Fitting Concierge' : '2-3 Business Days Standard Delivery'}
+                  {deliveryEstimate.is18Min
+                    ? `${selectedDarkStoreDeliveryMinutes}-Minute Express Delivery`
+                    : '2-4 Business Days Standard Delivery'}
                 </Text>
                 <Text style={{ fontSize: 10.5, color: '#71717A', marginTop: 1 }}>
                   {deliveryEstimate.is18Min
-                    ? 'Rider carries outfit steam-pressed on wooden hanger with backup size.'
-                    : 'Dispatched directly from designer atelier with signature luxury box.'}
+                    ? 'Dispatched from your nearest Dark Store hub with optional backup trial size.'
+                    : 'Dispatched directly from verified vendor partner.'}
                 </Text>
               </View>
             </View>
 
-            <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
-              <View
-                style={{
-                  width: 20,
-                  height: 20,
-                  borderRadius: 10,
-                  backgroundColor: '#FEF3C7',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  marginTop: 1,
-                }}
-              >
-                <Clock size={11} color="#B45309" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 12, fontWeight: '900', color: '#111111' }}>
-                  10-Minute Personal Mirror Trial
-                </Text>
-                <Text style={{ fontSize: 10.5, color: '#71717A', marginTop: 1 }}>
-                  Take your time inside your home. Concierge waits at the gate—pay only if you keep it.
-                </Text>
-              </View>
-            </View>
+            {isDarkStoreProduct ? (
+              <>
+                <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
+                  <View
+                    style={{
+                      width: 20,
+                      height: 20,
+                      borderRadius: 10,
+                      backgroundColor: '#FEF3C7',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      marginTop: 1,
+                    }}
+                  >
+                    <Clock size={11} color="#B45309" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 12, fontWeight: '900', color: '#111111' }}>
+                      10-Minute Doorstep Try &amp; Buy
+                    </Text>
+                    <Text style={{ fontSize: 10.5, color: '#71717A', marginTop: 1 }}>
+                      Try your fit at home for 10 minutes before completing final confirmation.
+                    </Text>
+                  </View>
+                </View>
 
-            <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
-              <View
-                style={{
-                  width: 20,
-                  height: 20,
-                  borderRadius: 10,
-                  backgroundColor: '#F3E8FF',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  marginTop: 1,
-                }}
-              >
-                <RotateCcw size={11} color="#7C3AED" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 12, fontWeight: '900', color: '#111111' }}>
-                  Instant Zero-Hassle Handback
-                </Text>
-                <Text style={{ fontSize: 10.5, color: '#71717A', marginTop: 1 }}>
-                  Don&apos;t like the fit or silhouette? Hand back on spot. Zero return paperwork or pickup delays.
-                </Text>
-              </View>
-            </View>
+                <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
+                  <View
+                    style={{
+                      width: 20,
+                      height: 20,
+                      borderRadius: 10,
+                      backgroundColor: '#F3E8FF',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      marginTop: 1,
+                    }}
+                  >
+                    <RotateCcw size={11} color="#7C3AED" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 12, fontWeight: '900', color: '#111111' }}>
+                      Instant Doorstep Handback
+                    </Text>
+                    <Text style={{ fontSize: 10.5, color: '#71717A', marginTop: 1 }}>
+                      Hand back unkept sizes directly to the rider on spot.
+                    </Text>
+                  </View>
+                </View>
+              </>
+            ) : null}
           </View>
         </View>
       </View>

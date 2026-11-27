@@ -1,7 +1,7 @@
 import * as WebBrowser from 'expo-web-browser';
 import { useCartStore } from '@/store/useCartStore';
 import { checkAddressServiceability } from '@/store/useAddressStore';
-import { ApiProduct, cartApi, setAuthToken } from '@/services/api';
+import { ApiProduct, cartApi, ordersApi, setAuthToken } from '@/services/api';
 import {
   buildHostedCheckoutUrl,
   parsePaymentCallbackUrl,
@@ -77,8 +77,9 @@ describe('Cart Buckets, Coupons, Serviceability & Hosted Razorpay Checkout', () 
     expect(state.splitOrderCount).toBe(2);
     // Both buckets are < 1499 independently, so each bucket incurs ₹40 delivery fee => ₹80 total
     expect(state.deliveryFee).toBe(80);
-    expect(state.taxes).toBe(110);
-    expect(state.grandTotal).toBe(2390);
+    // MRP is GST-inclusive: no extra GST tax line added on top of MRP
+    expect(state.taxes).toBe(0);
+    expect(state.grandTotal).toBe(2280);
   });
 
   it('applies empty server cart on fetchCart, syncs DB CartItem IDs, and rejects offline coupons', async () => {
@@ -136,8 +137,8 @@ describe('Cart Buckets, Coupons, Serviceability & Hosted Razorpay Checkout', () 
       ],
       itemTotal: 1800,
       deliveryFee: 0,
-      taxes: 90,
-      grandTotal: 1890,
+      taxes: 0,
+      grandTotal: 1800,
       splitOrderCount: 1,
       splitBuckets: [],
       giftWrap: false,
@@ -177,11 +178,11 @@ describe('Cart Buckets, Coupons, Serviceability & Hosted Razorpay Checkout', () 
       items: useCartStore.getState().items as any,
       itemTotal: 1800,
       deliveryFee: 0,
-      taxes: 90,
+      taxes: 0,
       giftWrap: true,
       giftWrapFee: 35,
       donationAmount: 0,
-      grandTotal: 1925,
+      grandTotal: 1835,
       splitOrderCount: 1,
       splitBuckets: [],
     });
@@ -190,7 +191,7 @@ describe('Cart Buckets, Coupons, Serviceability & Hosted Razorpay Checkout', () 
     expect(prefSpy).toHaveBeenCalledWith({ giftWrap: true });
     expect(useCartStore.getState().giftWrap).toBe(true);
     expect(useCartStore.getState().giftWrapFee).toBe(35);
-    expect(useCartStore.getState().grandTotal).toBe(1925);
+    expect(useCartStore.getState().grandTotal).toBe(1835);
   });
 
   it('gates non-serviceable and missing addresses properly', () => {
@@ -285,5 +286,159 @@ describe('Cart Buckets, Coupons, Serviceability & Hosted Razorpay Checkout', () 
     });
 
     expect(dismissedOutcome.type).toBe('cancelled');
+  });
+
+  it('prevents auto-re-add when decrementing to 0 or removing while addItem is still in flight', async () => {
+    setAuthToken('jwt-live');
+
+    let resolveAdd!: (val: any) => void;
+    const pendingAddPromise = new Promise((resolve) => {
+      resolveAdd = resolve;
+    });
+
+    jest.spyOn(cartApi, 'addItem').mockReturnValueOnce(pendingAddPromise as any);
+    const removeSpy = jest.spyOn(cartApi, 'removeItem').mockResolvedValueOnce({
+      id: 'cart-1',
+      items: [],
+      itemTotal: 0,
+      deliveryFee: 0,
+      taxes: 0,
+      grandTotal: 0,
+      splitOrderCount: 0,
+      splitBuckets: [],
+      giftWrap: false,
+      giftWrapFee: 0,
+      donationAmount: 0,
+    });
+
+    const addPromise = useCartStore.getState().addItem(
+      makeTestProduct({
+        id: 'prod-race-1',
+        title: 'Quick Linen Shirt',
+        brand: 'Kudicart',
+        price: 1299,
+        originalPrice: 1599,
+      }),
+      'M',
+      undefined,
+      1,
+    );
+
+    const tempId = useCartStore.getState().items[0].id;
+    expect(tempId).toMatch(/^ci-/);
+
+    // User immediately decrements to 0 before backend addItem responds
+    const decPromise = useCartStore.getState().updateQuantity(tempId, -1);
+    expect(useCartStore.getState().items).toHaveLength(0);
+
+    // Slow addItem resolves with server row, then queued removeItem executes using resolved DB ID
+    resolveAdd({
+      id: 'cart-1',
+      items: [
+        {
+          id: 'db-item-race-1',
+          productId: 'prod-race-1',
+          title: 'Quick Linen Shirt',
+          brand: 'Kudicart',
+          price: 1299,
+          originalPrice: 1599,
+          size: 'M',
+          quantity: 1,
+          image: 'https://example.com/1.jpg',
+        },
+      ],
+      itemTotal: 1299,
+      deliveryFee: 40,
+      taxes: 0,
+      grandTotal: 1339,
+      splitOrderCount: 1,
+      splitBuckets: [],
+      giftWrap: false,
+      giftWrapFee: 0,
+      donationAmount: 0,
+    });
+
+    await Promise.all([addPromise, decPromise]);
+    expect(removeSpy).toHaveBeenCalledWith('db-item-race-1');
+    expect(useCartStore.getState().items).toHaveLength(0);
+  });
+
+  it('syncs guest bag items into backend cart automatically on auth login', async () => {
+    // Guest adds an item locally while unauthenticated
+    await useCartStore.getState().addItem(
+      makeTestProduct({
+        id: 'prod-guest-1',
+        title: 'Mulmul Tunic',
+        brand: 'Ateliers',
+        price: 1499,
+        originalPrice: 1999,
+      }),
+      'S',
+      undefined,
+      1,
+    );
+    expect(useCartStore.getState().items).toHaveLength(1);
+
+    setAuthToken('jwt-new-user');
+    const syncedServerCart = {
+      id: 'cart-sync',
+      items: [
+        {
+          id: 'db-synced-1',
+          productId: 'prod-guest-1',
+          title: 'Mulmul Tunic',
+          brand: 'Ateliers',
+          price: 1499,
+          originalPrice: 1999,
+          size: 'S',
+          quantity: 1,
+          image: 'https://example.com/1.jpg',
+        },
+      ],
+      itemTotal: 1499,
+      deliveryFee: 0,
+      taxes: 0,
+      grandTotal: 1499,
+      splitOrderCount: 1,
+      splitBuckets: [],
+      giftWrap: false,
+      giftWrapFee: 0,
+      donationAmount: 0,
+    };
+    const syncAddSpy = jest.spyOn(cartApi, 'addItem').mockResolvedValueOnce(syncedServerCart);
+    jest.spyOn(cartApi, 'getCart').mockResolvedValueOnce(syncedServerCart);
+
+    await useCartStore.getState().syncGuestCartToServer();
+    expect(syncAddSpy).toHaveBeenCalledWith('prod-guest-1', 'S', 1, undefined, 'Standard');
+    expect(useCartStore.getState().items[0].id).toBe('db-synced-1');
+  });
+
+  it('requests official GST invoice payload for an order', async () => {
+    setAuthToken('jwt-live');
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = jest.fn().mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: async () =>
+        JSON.stringify({
+          invoiceNumber: 'INV-ORD-100',
+          mrpGstInclusive: true,
+          totals: { taxableSubtotal: 1904, cgstTotal: 48, sgstTotal: 47, grandTotal: 1999 },
+        }),
+    }) as any;
+
+    try {
+      const inv = await ordersApi.getInvoice('ord-100');
+      expect(inv.invoiceNumber).toBe('INV-ORD-100');
+      expect(inv.mrpGstInclusive).toBe(true);
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/v1/orders/ord-100/invoice'),
+        expect.objectContaining({
+          headers: expect.objectContaining({ Authorization: 'Bearer jwt-live' }),
+        }),
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 });

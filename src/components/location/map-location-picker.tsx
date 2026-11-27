@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -26,6 +26,10 @@ import {
   Briefcase,
   Crosshair,
   Compass,
+  Search,
+  User,
+  Phone,
+  Users,
 } from 'lucide-react-native';
 import { FontStyles } from '@/constants/theme';
 import {
@@ -33,11 +37,19 @@ import {
   checkAddressServiceability,
   DARK_STORE_HUB,
   DEFAULT_DARK_STORES,
+  MAX_DARK_STORE_RADIUS_KM,
   ServiceabilityResult,
 } from '@/store/useAddressStore';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useCatalogStore } from '@/store/useCatalogStore';
-import { reverseGeocodeCoords, GeocodedAddress } from '@/services/geocoding';
+import {
+  reverseGeocodeCoords,
+  searchLocations,
+  geocodePincode,
+  GeocodedAddress,
+  LocationSuggestion,
+} from '@/services/geocoding';
+import { requestContactsPermission } from '@/services/permissionsService';
 import { AddressModel } from '@/services/api';
 
 // Safe conditional import for react-native-maps
@@ -73,9 +85,16 @@ export const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
   onAddressConfirmed,
   onRequestAuth,
 }) => {
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, user } = useAuthStore();
   const { addAddress, confirmLocation } = useAddressStore();
   const { darkStores } = useCatalogStore();
+
+  const mapRef = useRef<any>(null);
+  const iframeRef = useRef<any>(null);
+  const initialMapCenterRef = useRef<{ latitude: number; longitude: number }>({
+    latitude: initialCoords?.latitude || DARK_STORE_HUB.latitude,
+    longitude: initialCoords?.longitude || DARK_STORE_HUB.longitude,
+  });
 
   const [coords, setCoords] = useState<{ latitude: number; longitude: number }>({
     latitude: initialCoords?.latitude || DARK_STORE_HUB.latitude,
@@ -87,8 +106,16 @@ export const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
   const [isLocatingUser, setIsLocatingUser] = useState(false);
   const [serviceability, setServiceability] = useState<ServiceabilityResult | null>(null);
 
+  // Location Search & Autocomplete State
+  const [searchQuery, setSearchQuery] = useState('');
+  const [suggestions, setSuggestions] = useState<LocationSuggestion[]>([]);
+  const [isSearchingPlaces, setIsSearchingPlaces] = useState(false);
+
   // Address Details Form Step
   const [step, setStep] = useState<'MAP' | 'DETAILS'>('MAP');
+  const [receiverMode, setReceiverMode] = useState<'SELF' | 'OTHER'>('SELF');
+  const [recipientName, setRecipientName] = useState(user?.name || '');
+  const [recipientPhone, setRecipientPhone] = useState(user?.phone || '');
   const [houseNumber, setHouseNumber] = useState('');
   const [apartmentRoad, setApartmentRoad] = useState('');
   const [locality, setLocality] = useState('');
@@ -128,8 +155,32 @@ export const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
   const hubLat = typeof primaryHub.lat === 'number' ? primaryHub.lat : primaryHub.latitude;
   const hubLng = typeof primaryHub.lng === 'number' ? primaryHub.lng : primaryHub.longitude;
 
+  // Recenter native map or web Leaflet iframe smoothly without reloading
+  const moveMapTo = useCallback((lat: number, lng: number) => {
+    if (Platform.OS === 'web') {
+      try {
+        iframeRef.current?.contentWindow?.postMessage(
+          { type: 'SET_MAP_CENTER', lat, lng },
+          '*',
+        );
+      } catch {
+        // ignore cross-frame postMessage errors
+      }
+    } else if (mapRef.current?.animateToRegion) {
+      mapRef.current.animateToRegion(
+        {
+          latitude: lat,
+          longitude: lng,
+          latitudeDelta: 0.008,
+          longitudeDelta: 0.008,
+        },
+        350,
+      );
+    }
+  }, []);
+
   // Update geocoding and serviceability when coordinates change
-  const handleCoordsChange = (lat: number, lng: number) => {
+  const handleCoordsChange = useCallback((lat: number, lng: number) => {
     setCoords({ latitude: lat, longitude: lng });
     setIsGeocoding(true);
 
@@ -161,27 +212,26 @@ export const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
       .finally(() => {
         setIsGeocoding(false);
       });
-  };
-
-  // Initialize coordinates
-  useEffect(() => {
-    if (visible) {
-      setStep('MAP');
-      setFormError(null);
-      if (initialCoords) {
-        setCoords(initialCoords);
-        handleCoordsChange(initialCoords.latitude, initialCoords.longitude);
-      } else {
-        handleCoordsChange(hubLat, hubLng);
-      }
-    }
-  }, [visible, initialCoords, hubLat, hubLng]);
+  }, []);
 
   // Acquire live GPS position from device
-  const handleAcquireCurrentGps = async () => {
+  const handleAcquireCurrentGps = useCallback(async () => {
     setIsLocatingUser(true);
     setFormError(null);
     try {
+      if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.geolocation) {
+        const webPos = await new Promise<{ latitude: number; longitude: number }>((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(
+            (p) => resolve({ latitude: p.coords.latitude, longitude: p.coords.longitude }),
+            (err) => reject(err),
+            { enableHighAccuracy: false, timeout: 8000, maximumAge: 10000 },
+          );
+        });
+        handleCoordsChange(webPos.latitude, webPos.longitude);
+        moveMapTo(webPos.latitude, webPos.longitude);
+        return;
+      }
+
       const perm = await Location.requestForegroundPermissionsAsync();
       if (perm.status !== 'granted') {
         if (!perm.canAskAgain && Platform.OS !== 'web') {
@@ -220,13 +270,144 @@ export const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
       const lat = pos.coords.latitude;
       const lng = pos.coords.longitude;
       handleCoordsChange(lat, lng);
+      moveMapTo(lat, lng);
     } catch (err: any) {
       console.warn('[MapLocationPicker] GPS error:', err);
       setFormError(err?.message || 'Could not acquire GPS location.');
     } finally {
       setIsLocatingUser(false);
     }
-  };
+  }, [handleCoordsChange, moveMapTo]);
+
+  // Initialize coordinates and auto-detect GPS if permission already granted
+  useEffect(() => {
+    if (!visible) return;
+    setStep('MAP');
+    setFormError(null);
+    setSearchQuery('');
+    setSuggestions([]);
+    setReceiverMode('SELF');
+    setRecipientName(user?.name || '');
+    setRecipientPhone(user?.phone || '');
+
+    if (initialCoords) {
+      initialMapCenterRef.current = initialCoords;
+      handleCoordsChange(initialCoords.latitude, initialCoords.longitude);
+      moveMapTo(initialCoords.latitude, initialCoords.longitude);
+      return;
+    }
+
+    initialMapCenterRef.current = { latitude: hubLat, longitude: hubLng };
+    handleCoordsChange(hubLat, hubLng);
+    moveMapTo(hubLat, hubLng);
+
+    // Attempt silent GPS auto-detection if permission is already granted
+    (async () => {
+      try {
+        if (Platform.OS === 'web') return;
+        const perm = await Location.getForegroundPermissionsAsync();
+        if (perm.status === 'granted') {
+          const enabled = await Location.hasServicesEnabledAsync();
+          if (enabled) {
+            const pos = await Location.getCurrentPositionAsync({
+              accuracy: Location.Accuracy.Balanced,
+            });
+            handleCoordsChange(pos.coords.latitude, pos.coords.longitude);
+            moveMapTo(pos.coords.latitude, pos.coords.longitude);
+          }
+        }
+      } catch {
+        // Keep hub fallback quietly
+      }
+    })();
+  }, [visible, initialCoords, hubLat, hubLng, handleCoordsChange, moveMapTo, user?.name, user?.phone]);
+
+  // Debounced Location Search Autocomplete
+  useEffect(() => {
+    const trimmed = searchQuery.trim();
+    if (trimmed.length < 2) {
+      setSuggestions([]);
+      setIsSearchingPlaces(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    setIsSearchingPlaces(true);
+    const timer = setTimeout(() => {
+      searchLocations(trimmed, controller.signal)
+        .then((results) => {
+          if (!controller.signal.aborted) {
+            setSuggestions(results);
+          }
+        })
+        .catch(() => {})
+        .finally(() => {
+          if (!controller.signal.aborted) {
+            setIsSearchingPlaces(false);
+          }
+        });
+    }, 300);
+
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [searchQuery]);
+
+  const handleSelectSuggestion = useCallback(
+    (item: LocationSuggestion) => {
+      setSearchQuery(item.title);
+      setSuggestions([]);
+      handleCoordsChange(item.latitude, item.longitude);
+      moveMapTo(item.latitude, item.longitude);
+    },
+    [handleCoordsChange, moveMapTo],
+  );
+
+  const handleSearchSubmit = useCallback(async () => {
+    const digits = searchQuery.replace(/\D/g, '');
+    if (digits.length === 6) {
+      setIsSearchingPlaces(true);
+      try {
+        const res = await geocodePincode(digits);
+        if (res) {
+          setSuggestions([]);
+          handleCoordsChange(res.latitude, res.longitude);
+          moveMapTo(res.latitude, res.longitude);
+        }
+      } finally {
+        setIsSearchingPlaces(false);
+      }
+    } else if (suggestions.length > 0) {
+      handleSelectSuggestion(suggestions[0]);
+    }
+  }, [searchQuery, suggestions, handleCoordsChange, moveMapTo, handleSelectSuggestion]);
+
+  const handlePickContact = useCallback(async () => {
+    setReceiverMode('OTHER');
+    if (Platform.OS === 'web' && typeof navigator !== 'undefined' && (navigator as any).contacts?.select) {
+      try {
+        const picked = await (navigator as any).contacts.select(['name', 'tel'], { multiple: false });
+        if (Array.isArray(picked) && picked[0]) {
+          const pickedName = Array.isArray(picked[0].name) ? picked[0].name[0] : picked[0].name;
+          const pickedTel = Array.isArray(picked[0].tel) ? picked[0].tel[0] : picked[0].tel;
+          if (pickedName) setRecipientName(String(pickedName));
+          if (pickedTel) setRecipientPhone(String(pickedTel));
+          return;
+        }
+      } catch {
+        // user dismissed
+      }
+    }
+    if (Platform.OS === 'android') {
+      const granted = await requestContactsPermission();
+      if (!granted) {
+        setFormError('Contacts permission denied. Enter receiver name & phone manually.');
+        return;
+      }
+    }
+    setFormError('Enter receiver name & 10-digit phone number below.');
+  }, []);
 
   // Handle messages from Web Leaflet map
   useEffect(() => {
@@ -261,12 +442,23 @@ export const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
       setFormError('Please enter Locality / Area.');
       return;
     }
+    if (!recipientName.trim()) {
+      setFormError('Please enter Receiver Name.');
+      return;
+    }
+    const cleanReceiverPhone = recipientPhone.replace(/\D/g, '');
+    if (cleanReceiverPhone.length < 10) {
+      setFormError('Please enter a valid 10-digit Receiver Phone Number.');
+      return;
+    }
 
     setIsSaving(true);
     setFormError(null);
 
     const payload = {
       label: addressLabel,
+      recipientName: recipientName.trim(),
+      recipientPhone: recipientPhone.trim(),
       line1: `${houseNumber.trim()}${apartmentRoad.trim() ? `, ${apartmentRoad.trim()}` : ''}`,
       line2: apartmentRoad.trim() || undefined,
       locality: locality.trim(),
@@ -298,31 +490,36 @@ export const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
     }
   };
 
-  // HTML5 Leaflet Map for Web with Draggable Marker & Darkstore Radius Circles
+  // HTML5 Leaflet Map for Web with Draggable Marker & Darkstore 3km Boundary Ring (No orange fill overlay)
   const leafletHtml = useMemo(() => {
-    const lat = coords.latitude;
-    const lng = coords.longitude;
+    const lat = initialMapCenterRef.current.latitude;
+    const lng = initialMapCenterRef.current.longitude;
 
     const hubCirclesJs = activeHubs
       .map((h: any) => {
         const hLat = typeof h.lat === 'number' ? h.lat : h.latitude;
         const hLng = typeof h.lng === 'number' ? h.lng : h.longitude;
-        const radMeters = (typeof h.maxRadiusKm === 'number' ? h.maxRadiusKm : 8.0) * 1000;
-        const hName = h.name || 'Express Hub';
+        const radKm =
+          typeof h.maxRadiusKm === 'number'
+            ? Math.min(h.maxRadiusKm, MAX_DARK_STORE_RADIUS_KM)
+            : MAX_DARK_STORE_RADIUS_KM;
+        const radMeters = radKm * 1000;
+        const hName = String(h.name || 'Express Hub').replace(/"/g, '&quot;');
         return `
           L.circle([${hLat}, ${hLng}], {
-            color: '#FF5A1F',
-            fillColor: '#FF5A1F',
-            fillOpacity: 0.12,
+            color: '#111111',
+            opacity: 0.35,
+            fillColor: 'transparent',
+            fillOpacity: 0,
             radius: ${radMeters},
             weight: 1.5,
-            dashArray: '4, 4'
-          }).addTo(map).bindPopup("<b>${hName}</b><br/>18-Min Instant Drop Zone (8km)");
+            dashArray: '5, 5'
+          }).addTo(map).bindPopup("<b>${hName}</b><br/>19-Min Instant Drop Zone (${radKm}km)");
           
           L.marker([${hLat}, ${hLng}], {
             icon: L.divIcon({
               className: 'hub-icon',
-              html: '<div style="background:#111;color:#fff;border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.3);font-size:12px;">🏪</div>',
+              html: '<div style="background:#111;color:#fff;border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.3);font-size:12px;">ðŸª</div>',
               iconSize: [26, 26],
               iconAnchor: [13, 13]
             })
@@ -413,11 +610,22 @@ export const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
             marker.setLatLng(e.latlng);
             notifyParent(e.latlng.lat, e.latlng.lng);
           });
+
+          window.addEventListener('message', function(e) {
+            if (e.data && e.data.type === 'SET_MAP_CENTER') {
+              var nextLat = Number(e.data.lat);
+              var nextLng = Number(e.data.lng);
+              if (isFinite(nextLat) && isFinite(nextLng)) {
+                marker.setLatLng([nextLat, nextLng]);
+                map.setView([nextLat, nextLng], 16, { animate: true });
+              }
+            }
+          });
         </script>
       </body>
       </html>
     `;
-  }, [coords.latitude, coords.longitude, activeHubs]);
+  }, [activeHubs]);
 
   return (
     <Modal visible={visible} animationType="slide" transparent={false} onRequestClose={onClose}>
@@ -483,10 +691,68 @@ export const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
         {/* Step 1: Interactive Map Screen */}
         {step === 'MAP' ? (
           <View style={{ flex: 1 }}>
+            {/* Location Search Bar + Pincode Lookup with Autocomplete */}
+            <View style={styles.searchSection}>
+              <View style={styles.searchInputBar}>
+                <Search size={16} color="#8A857D" />
+                <TextInput
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  onSubmitEditing={handleSearchSubmit}
+                  placeholder="Search area, street, landmark or 6-digit pincode"
+                  placeholderTextColor="#A8A29E"
+                  returnKeyType="search"
+                  style={[FontStyles.sansMedium, styles.searchInput]}
+                />
+                {isSearchingPlaces ? (
+                  <ActivityIndicator size="small" color="#FF5A1F" />
+                ) : searchQuery.length > 0 ? (
+                  <Pressable
+                    onPress={() => {
+                      setSearchQuery('');
+                      setSuggestions([]);
+                    }}
+                    hitSlop={8}
+                  >
+                    <X size={15} color="#8A857D" />
+                  </Pressable>
+                ) : null}
+              </View>
+
+              {suggestions.length > 0 && (
+                <View style={styles.suggestionsDropdown}>
+                  <ScrollView keyboardShouldPersistTaps="handled" style={{ maxHeight: 210 }}>
+                    {suggestions.map((item, idx) => (
+                      <Pressable
+                        key={item.id}
+                        onPress={() => handleSelectSuggestion(item)}
+                        style={({ pressed }) => [
+                          styles.suggestionRow,
+                          idx < suggestions.length - 1 && styles.suggestionDivider,
+                          pressed && { backgroundColor: '#FAF8F5' },
+                        ]}
+                      >
+                        <MapPin size={15} color="#FF5A1F" style={{ marginTop: 2 }} />
+                        <View style={{ flex: 1 }}>
+                          <Text style={[FontStyles.sansBold, { fontSize: 12.5, color: '#111111' }]} numberOfLines={1}>
+                            {item.title}
+                          </Text>
+                          <Text style={[FontStyles.sansRegular, { fontSize: 11, color: '#6B6667', marginTop: 1 }]} numberOfLines={1}>
+                            {item.subtitle}
+                          </Text>
+                        </View>
+                      </Pressable>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+            </View>
+
             {/* Map Area */}
             <View style={{ flex: 1, position: 'relative' }}>
               {Platform.OS === 'web' ? (
                 <iframe
+                  ref={iframeRef}
                   title="Interactive Map"
                   srcDoc={leafletHtml}
                   style={{
@@ -497,6 +763,7 @@ export const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
                 />
               ) : NativeMapView ? (
                 <NativeMapView
+                  ref={mapRef}
                   provider={PROVIDER_GOOGLE}
                   style={StyleSheet.absoluteFill}
                   initialRegion={{
@@ -523,18 +790,21 @@ export const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
                     </View>
                   </NativeMarker>
 
-                  {/* Darkstore Delivery Radius Circles */}
+                  {/* Darkstore Delivery Radius Boundary Ring (No orange fill overlay) */}
                   {activeHubs.map((h: any) => {
                     const hLat = typeof h.lat === 'number' ? h.lat : h.latitude;
                     const hLng = typeof h.lng === 'number' ? h.lng : h.longitude;
-                    const radKm = typeof h.maxRadiusKm === 'number' ? h.maxRadiusKm : 8.0;
+                    const radKm =
+                      typeof h.maxRadiusKm === 'number'
+                        ? Math.min(h.maxRadiusKm, MAX_DARK_STORE_RADIUS_KM)
+                        : MAX_DARK_STORE_RADIUS_KM;
                     return (
                       <NativeCircle
                         key={h.id || h.name}
                         center={{ latitude: hLat, longitude: hLng }}
                         radius={radKm * 1000}
-                        strokeColor="#FF5A1F"
-                        fillColor="rgba(255, 90, 31, 0.12)"
+                        strokeColor="rgba(17, 17, 17, 0.35)"
+                        fillColor="transparent"
                         strokeWidth={1.5}
                       />
                     );
@@ -555,18 +825,39 @@ export const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
                   <View style={[styles.badgePill, { backgroundColor: '#ECFDF5', borderColor: '#A7F3D0' }]}>
                     <Zap size={13} color="#059669" fill="#059669" />
                     <Text style={[FontStyles.sansBold, { fontSize: 11, color: '#059669' }]}>
-                      18-MIN DROP AVAILABLE • {serviceability.distanceKm} km from {serviceability.nearestHubName}
+                      19-MIN DROP AVAILABLE • {serviceability.distanceKm} km from {serviceability.nearestHubName}
                     </Text>
                   </View>
                 ) : (
                   <View style={[styles.badgePill, { backgroundColor: '#FEF2F2', borderColor: '#FECACA' }]}>
                     <AlertTriangle size={13} color="#DC2626" />
                     <Text style={[FontStyles.sansBold, { fontSize: 11, color: '#DC2626' }]}>
-                      OUT OF 18-MIN ZONE ({serviceability?.distanceKm} km)
+                      OUT OF 3.0 KM ZONE ({serviceability?.distanceKm} km)
                     </Text>
                   </View>
                 )}
               </View>
+
+              {/* Floating Recenter / Current GPS Button */}
+              <Pressable
+                onPress={handleAcquireCurrentGps}
+                disabled={isLocatingUser}
+                accessibilityRole="button"
+                accessibilityLabel="Use current GPS location"
+                style={({ pressed }) => [
+                  styles.recenterFloatingBtn,
+                  pressed && { opacity: 0.9 },
+                ]}
+              >
+                {isLocatingUser ? (
+                  <ActivityIndicator size="small" color="#FF5A1F" />
+                ) : (
+                  <Crosshair size={16} color="#FF5A1F" />
+                )}
+                <Text style={[FontStyles.sansBold, { fontSize: 11.5, color: '#111111' }]}>
+                  {isLocatingUser ? 'Locating...' : 'Use Current GPS'}
+                </Text>
+              </Pressable>
             </View>
 
             {/* Bottom Card */}
@@ -642,6 +933,94 @@ export const MapLocationPicker: React.FC<MapLocationPickerProps> = ({
               <Text style={[FontStyles.sansRegular, { fontSize: 11, color: '#8A857D', marginTop: 2 }]}>
                 {apartmentRoad || 'Road selected via map pin'}
               </Text>
+            </View>
+
+            {/* Receiver Details Section */}
+            <View style={styles.fieldGroup}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                <Text style={[FontStyles.sansBold, styles.fieldLabel, { marginBottom: 0 }]}>
+                  RECEIVER DETAILS *
+                </Text>
+                <View style={{ flexDirection: 'row', gap: 6 }}>
+                  <Pressable
+                    onPress={() => {
+                      setReceiverMode('SELF');
+                      setRecipientName(user?.name || '');
+                      setRecipientPhone(user?.phone || '');
+                    }}
+                    style={[
+                      styles.receiverQuickChip,
+                      receiverMode === 'SELF' && styles.receiverQuickChipActive,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        FontStyles.sansBold,
+                        { fontSize: 10.5, color: receiverMode === 'SELF' ? '#FFFFFF' : '#111111' },
+                      ]}
+                    >
+                      Myself
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => {
+                      setReceiverMode('OTHER');
+                      setRecipientName('');
+                      setRecipientPhone('');
+                    }}
+                    style={[
+                      styles.receiverQuickChip,
+                      receiverMode === 'OTHER' && styles.receiverQuickChipActive,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        FontStyles.sansBold,
+                        { fontSize: 10.5, color: receiverMode === 'OTHER' ? '#FFFFFF' : '#111111' },
+                      ]}
+                    >
+                      Someone Else
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={handlePickContact}
+                    style={[
+                      styles.receiverQuickChip,
+                      { backgroundColor: '#FFF7ED', borderColor: '#FFEDD5', borderWidth: 1, flexDirection: 'row', alignItems: 'center', gap: 4 },
+                    ]}
+                  >
+                    <Users size={11} color="#FF5A1F" />
+                    <Text style={[FontStyles.sansBold, { fontSize: 10.5, color: '#FF5A1F' }]}>
+                      Contacts
+                    </Text>
+                  </Pressable>
+                </View>
+              </View>
+
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <View style={[styles.receiverInputWrapper, { flex: 1 }]}>
+                  <User size={14} color="#8A857D" />
+                  <TextInput
+                    value={recipientName}
+                    onChangeText={setRecipientName}
+                    placeholder="Receiver Name *"
+                    placeholderTextColor="#A8A29E"
+                    style={[FontStyles.sansMedium, styles.receiverInput]}
+                  />
+                </View>
+
+                <View style={[styles.receiverInputWrapper, { flex: 1 }]}>
+                  <Phone size={14} color="#8A857D" />
+                  <TextInput
+                    value={recipientPhone}
+                    onChangeText={setRecipientPhone}
+                    placeholder="Receiver Phone *"
+                    placeholderTextColor="#A8A29E"
+                    keyboardType="phone-pad"
+                    style={[FontStyles.sansMedium, styles.receiverInput]}
+                  />
+                </View>
+              </View>
             </View>
 
             {/* Input: House / Flat No */}
@@ -839,6 +1218,98 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: '#FFEDD5',
+  },
+  searchSection: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E8E5DF',
+    zIndex: 30,
+  },
+  searchInputBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#FAF8F5',
+    borderWidth: 1,
+    borderColor: '#E8E5DF',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    height: 42,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 13,
+    color: '#111111',
+  },
+  suggestionsDropdown: {
+    marginTop: 6,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E8E5DF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  suggestionRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  suggestionDivider: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#F4F1EA',
+  },
+  recenterFloatingBtn: {
+    position: 'absolute',
+    right: 14,
+    bottom: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E8E5DF',
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.14,
+    shadowRadius: 6,
+    elevation: 5,
+    zIndex: 20,
+  },
+  receiverQuickChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: '#F4F1EA',
+  },
+  receiverQuickChipActive: {
+    backgroundColor: '#111111',
+  },
+  receiverInputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#FAF8F5',
+    borderWidth: 1,
+    borderColor: '#E8E5DF',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    height: 44,
+  },
+  receiverInput: {
+    flex: 1,
+    fontSize: 13,
+    color: '#111111',
   },
   floatingServiceBadge: {
     position: 'absolute',

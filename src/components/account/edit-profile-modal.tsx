@@ -389,7 +389,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
                   />
                 </View>
                 <Text style={[FontStyles.sansRegular, { fontSize: 10.5, color: '#8A857D', marginTop: 4 }]}>
-                  Used for rider dispatch, 18-minute delivery tracking, and order confirmations.
+                  Used for rider dispatch, 19-minute delivery tracking, and order confirmations.
                 </Text>
               </View>
 
@@ -409,9 +409,9 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
                 {isLoading ? (
                   <ActivityIndicator color="#FFFFFF" size="small" />
                 ) : (
-                  <Text style={{ fontSize: 13, fontWeight: '900', color: '#FFFFFF', letterSpacing: 0.5 }}>
-                    SAVE PROFILE DETAILS
-                  </Text>
+                    <Text style={[FontStyles.sansExtraBold, { fontSize: 13, color: '#FFFFFF', letterSpacing: 0.5 }]}>
+                      SAVE PROFILE DETAILS
+                    </Text>
                 )}
               </AnimatedPressable>
 

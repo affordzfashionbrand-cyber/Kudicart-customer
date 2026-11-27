@@ -13,7 +13,9 @@
       "permissions": [
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
-        "POST_NOTIFICATIONS"
+        "POST_NOTIFICATIONS",
+        "READ_CONTACTS",
+        "CALL_PHONE"
       ],
       "adaptiveIcon": {
         "backgroundColor": "#111111",
@@ -44,7 +46,7 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "Affordz requires your location to deliver orders in 18 minutes from your nearest dark store hub."
+          "locationWhenInUsePermission": "Affordz requires your location to deliver orders in 19 minutes from your nearest dark store hub."
         }
       ]
     ],

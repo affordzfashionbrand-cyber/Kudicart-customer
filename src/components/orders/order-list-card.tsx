@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text } from 'react-native';
-import { Package, CheckCircle2, ChevronRight } from 'lucide-react-native';
+import { Package, CheckCircle2, ChevronRight, FileText } from 'lucide-react-native';
 import { AnimatedPressable } from '@/components/common/animated-pressable';
 import { LazyImage } from '@/components/common/lazy-image';
 import { OrderModel, OrderStatus } from '@/services/api';
@@ -8,12 +8,14 @@ import { OrderModel, OrderStatus } from '@/services/api';
 export interface OrderListCardProps {
   order: OrderModel;
   onPress: () => void;
+  onPressInvoice?: () => void;
   formatPrice: (val: number) => string;
 }
 
 export const OrderListCard = React.memo(function OrderListCard({
   order,
   onPress,
+  onPressInvoice,
   formatPrice,
 }: OrderListCardProps) {
   const isDelivered = order.status === 'DELIVERED';
@@ -197,21 +199,48 @@ export const OrderListCard = React.memo(function OrderListCard({
             </Text>
           </View>
 
-          <View
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: 6,
-              backgroundColor: '#111111',
-              paddingHorizontal: 14,
-              paddingVertical: 8,
-              borderRadius: 999,
-            }}
-          >
-            <Text style={{ fontSize: 10.5, fontWeight: '900', color: '#FFFFFF', letterSpacing: 0.6, textTransform: 'uppercase' }}>
-              {isDelivered ? 'VIEW DETAILS' : 'TRACK LIVE'}
-            </Text>
-            <ChevronRight size={13} color="#FFFFFF" strokeWidth={2.5} />
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            {onPressInvoice && (
+              <AnimatedPressable
+                onPress={(e) => {
+                  e?.stopPropagation?.();
+                  onPressInvoice();
+                }}
+                hitSlop={6}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 4,
+                  backgroundColor: '#FAF8F5',
+                  borderWidth: 1,
+                  borderColor: '#D9D9D5',
+                  paddingHorizontal: 10,
+                  paddingVertical: 7,
+                  borderRadius: 999,
+                }}
+              >
+                <FileText size={12} color="#111111" />
+                <Text style={{ fontSize: 10, fontWeight: '800', color: '#111111', letterSpacing: 0.4, textTransform: 'uppercase' }}>
+                  INVOICE
+                </Text>
+              </AnimatedPressable>
+            )}
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 6,
+                backgroundColor: '#111111',
+                paddingHorizontal: 14,
+                paddingVertical: 8,
+                borderRadius: 999,
+              }}
+            >
+              <Text style={{ fontSize: 10.5, fontWeight: '900', color: '#FFFFFF', letterSpacing: 0.6, textTransform: 'uppercase' }}>
+                {isDelivered ? 'VIEW DETAILS' : 'TRACK LIVE'}
+              </Text>
+              <ChevronRight size={13} color="#FFFFFF" strokeWidth={2.5} />
+            </View>
           </View>
         </View>
       </View>

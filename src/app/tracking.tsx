@@ -19,7 +19,6 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useOrderStore, isOrderItemEligibleForReview } from '@/store/useOrderStore';
-import { safeBack } from '@/utils/navigation';
 import { OrderStatus } from '@/services/api';
 import { LiveTrackingMap, ALL_STAGES } from '@/components/tracking/live-tracking-map';
 import { trackingSocketService } from '@/services/trackingSocket';
@@ -35,7 +34,7 @@ import { TrackingPilotRatingCard } from '@/components/tracking/tracking-pilot-ra
 import { TrackingProgressionStepper } from '@/components/tracking/tracking-progression-stepper';
 import { TrackingPackageCard } from '@/components/tracking/tracking-package-card';
 
-const formatPrice = (value: number) => `₹${value.toLocaleString('en-IN')}`;
+const formatPrice = (value: number) => `â‚¹${value.toLocaleString('en-IN')}`;
 
 export default function TrackingScreen() {
   const router = useRouter();
@@ -63,8 +62,8 @@ export default function TrackingScreen() {
   const existingRating = orderRatings[effectiveOrderId];
   const [selectedRating, setSelectedRating] = useState(5);
   const [selectedTags, setSelectedTags] = useState<string[]>([
-    '⚡ Blazing 18-Min Speed',
-    '👔 Neatly Steamed & Pressed',
+    'âš¡ Blazing 19-Min Speed',
+    'ðŸ‘” Neatly Steamed & Pressed',
   ]);
   const [reviewComment, setReviewComment] = useState('');
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
@@ -92,11 +91,14 @@ export default function TrackingScreen() {
     activeStatus === 'FAILED';
 
   // Initial and polling fetch for live tracking
-  const loadTracking = useCallback(async () => {
-    if (effectiveOrderId) {
-      await fetchTracking(effectiveOrderId);
-    }
-  }, [effectiveOrderId, fetchTracking]);
+  const loadTracking = useCallback(
+    async (signal?: AbortSignal) => {
+      if (effectiveOrderId) {
+        await fetchTracking(effectiveOrderId, signal);
+      }
+    },
+    [effectiveOrderId, fetchTracking],
+  );
 
   useEffect(() => {
     if (!effectiveOrderId) {
@@ -104,10 +106,21 @@ export default function TrackingScreen() {
       return;
     }
 
-    loadTracking();
+    const controller = new AbortController();
+    const safeAbort = () => {
+      try {
+        controller.abort(new Error('Tracking effect cleaned up'));
+      } catch {
+        controller.abort();
+      }
+    };
+
+    void loadTracking(controller.signal);
     if (isTerminalStatus) {
       trackingSocketService.disconnect();
-      return;
+      return () => {
+        safeAbort();
+      };
     }
 
     trackingSocketService.connect(effectiveOrderId, getAuthToken());
@@ -118,23 +131,24 @@ export default function TrackingScreen() {
 
     const unsubStatus = trackingSocketService.subscribeStatus((newStatus) => {
       useOrderStore.getState().updateLiveStatus(effectiveOrderId, newStatus as OrderStatus);
-      loadTracking();
+      void loadTracking(controller.signal);
     });
 
     const unsubTryBuy = trackingSocketService.subscribeTryAndBuy(() => {
-      loadTracking();
+      void loadTracking(controller.signal);
     });
 
     const unsubArrival = trackingSocketService.subscribeArrival((payload) => {
       useOrderStore.getState().updateLiveArrival(effectiveOrderId, payload?.arrivedAt, payload);
-      loadTracking();
+      void loadTracking(controller.signal);
     });
 
     const interval = setInterval(() => {
-      loadTracking();
+      void loadTracking(controller.signal);
     }, 15000); // 15-second live polling fallback per DCR-005
 
     return () => {
+      safeAbort();
       unsubLoc();
       unsubStatus();
       unsubTryBuy();
@@ -144,10 +158,10 @@ export default function TrackingScreen() {
     };
   }, [loadTracking, isTerminalStatus, effectiveOrderId]);
 
-  // Android hardware back handler
+  // Android hardware back handler -> always return to Home
   useEffect(() => {
     const onBackPress = () => {
-      safeBack(router, '/orders');
+      router.replace('/');
       return true;
     };
     const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
@@ -160,24 +174,38 @@ export default function TrackingScreen() {
     setIsRefreshing(false);
   }, [loadTracking, fetchOrders]);
 
-  // Instant 18-Min Hyperlocal Drop vs Standard Boutique
+  // Instant 19-Min Hyperlocal Drop vs Standard Boutique
   const isDarkStore = useMemo(() => {
+    const fulfillment = activeTracking?.fulfillmentType || currentOrder?.fulfillmentType;
+    if (fulfillment === 'DARK_STORE') return true;
+    if (fulfillment === 'VENDOR') return false;
     const eta = activeTracking?.etaMinutes ?? currentOrder?.etaMinutes;
     if (typeof eta === 'number' && eta > 60) {
       return false; // Multi-day courier
     }
-    return true; // 18-min instant drop
+    return true; // 19-min instant drop
   }, [activeTracking, currentOrder]);
 
   const isTryAndBuy = Boolean(activeTracking?.isTryAndBuy ?? currentOrder?.isTryAndBuy ?? false);
 
-  // Dynamic realistic ETA countdown for express 18-min drops
+  // Dynamic realistic ETA countdown connected to live backend/WebSocket route duration
   const displayEta = useMemo(() => {
     if (!isDarkStore) {
       return '2-4 DAYS';
     }
+    if (activeStatus === 'DELIVERED') {
+      return 0;
+    }
+    const liveRouteEta = activeTracking?.route?.durationMinutes;
+    if (typeof liveRouteEta === 'number' && liveRouteEta > 0) {
+      return liveRouteEta;
+    }
+    const backendEta = activeTracking?.etaMinutes;
+    if (typeof backendEta === 'number' && backendEta > 0 && backendEta <= 60) {
+      return backendEta;
+    }
     const stageMeta = ALL_STAGES.find((s) => s.key === activeStatus);
-    return stageMeta ? stageMeta.eta : (activeTracking?.etaMinutes || 18);
+    return stageMeta ? stageMeta.eta : 19;
   }, [activeStatus, isDarkStore, activeTracking]);
 
   // Authoritative Order Number
@@ -292,9 +320,17 @@ export default function TrackingScreen() {
   ]);
 
   const handleCallDriver = useCallback(() => {
-    if (driver?.phone) {
-      Linking.openURL(`tel:${driver.phone.replace(/\s+/g, '')}`);
+    if (driver?.phone && driver.phone.trim().length > 0) {
+      const telUri = `tel:${driver.phone.replace(/\s+/g, '')}`;
+      Linking.openURL(telUri).catch(() => {
+        Alert.alert('Unable to Dial', `Please call your pilot directly at ${driver.phone}.`);
+      });
+      return;
     }
+    Alert.alert(
+      'Pilot Contact Pending',
+      'Your delivery partner phone number will appear once a rider is assigned to this drop.',
+    );
   }, [driver]);
 
   const handleNeedHelp = useCallback(() => {
@@ -366,7 +402,7 @@ export default function TrackingScreen() {
               justifyContent: 'center',
               alignItems: 'center',
             }}
-            onPress={() => safeBack(router, '/orders')}
+            onPress={() => router.replace('/')}
           >
             <ArrowLeft size={18} color="#111111" />
           </AnimatedPressable>
@@ -423,7 +459,7 @@ export default function TrackingScreen() {
             justifyContent: 'center',
             alignItems: 'center',
           }}
-          onPress={() => safeBack(router, '/orders')}
+          onPress={() => router.replace('/')}
         >
           <ArrowLeft size={18} color="#111111" />
         </AnimatedPressable>
@@ -486,12 +522,12 @@ export default function TrackingScreen() {
           />
         }
       >
-        {/* 1. Hero Live Tracking Map with Native Google Maps & Telemetry */}
+        {/* 1. Hero Live Tracking Map with Real-Time Driver GPS */}
         <LiveTrackingMap
           status={activeStatus}
-          etaMinutes={typeof displayEta === 'number' ? displayEta : 18}
+          etaMinutes={typeof displayEta === 'number' ? displayEta : 19}
           driver={driver}
-          hubName={(currentOrder as any)?.vendor?.storeName || 'Affordz Express Hub'}
+          hubName={activeTracking?.hubName || (currentOrder as any)?.vendor?.storeName || 'Affordz Express Hub'}
           destinationAddress={
             deliveryAddress
               ? `${deliveryAddress.line1}, ${deliveryAddress.locality || ''}, ${deliveryAddress.city}`
@@ -503,17 +539,30 @@ export default function TrackingScreen() {
           route={activeTracking?.route}
         />
 
-        {/* Doorstep Try & Buy Interactive Selection Card */}
-        {currentOrder && (
-          <TryAndBuySelectionCard
-            order={currentOrder}
-            formatPrice={formatPrice}
-            onUpdated={() => {
-              loadTracking();
-              fetchOrders();
-            }}
-          />
-        )}
+        {/* Doorstep Try & Buy Interactive Selection Card (shown once arrived or active/settled) */}
+        {currentOrder &&
+          Boolean(
+            currentOrder.isTryAndBuy &&
+              (currentOrder.isArrived ||
+                currentOrder.arrivedAt ||
+                activeTracking?.isArrived ||
+                activeTracking?.arrivedAt ||
+                (activeTracking?.tryAndBuySession &&
+                  String(activeTracking.tryAndBuySession.stage || '').toUpperCase() !==
+                    'HANDOVER_PENDING') ||
+                activeStatus === 'DELIVERED' ||
+                activeStatus === 'RETURNING' ||
+                activeStatus === 'RETURNED'),
+          ) && (
+            <TryAndBuySelectionCard
+              order={currentOrder}
+              formatPrice={formatPrice}
+              onUpdated={() => {
+                void loadTracking();
+                void fetchOrders();
+              }}
+            />
+          )}
 
         {/* 2. Hero Countdown / ETA Card */}
         <TrackingEtaCard
@@ -554,12 +603,13 @@ export default function TrackingScreen() {
           onOpenRating={() => setIsRatingExpanded(true)}
         />
 
-        {/* 5. 8-Milestone Drop Progression Stepper */}
+        {/* 5. Collapsible 8-Milestone Drop Progression Stepper */}
         <TrackingProgressionStepper
           activeStatus={activeStatus}
           driverName={driver.name}
           locality={deliveryAddress?.locality}
           isCod={currentOrder?.paymentMethod === 'COD' || activeTracking?.paymentMethod === 'COD'}
+          milestones={activeTracking?.milestones}
         />
 
         {/* 6. Delivery Destination Card */}

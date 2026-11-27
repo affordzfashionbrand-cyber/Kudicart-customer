@@ -120,7 +120,7 @@ export const HomeHeader = React.memo(function HomeHeader({
                   ? 'NOT AVAILABLE'
                   : selectedDarkStore
                   ? `${selectedDarkStore.deliveryMinutes}M DROP`
-                  : '18M DROP'}
+                  : '19M DROP'}
               </Text>
             </View>
           </AnimatedPressable>

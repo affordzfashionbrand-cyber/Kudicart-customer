@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Icon } from '@/components/icon';
+import { ActiveOrderCapsule } from '@/components/home/active-order-capsule';
 import { Fonts } from '@/constants/theme';
 import { usePathname, useRouter } from 'expo-router';
 import {
@@ -93,6 +94,15 @@ export const BottomNavBar = React.memo(function BottomNavBar({
                 },
             ]}
         >
+            <ActiveOrderCapsule
+                style={{
+                    position: 'absolute',
+                    bottom: Math.max(insets.bottom, 6) + 64,
+                    left: 12,
+                    right: 12,
+                    zIndex: 95,
+                }}
+            />
             {/* Sliding Top Highlight Bar / Dot Indicator */}
             <Animated.View
                 style={[
