@@ -1,6 +1,8 @@
 import { Platform } from 'react-native';
 import {
   OrderStatus as CanonicalOrderStatus,
+  DeliveryAssignmentStatus,
+  OrderType,
   CheckoutResponseContract,
   TryAndBuySessionContract,
 } from '@/contracts/order-contracts';
@@ -794,6 +796,9 @@ export interface OrderModel {
   checkoutGroupId?: string | null;
   groupNumber?: string | null;
   fulfillmentType?: string;
+  orderType?: OrderType;
+  deliveryAssignmentStatus?: DeliveryAssignmentStatus;
+  customerStatusLabel?: string;
   status: OrderStatus;
   paymentMethod: 'RAZORPAY' | 'COD';
   paymentStatus: 'PENDING' | 'COMPLETED' | 'FAILED' | 'REFUND_PENDING' | 'REFUNDED' | 'PARTIAL';
@@ -849,6 +854,9 @@ export interface TrackingModel {
   orderNumber: string;
   version?: number;
   fulfillmentType?: string;
+  orderType?: OrderType;
+  deliveryAssignmentStatus?: DeliveryAssignmentStatus;
+  customerStatusLabel?: string;
   hubName?: string;
   status: OrderStatus;
   trackingActive?: boolean;
@@ -1003,6 +1011,9 @@ export interface OrderInvoiceModel {
 function mapRawOrder(raw: any): OrderModel {
   return {
     ...raw,
+    orderType: raw.orderType || (raw.isTryAndBuy ? 'TRY_AND_BUY' : 'STANDARD'),
+    deliveryAssignmentStatus: raw.deliveryAssignmentStatus || 'NOT_ASSIGNED',
+    customerStatusLabel: raw.customerStatusLabel || undefined,
     taxes: raw.taxes ?? raw.taxAmount ?? 0,
     taxAmount: raw.taxAmount ?? raw.taxes ?? 0,
     discountAmount: raw.discountAmount ?? 0,

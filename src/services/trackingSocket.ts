@@ -144,7 +144,7 @@ class TrackingSocketService {
               } catch {}
             });
           } else if (msgType === 'PING' && this.ws?.readyState === WebSocket.OPEN) {
-            this.ws.send(JSON.stringify({ type: 'PING' }));
+            this.ws.send(JSON.stringify({ type: 'PONG' }));
           }
         } catch {}
       };

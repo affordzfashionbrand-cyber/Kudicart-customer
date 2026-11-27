@@ -35,6 +35,7 @@ import { OrderModel, OrderInvoiceModel, reviewsApi, ordersApi } from '@/services
 import { LazyImage } from '@/components/common/lazy-image';
 import { AnimatedPressable } from '@/components/common/animated-pressable';
 import { TryAndBuySelectionCard } from '@/components/orders/try-and-buy-selection-card';
+import { getCustomerOrderStatusLabel } from '@/contracts/order-contracts';
 
 export interface OrderDetailViewProps {
   order: OrderModel;
@@ -54,6 +55,9 @@ export const OrderDetailView = React.memo(function OrderDetailView({
   const router = useRouter();
   const paddingTop = Platform.OS === 'android' ? insets.top + 10 : insets.top;
   const [currentStatus, setCurrentStatus] = useState(order.status);
+  React.useEffect(() => {
+    setCurrentStatus(order.status);
+  }, [order.status]);
   const [isCancelling, setIsCancelling] = useState(false);
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(initialOpenInvoice);
@@ -397,7 +401,7 @@ Payment Method: ${inv.paymentMethod} (${inv.paymentStatus})`;
             )}
           </View>
           <Text style={{ fontSize: 24, fontWeight: '900', color: isCancelled ? '#DC2626' : '#111111', letterSpacing: -0.3 }}>
-            {currentStatus.replace(/_/g, ' ')}
+            {order.customerStatusLabel || getCustomerOrderStatusLabel(currentStatus)}
           </Text>
           <Text style={{ fontSize: 12, color: '#6B6667', marginTop: 3 }}>
             Order #{order.orderNumber || order.id} •{' '}

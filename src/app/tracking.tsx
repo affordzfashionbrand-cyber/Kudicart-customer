@@ -20,6 +20,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useOrderStore, isOrderItemEligibleForReview } from '@/store/useOrderStore';
 import { OrderStatus } from '@/services/api';
+import { getCustomerOrderStatusLabel } from '@/contracts/order-contracts';
 import { LiveTrackingMap, ALL_STAGES } from '@/components/tracking/live-tracking-map';
 import { trackingSocketService } from '@/services/trackingSocket';
 import { getAuthToken } from '@/services/api';
@@ -347,33 +348,33 @@ export default function TrackingScreen() {
   const stageHeadline = useMemo(() => {
     switch (activeStatus) {
       case 'PLACED':
-        return 'Order placed. Awaiting merchant confirmation.';
+        return 'Order placed. Awaiting confirmation.';
       case 'ACCEPTED':
-        return 'Merchant confirmed your order. Hand-pressing & prep initiated.';
+      case 'PACKING':
       case 'PREPARING':
-        return 'Garment steamed, quality inspected & prepared for dispatch.';
       case 'READY_FOR_PICKUP':
-        return 'Sealed in tamper-evident breathable sleeve for rider pickup.';
       case 'ASSIGNED':
-        return `${driver.name} assigned for pickup.`;
+        return 'Order is getting packed and prepared for dispatch.';
       case 'PICKED_UP':
-        return 'Rider collected garments from dispatch counter.';
       case 'OUT_FOR_DELIVERY':
-        return `Rider is en route to ${deliveryAddress?.locality || 'your doorstep'} now.`;
+        return `Out for delivery — en route to ${deliveryAddress?.locality || 'your doorstep'} now.`;
+      case 'TRY_AND_BUY':
+        return 'Try & Buy active at your doorstep. Complete fitting & Confirm choices.';
       case 'DELIVERED':
-        return 'Garment handover complete at your doorstep. Order delivered.';
+        return 'Order delivered. Handover complete at your doorstep.';
       case 'RETURNING':
-        return 'Return items collected. Rider returning items to hub.';
       case 'RETURNED':
-        return 'Return completed and reconciled with merchant.';
+        return activeStatus === 'RETURNING'
+          ? 'Order return in progress — rider returning items to hub.'
+          : 'Order return completed and reconciled.';
       case 'CANCELLED':
         return 'Order cancelled.';
       case 'FAILED':
         return 'Payment failed or expired before confirmation.';
       default:
-        return 'Garments dispatched from Affordz fulfillment hub.';
+        return getCustomerOrderStatusLabel(activeStatus);
     }
-  }, [activeStatus, driver.name, deliveryAddress?.locality]);
+  }, [activeStatus, deliveryAddress?.locality]);
 
   if (!effectiveOrderId) {
     return (
@@ -542,8 +543,9 @@ export default function TrackingScreen() {
         {/* Doorstep Try & Buy Interactive Selection Card (shown once arrived or active/settled) */}
         {currentOrder &&
           Boolean(
-            currentOrder.isTryAndBuy &&
-              (currentOrder.isArrived ||
+            isTryAndBuy &&
+              (activeStatus === 'TRY_AND_BUY' ||
+                currentOrder.isArrived ||
                 currentOrder.arrivedAt ||
                 activeTracking?.isArrived ||
                 activeTracking?.arrivedAt ||
@@ -555,7 +557,16 @@ export default function TrackingScreen() {
                 activeStatus === 'RETURNED'),
           ) && (
             <TryAndBuySelectionCard
-              order={currentOrder}
+              order={{
+                ...currentOrder,
+                status: activeStatus,
+                isTryAndBuy: true,
+                isArrived: Boolean(activeTracking?.isArrived ?? currentOrder.isArrived),
+                arrivedAt: activeTracking?.arrivedAt ?? currentOrder.arrivedAt,
+                handoverOtp: activeTracking?.handoverOtp ?? currentOrder.handoverOtp,
+                tryAndBuySession:
+                  activeTracking?.tryAndBuySession ?? currentOrder.tryAndBuySession,
+              }}
               formatPrice={formatPrice}
               onUpdated={() => {
                 void loadTracking();
@@ -603,12 +614,13 @@ export default function TrackingScreen() {
           onOpenRating={() => setIsRatingExpanded(true)}
         />
 
-        {/* 5. Collapsible 8-Milestone Drop Progression Stepper */}
+        {/* 5. Collapsible Drop Progression Stepper */}
         <TrackingProgressionStepper
           activeStatus={activeStatus}
           driverName={driver.name}
           locality={deliveryAddress?.locality}
           isCod={currentOrder?.paymentMethod === 'COD' || activeTracking?.paymentMethod === 'COD'}
+          isTryAndBuy={isTryAndBuy}
           milestones={activeTracking?.milestones}
         />
 

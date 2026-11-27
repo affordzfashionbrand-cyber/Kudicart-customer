@@ -3,7 +3,6 @@ import { View, Text, Pressable, Alert } from 'react-native';
 import { Sparkles, Check, RotateCcw } from 'lucide-react-native';
 import { useMutation } from '@tanstack/react-query';
 import { OrderModel, ordersApi } from '@/services/api';
-import { TRY_AND_BUY_STAGES } from '@/contracts/order-contracts';
 import { AnimatedPressable } from '@/components/common/animated-pressable';
 
 interface TryAndBuySelectionCardProps {
@@ -11,12 +10,6 @@ interface TryAndBuySelectionCardProps {
   formatPrice: (price: number) => string;
   onUpdated?: (updated: OrderModel) => void;
 }
-
-const ACTIVE_TRIAL_STAGES = new Set<string>(
-  TRY_AND_BUY_STAGES.filter(
-    (s) => s !== 'RETURNING_TO_STORE' && s !== 'STORE_RECONCILIATION',
-  ),
-);
 
 export const TryAndBuySelectionCard = React.memo(function TryAndBuySelectionCard({
   order,
@@ -34,11 +27,19 @@ export const TryAndBuySelectionCard = React.memo(function TryAndBuySelectionCard
     stageUpper === 'COMPLETED' ||
     stageUpper === 'SETTLED';
 
+  const isSelectionLocked =
+    stageUpper === 'SELECTION_CONFIRMED' ||
+    stageUpper === 'RETURN_COLLECTION_PENDING' ||
+    stageUpper === 'PAYMENT_PENDING' ||
+    stageUpper === 'RETURNING_TO_STORE' ||
+    stageUpper === 'STORE_RECONCILIATION' ||
+    order.status === 'RETURNING';
+
   const canSelect =
     Boolean(order.isTryAndBuy) &&
     !isTerminal &&
-    (Boolean(order.isArrived || order.arrivedAt) ||
-      (stage ? ACTIVE_TRIAL_STAGES.has(stage) : false));
+    !isSelectionLocked &&
+    stageUpper === 'TRIAL_IN_PROGRESS';
 
   const [decisions, setDecisions] = useState<Record<string, 'KEEP' | 'RETURN'>>({});
 
@@ -144,11 +145,27 @@ export const TryAndBuySelectionCard = React.memo(function TryAndBuySelectionCard
       </View>
 
       {!canSelect ? (
-        <Text style={{ fontSize: 11.5, color: '#7C2D12', lineHeight: 16 }}>
-          {isTerminal
-            ? `Try & Buy settled (${stage ? stage.replace(/_/g, ' ') : order.status}).`
-            : 'Keep / Return controls unlock once your delivery partner arrives at your doorstep.'}
-        </Text>
+        <View style={{ gap: 6 }}>
+          <Text style={{ fontSize: 11.5, color: '#7C2D12', lineHeight: 16 }}>
+            {isTerminal
+              ? `Try & Buy settled (${stage ? stage.replace(/_/g, ' ') : order.status}).`
+              : isSelectionLocked
+                ? 'Your Keep / Return selections are locked. Your delivery partner is completing return collection & settlement.'
+                : order.status === 'TRY_AND_BUY' || order.isArrived || order.arrivedAt
+                  ? `Share your Handover OTP${order.handoverOtp ? ` (${order.handoverOtp})` : ''} with your delivery partner to start your 10-minute fitting window.`
+                  : 'Keep / Return controls unlock once your delivery partner confirms arrival and handover OTP at your doorstep.'}
+          </Text>
+          {isSelectionLocked && (
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingTop: 4 }}>
+              <Text style={{ fontSize: 11.5, color: '#15803D', fontWeight: '800' }}>
+                Kept Subtotal: {formatPrice(summary.keepTotal)}
+              </Text>
+              <Text style={{ fontSize: 11.5, color: '#C2410C', fontWeight: '800' }}>
+                Returned: {formatPrice(summary.returnTotal)}
+              </Text>
+            </View>
+          )}
+        </View>
       ) : (
         <View style={{ gap: 10 }}>
           <Text style={{ fontSize: 11.5, color: '#7C2D12', lineHeight: 16 }}>

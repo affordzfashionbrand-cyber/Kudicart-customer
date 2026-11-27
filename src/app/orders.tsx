@@ -32,9 +32,14 @@ export default function OrdersScreen() {
   const paddingTop = Platform.OS === 'android' ? insets.top + 10 : insets.top;
 
   const { orders, fetchOrders, isLoading } = useOrderStore();
-  const [selectedOrder, setSelectedOrder] = useState<OrderModel | null>(null);
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [openInvoiceOnDetail, setOpenInvoiceOnDetail] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const selectedOrder = useMemo(
+    () => (selectedOrderId ? orders.find((o) => o.id === selectedOrderId) || null : null),
+    [orders, selectedOrderId],
+  );
 
   useEffect(() => {
     fetchOrders();
@@ -43,8 +48,8 @@ export default function OrdersScreen() {
   // Android hardware back handler
   useEffect(() => {
     const onBackPress = () => {
-      if (selectedOrder) {
-        setSelectedOrder(null);
+      if (selectedOrderId) {
+        setSelectedOrderId(null);
         return true;
       }
       safeBack(router, '/');
@@ -52,7 +57,7 @@ export default function OrdersScreen() {
     };
     const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
     return () => subscription.remove();
-  }, [selectedOrder, router]);
+  }, [selectedOrderId, router]);
 
   const onRefresh = useCallback(async () => {
     setIsRefreshing(true);
@@ -79,11 +84,11 @@ export default function OrdersScreen() {
         order={order}
         onPress={() => {
           setOpenInvoiceOnDetail(false);
-          setSelectedOrder(order);
+          setSelectedOrderId(order.id);
         }}
         onPressInvoice={() => {
           setOpenInvoiceOnDetail(true);
-          setSelectedOrder(order);
+          setSelectedOrderId(order.id);
         }}
         formatPrice={formatPrice}
       />
@@ -96,7 +101,7 @@ export default function OrdersScreen() {
       <OrderDetailView
         order={selectedOrder}
         onBack={() => {
-          setSelectedOrder(null);
+          setSelectedOrderId(null);
           setOpenInvoiceOnDetail(false);
         }}
         insets={insets}

@@ -83,14 +83,16 @@ export interface LiveTrackingMapProps {
 }
 
 export const ALL_STAGES: { key: OrderStatus; label: string; progress: number; eta: number }[] = [
-  { key: 'PLACED', label: 'Order Placed', progress: 0.05, eta: 18 },
-  { key: 'ACCEPTED', label: 'Vendor Accepted', progress: 0.16, eta: 16 },
-  { key: 'PREPARING', label: 'Preparing Garment', progress: 0.30, eta: 13 },
-  { key: 'READY_FOR_PICKUP', label: 'Ready for Pickup', progress: 0.44, eta: 10 },
-  { key: 'ASSIGNED', label: 'Rider Assigned', progress: 0.58, eta: 8 },
-  { key: 'PICKED_UP', label: 'Picked Up', progress: 0.72, eta: 6 },
-  { key: 'OUT_FOR_DELIVERY', label: 'Out for Delivery', progress: 0.88, eta: 3 },
-  { key: 'DELIVERED', label: 'Delivered', progress: 1.0, eta: 0 },
+  { key: 'PLACED', label: 'Order placed', progress: 0.08, eta: 18 },
+  { key: 'ACCEPTED', label: 'Order is getting packed', progress: 0.20, eta: 16 },
+  { key: 'PACKING', label: 'Order is getting packed', progress: 0.32, eta: 14 },
+  { key: 'PREPARING', label: 'Order is getting packed', progress: 0.32, eta: 14 },
+  { key: 'READY_FOR_PICKUP', label: 'Order is getting packed', progress: 0.48, eta: 11 },
+  { key: 'OUT_FOR_DELIVERY', label: 'Out for delivery', progress: 0.80, eta: 4 },
+  { key: 'TRY_AND_BUY', label: 'Try & Buy', progress: 0.90, eta: 0 },
+  { key: 'DELIVERED', label: 'Order delivered', progress: 1.0, eta: 0 },
+  { key: 'RETURNING', label: 'Order return', progress: 0.92, eta: 0 },
+  { key: 'RETURNED', label: 'Order return', progress: 1.0, eta: 0 },
 ];
 
 export function LiveTrackingMap({

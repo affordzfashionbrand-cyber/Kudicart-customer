@@ -8,7 +8,11 @@ import {
   reviewsApi,
   PaymentStatusResponse,
 } from '@/services/api';
-import type { CheckoutResponseContract, OrderStatus } from '@/contracts/order-contracts';
+import {
+  getCustomerOrderStatusLabel,
+  type CheckoutResponseContract,
+  type OrderStatus,
+} from '@/contracts/order-contracts';
 import { useCartStore } from './useCartStore';
 import { registerAuthLoginCallback, registerAuthLogoutReset } from './useAuthStore';
 
@@ -246,6 +250,11 @@ export const useOrderStore = create<OrderState>((set, get) => ({
           id: tracking.orderId,
           orderNumber: tracking.orderNumber,
           fulfillmentType: tracking.fulfillmentType || existing?.fulfillmentType,
+          orderType: tracking.orderType || existing?.orderType || (tracking.isTryAndBuy ? 'TRY_AND_BUY' : 'STANDARD'),
+          deliveryAssignmentStatus:
+            tracking.deliveryAssignmentStatus || existing?.deliveryAssignmentStatus || 'NOT_ASSIGNED',
+          customerStatusLabel:
+            tracking.customerStatusLabel || getCustomerOrderStatusLabel(tracking.status),
           customerId: existing?.customerId || '',
           status: tracking.status,
           paymentMethod: (tracking.paymentMethod as any) || existing?.paymentMethod || 'COD',
@@ -352,17 +361,24 @@ export const useOrderStore = create<OrderState>((set, get) => ({
   },
 
   updateLiveStatus: (orderId: string, status: OrderStatus | string) => {
+    const nextLabel = getCustomerOrderStatusLabel(status);
     set((state) => ({
       activeTracking:
         state.activeTracking?.orderId === orderId
-          ? { ...state.activeTracking, status: status as OrderStatus }
+          ? {
+              ...state.activeTracking,
+              status: status as OrderStatus,
+              customerStatusLabel: nextLabel,
+            }
           : state.activeTracking,
       orders: state.orders.map((o) =>
-        o.id === orderId ? { ...o, status: status as OrderStatus } : o,
+        o.id === orderId
+          ? { ...o, status: status as OrderStatus, customerStatusLabel: nextLabel }
+          : o,
       ),
       activeOrder:
         state.activeOrder?.id === orderId
-          ? { ...state.activeOrder, status: status as OrderStatus }
+          ? { ...state.activeOrder, status: status as OrderStatus, customerStatusLabel: nextLabel }
           : state.activeOrder,
     }));
   },

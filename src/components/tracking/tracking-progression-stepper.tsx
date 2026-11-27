@@ -4,40 +4,25 @@ import {
   Clock,
   Store,
   Package,
-  CheckCircle2,
-  UserCheck,
   Truck,
   Navigation,
   ShieldCheck,
+  Sparkles,
+  RotateCcw,
   ChevronDown,
   ChevronUp,
 } from 'lucide-react-native';
 import { OrderStatus, OrderTrackingMilestone } from '@/services/api';
+import { getCustomerOrderStatusLabel } from '@/contracts/order-contracts';
 
-const MILESTONE_DEFINITIONS: {
+const BASE_MILESTONES: {
   key: OrderStatus;
   title: string;
   icon: any;
 }[] = [
-  { key: 'PLACED', title: 'Order Placed', icon: Clock },
-  { key: 'ACCEPTED', title: 'Vendor Accepted', icon: Store },
-  { key: 'PREPARING', title: 'Preparing Garment', icon: Package },
-  { key: 'READY_FOR_PICKUP', title: 'Ready for Pickup', icon: CheckCircle2 },
-  { key: 'ASSIGNED', title: 'Rider Assigned', icon: UserCheck },
-  { key: 'PICKED_UP', title: 'Picked Up', icon: Truck },
-  { key: 'OUT_FOR_DELIVERY', title: 'Out for Delivery', icon: Navigation },
-  { key: 'DELIVERED', title: 'Delivered', icon: ShieldCheck },
-];
-
-const statusHierarchy: OrderStatus[] = [
-  'PLACED',
-  'ACCEPTED',
-  'PREPARING',
-  'READY_FOR_PICKUP',
-  'ASSIGNED',
-  'PICKED_UP',
-  'OUT_FOR_DELIVERY',
-  'DELIVERED',
+  { key: 'PLACED', title: 'Order placed', icon: Clock },
+  { key: 'PACKING', title: 'Order is getting packed', icon: Package },
+  { key: 'OUT_FOR_DELIVERY', title: 'Out for delivery', icon: Navigation },
 ];
 
 export interface TrackingProgressionStepperProps {
@@ -45,7 +30,27 @@ export interface TrackingProgressionStepperProps {
   driverName?: string;
   locality?: string;
   isCod?: boolean;
+  isTryAndBuy?: boolean;
   milestones?: OrderTrackingMilestone[];
+}
+
+function normalizeCustomerStageKey(status: OrderStatus): OrderStatus {
+  switch (status) {
+    case 'ACCEPTED':
+    case 'PACKING':
+    case 'PREPARING':
+    case 'READY_FOR_PICKUP':
+    case 'ASSIGNED':
+      return 'PACKING';
+    case 'PICKED_UP':
+    case 'OUT_FOR_DELIVERY':
+      return 'OUT_FOR_DELIVERY';
+    case 'RETURNING':
+    case 'RETURNED':
+      return 'RETURNED';
+    default:
+      return status;
+  }
 }
 
 export const TrackingProgressionStepper = React.memo(function TrackingProgressionStepper({
@@ -53,17 +58,35 @@ export const TrackingProgressionStepper = React.memo(function TrackingProgressio
   driverName,
   locality,
   isCod,
+  isTryAndBuy,
   milestones,
 }: TrackingProgressionStepperProps) {
   const [isExpanded, setIsExpanded] = useState(false);
 
-  const rawIndex = statusHierarchy.indexOf(activeStatus);
-  const currentStatusIndex =
-    rawIndex >= 0
-      ? rawIndex
-      : activeStatus === 'RETURNING' || activeStatus === 'RETURNED'
-        ? statusHierarchy.length - 1
-        : 0;
+  const isReturnFlow = activeStatus === 'RETURNING' || activeStatus === 'RETURNED';
+  const showTryAndBuy = Boolean(
+    isTryAndBuy ||
+      activeStatus === 'TRY_AND_BUY' ||
+      isReturnFlow ||
+      milestones?.some((m) => m.key === 'TRY_AND_BUY'),
+  );
+
+  const activeMilestones = useMemo(() => {
+    const steps = [...BASE_MILESTONES];
+    if (showTryAndBuy) {
+      steps.push({ key: 'TRY_AND_BUY', title: 'Try & Buy', icon: Sparkles });
+    }
+    if (isReturnFlow) {
+      steps.push({ key: 'RETURNED', title: 'Order return', icon: RotateCcw });
+    } else {
+      steps.push({ key: 'DELIVERED', title: 'Order delivered', icon: ShieldCheck });
+    }
+    return steps;
+  }, [showTryAndBuy, isReturnFlow]);
+
+  const normalizedKey = normalizeCustomerStageKey(activeStatus);
+  const rawIndex = activeMilestones.findIndex((m) => m.key === normalizedKey);
+  const currentStatusIndex = rawIndex >= 0 ? rawIndex : 0;
 
   const backendMilestoneMap = useMemo(() => {
     const map = new Map<string, OrderTrackingMilestone>();
@@ -92,30 +115,34 @@ export const TrackingProgressionStepper = React.memo(function TrackingProgressio
     switch (key) {
       case 'PLACED':
         return isCod
-          ? 'Order confirmed via Cash on Delivery (COD)'
-          : 'Payment verified via Razorpay Secure UPI';
+          ? 'Order placed via Cash on Delivery (COD)'
+          : 'Order placed & payment verified';
       case 'ACCEPTED':
-        return 'Affordz Atelier partner confirmed garments';
+      case 'PACKING':
       case 'PREPARING':
-        return 'Hand-pressed, steamed & quality inspected';
       case 'READY_FOR_PICKUP':
-        return 'Sealed in tamper-evident breathable sleeve';
       case 'ASSIGNED':
-        return driverName ? `${driverName} assigned by dispatch` : 'Assigned to delivery partner';
+        return 'Order is getting packed and prepared for dispatch';
       case 'PICKED_UP':
-        return 'Delivery partner collected garments from pickup hub';
       case 'OUT_FOR_DELIVERY':
         return locality
-          ? `On the way to ${locality}`
-          : 'On the way to your doorstep now';
+          ? `Out for delivery to ${locality}`
+          : 'Out for delivery to your doorstep';
+      case 'TRY_AND_BUY':
+        return '10-minute Try & Buy doorstep fitting in progress';
       case 'DELIVERED':
-        return 'Handed over at doorstep & size verified';
+        return 'Order delivered at your doorstep';
+      case 'RETURNING':
+      case 'RETURNED':
+        return activeStatus === 'RETURNING'
+          ? 'Return items collected. Partner returning items to store'
+          : 'Order return completed and reconciled';
       default:
         return '';
     }
   };
 
-  const activeDef = MILESTONE_DEFINITIONS[currentStatusIndex] || MILESTONE_DEFINITIONS[0];
+  const activeDef = activeMilestones[currentStatusIndex] || activeMilestones[0];
   const ActiveIcon = activeDef.icon;
 
   return (
@@ -145,7 +172,7 @@ export const TrackingProgressionStepper = React.memo(function TrackingProgressio
               textTransform: 'uppercase',
             }}
           >
-            DROP PROGRESSION • STAGE {Math.min(currentStatusIndex + 1, 8)} OF 8
+            DROP PROGRESSION • STAGE {Math.min(currentStatusIndex + 1, activeMilestones.length)} OF {activeMilestones.length}
           </Text>
 
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
@@ -178,9 +205,9 @@ export const TrackingProgressionStepper = React.memo(function TrackingProgressio
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
               <Text style={{ fontSize: 13.5, fontWeight: '900', color: '#111111' }}>
                 {activeStatus === 'CANCELLED'
-                  ? 'Order Cancelled'
+                  ? 'Order cancelled'
                   : activeStatus === 'FAILED'
-                    ? 'Payment Failed / Expired'
+                    ? 'Payment failed / expired'
                     : activeDef.title}
               </Text>
               <View
@@ -198,7 +225,7 @@ export const TrackingProgressionStepper = React.memo(function TrackingProgressio
                     color: activeStatus === 'DELIVERED' ? '#15803D' : '#C2410C',
                   }}
                 >
-                  {activeStatus.replace(/_/g, ' ')}
+                  {getCustomerOrderStatusLabel(activeStatus)}
                 </Text>
               </View>
             </View>
@@ -208,9 +235,9 @@ export const TrackingProgressionStepper = React.memo(function TrackingProgressio
           </View>
         </View>
 
-        {/* Compact 8-Segment Progress Bar */}
+        {/* Compact Segment Progress Bar */}
         <View style={{ flexDirection: 'row', gap: 4 }}>
-          {MILESTONE_DEFINITIONS.map((step, idx) => {
+          {activeMilestones.map((step, idx) => {
             const st = getStepStatus(idx);
             return (
               <View
@@ -232,12 +259,12 @@ export const TrackingProgressionStepper = React.memo(function TrackingProgressio
         </View>
       </Pressable>
 
-      {/* Expanded 8-Stage Dropdown Timeline */}
+      {/* Expanded Stage Dropdown Timeline */}
       {isExpanded && (
         <View style={{ marginTop: 16, paddingTop: 14, borderTopWidth: 1, borderTopColor: '#F4F1EA' }}>
-          {MILESTONE_DEFINITIONS.map((step, idx) => {
+          {activeMilestones.map((step, idx) => {
             const stepStatus = getStepStatus(idx);
-            const isLast = idx === MILESTONE_DEFINITIONS.length - 1;
+            const isLast = idx === activeMilestones.length - 1;
             const Icon = step.icon;
             const desc = getMilestoneDescription(step.key);
             const liveMilestone = backendMilestoneMap.get(step.key);

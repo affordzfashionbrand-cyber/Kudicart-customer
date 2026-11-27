@@ -4,6 +4,7 @@ import { Package, CheckCircle2, ChevronRight, FileText } from 'lucide-react-nati
 import { AnimatedPressable } from '@/components/common/animated-pressable';
 import { LazyImage } from '@/components/common/lazy-image';
 import { OrderModel, OrderStatus } from '@/services/api';
+import { getCustomerOrderStatusLabel } from '@/contracts/order-contracts';
 
 export interface OrderListCardProps {
   order: OrderModel;
@@ -46,7 +47,7 @@ export const OrderListCard = React.memo(function OrderListCard({
               textTransform: 'uppercase',
             }}
           >
-            DELIVERED
+            ORDER DELIVERED
           </Text>
         </View>
       );
@@ -76,7 +77,7 @@ export const OrderListCard = React.memo(function OrderListCard({
             textTransform: 'uppercase',
           }}
         >
-          {status.replace(/_/g, ' ')}
+          {order.customerStatusLabel || getCustomerOrderStatusLabel(status)}
         </Text>
       </View>
     );

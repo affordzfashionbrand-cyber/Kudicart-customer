@@ -1,7 +1,8 @@
 import React from 'react';
 import { View, Text } from 'react-native';
-import { CheckCircle2, Zap, Package, Clock } from 'lucide-react-native';
+import { CheckCircle2, Zap, Package, Clock, RotateCcw, Sparkles, XCircle } from 'lucide-react-native';
 import { OrderStatus } from '@/services/api';
+import { getCustomerOrderStatusLabel } from '@/contracts/order-contracts';
 
 export interface TrackingEtaCardProps {
   isDarkStore: boolean;
@@ -90,7 +91,7 @@ export const TrackingEtaCard = React.memo(function TrackingEtaCard({
               letterSpacing: 0.8,
             }}
           >
-            {activeStatus.replace(/_/g, ' ')}
+            {getCustomerOrderStatusLabel(activeStatus)}
           </Text>
         </View>
       </View>
@@ -100,12 +101,48 @@ export const TrackingEtaCard = React.memo(function TrackingEtaCard({
         <View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <CheckCircle2 size={30} color="#15803D" />
-            <Text style={{ fontSize: 26, fontWeight: '900', color: '#15803D', letterSpacing: -0.5 }}>
-              DELIVERED.
+            <Text style={{ fontSize: 24, fontWeight: '900', color: '#15803D', letterSpacing: -0.5 }}>
+              ORDER DELIVERED.
             </Text>
           </View>
           <Text style={{ fontSize: 12.5, color: '#6B6667', marginTop: 4, lineHeight: 17 }}>
-            Garment handover complete at your doorstep. Size verified and accepted.
+            {stageHeadline || 'Garment handover complete at your doorstep.'}
+          </Text>
+        </View>
+      ) : activeStatus === 'TRY_AND_BUY' ? (
+        <View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Sparkles size={28} color="#C2410C" />
+            <Text style={{ fontSize: 22, fontWeight: '900', color: '#C2410C', letterSpacing: -0.4 }}>
+              TRY &amp; BUY ACTIVE
+            </Text>
+          </View>
+          <Text style={{ fontSize: 12.5, fontWeight: '700', color: '#4A4A4A', marginTop: 4, lineHeight: 17 }}>
+            {stageHeadline}
+          </Text>
+        </View>
+      ) : activeStatus === 'RETURNING' || activeStatus === 'RETURNED' ? (
+        <View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <RotateCcw size={28} color="#B45309" />
+            <Text style={{ fontSize: 22, fontWeight: '900', color: '#B45309', letterSpacing: -0.4 }}>
+              ORDER RETURN
+            </Text>
+          </View>
+          <Text style={{ fontSize: 12.5, fontWeight: '700', color: '#4A4A4A', marginTop: 4, lineHeight: 17 }}>
+            {stageHeadline}
+          </Text>
+        </View>
+      ) : activeStatus === 'CANCELLED' || activeStatus === 'FAILED' ? (
+        <View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <XCircle size={28} color="#DC2626" />
+            <Text style={{ fontSize: 22, fontWeight: '900', color: '#DC2626', letterSpacing: -0.4 }}>
+              {activeStatus === 'CANCELLED' ? 'ORDER CANCELLED' : 'ORDER FAILED'}
+            </Text>
+          </View>
+          <Text style={{ fontSize: 12.5, fontWeight: '700', color: '#4A4A4A', marginTop: 4, lineHeight: 17 }}>
+            {stageHeadline}
           </Text>
         </View>
       ) : (

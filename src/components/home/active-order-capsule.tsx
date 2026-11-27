@@ -4,19 +4,11 @@ import { useRouter } from 'expo-router';
 import { ChevronRight, Zap, Package } from 'lucide-react-native';
 import { AnimatedPressable } from '@/components/common/animated-pressable';
 import { useOrderStore } from '@/store/useOrderStore';
-import { TERMINAL_ORDER_STATUSES } from '@/contracts/order-contracts';
+import {
+  TERMINAL_ORDER_STATUSES,
+  getCustomerOrderStatusLabel,
+} from '@/contracts/order-contracts';
 import { FontStyles } from '@/constants/theme';
-
-const STATUS_LABELS: Record<string, string> = {
-  PLACED: 'Order Placed',
-  ACCEPTED: 'Vendor Confirmed',
-  PREPARING: 'Preparing Drop',
-  READY_FOR_PICKUP: 'Ready for Pickup',
-  ASSIGNED: 'Rider Assigned',
-  PICKED_UP: 'Picked Up',
-  OUT_FOR_DELIVERY: 'Out for Delivery',
-  RETURNING: 'Return in Progress',
-};
 
 export interface ActiveOrderCapsuleProps {
   style?: any;
@@ -69,15 +61,16 @@ export const ActiveOrderCapsule = React.memo(function ActiveOrderCapsule({
 
   const isEnRoute =
     currentActiveOrder.status === 'PICKED_UP' ||
-    currentActiveOrder.status === 'OUT_FOR_DELIVERY';
+    currentActiveOrder.status === 'OUT_FOR_DELIVERY' ||
+    currentActiveOrder.status === 'TRY_AND_BUY';
   const isDark =
     currentActiveOrder.fulfillmentType === 'DARK_STORE' ||
     (typeof currentActiveOrder.etaMinutes === 'number' &&
       currentActiveOrder.etaMinutes > 0 &&
       currentActiveOrder.etaMinutes <= 60);
   const statusText =
-    STATUS_LABELS[currentActiveOrder.status] ||
-    String(currentActiveOrder.status || 'IN PROGRESS').replace(/_/g, ' ');
+    currentActiveOrder.customerStatusLabel ||
+    getCustomerOrderStatusLabel(currentActiveOrder.status);
   const etaLabel = isDark
     ? `${currentActiveOrder.etaMinutes && currentActiveOrder.etaMinutes > 0 ? currentActiveOrder.etaMinutes : 19}m`
     : '2-4d';

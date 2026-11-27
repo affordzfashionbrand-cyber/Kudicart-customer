@@ -92,7 +92,7 @@ export const CartTryBuySection = React.memo(function CartTryBuySection({
                 : hasMixedCart && effectiveEligible
                 ? 'Mixed bag split: Doorstep Try & Buy applies exclusively to your 19-min Dark Store items. Boutique items ship separately via standard courier.'
                 : effectiveEligible
-                ? 'Rider waits 15 mins while you try sizes. Keep what fits, return the rest on the spot!'
+                ? 'Rider waits 10 mins while you try sizes. Keep what fits, return the rest on the spot!'
                 : 'Doorstep Try & Buy is exclusive to eligible 19-minute Dark Store items. Boutique vendor orders are delivered via standard shipping with 7-day doorstep returns.'}
             </Text>
           </View>
